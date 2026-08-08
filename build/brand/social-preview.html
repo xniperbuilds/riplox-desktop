@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A101B;
+    --panel:#111A2A;
+    --ink:#E9EFF8;
+    --ink-dim:#93A2B8;
+    --ink-faint:#5E6D84;
+    --cyan:#2BE9E0;
+    --line:rgba(255,255,255,.09);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1280px;height:640px;overflow:hidden}
+  body{background:var(--bg);font-family:'Inter',sans-serif;color:var(--ink);position:relative}
+
+  .glow{
+    position:absolute;inset:0;
+    background:
+      radial-gradient(58% 62% at 76% 26%, rgba(43,233,224,.17) 0%, rgba(43,233,224,0) 63%),
+      radial-gradient(52% 55% at 14% 88%, rgba(70,110,255,.14) 0%, rgba(70,110,255,0) 66%),
+      radial-gradient(120% 110% at 50% 0%, #142033 0%, #0A101B 60%);
+  }
+  .grid{
+    position:absolute;inset:0;opacity:.5;
+    background-image:
+      linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
+    background-size:64px 64px;
+    -webkit-mask-image:radial-gradient(95% 80% at 50% 25%,#000 15%,transparent 80%);
+            mask-image:radial-gradient(95% 80% at 50% 25%,#000 15%,transparent 80%);
+  }
+
+  .canvas{
+    position:relative;width:1280px;height:640px;
+    display:flex;align-items:center;gap:66px;
+    padding:0 104px;
+  }
+
+  /* icon */
+  .tile{
+    position:relative;flex:none;width:250px;height:250px;border-radius:56px;
+    transform:rotateX(8deg) rotateY(-12deg);
+    box-shadow:
+      -16px 22px 0 -11px #070C15,
+      -28px 46px 56px rgba(0,0,0,.68),
+      0 0 74px rgba(43,233,224,.16);
+  }
+  .tile img{width:100%;height:100%;border-radius:56px;display:block}
+  .tile::after{
+    content:"";position:absolute;inset:0;border-radius:56px;
+    box-shadow:inset 3px 3px 0 rgba(233,239,248,.20), inset -2px -3px 0 rgba(0,0,0,.4);
+  }
+
+  .copy{flex:1;min-width:0}
+
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:10px;
+    padding:8px 16px;border-radius:999px;
+    border:1px solid rgba(43,233,224,.32);
+    background:rgba(43,233,224,.07);
+    font-family:'JetBrains Mono',monospace;
+    font-size:14px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--cyan);
+  }
+  .eyebrow i{width:8px;height:8px;border-radius:50%;background:var(--cyan);box-shadow:0 0 12px var(--cyan);display:block}
+
+  h1{
+    margin-top:22px;
+    font-family:'Sora',sans-serif;font-weight:800;
+    font-size:74px;line-height:1.02;letter-spacing:-.03em;
+  }
+  h1 span{color:var(--cyan)}
+
+  .sub{
+    margin-top:18px;font-size:23px;line-height:1.44;color:var(--ink-dim);max-width:762px;
+  }
+  .sub b{color:var(--ink);font-weight:600}
+
+  .chips{display:flex;gap:10px;margin-top:26px;flex-wrap:wrap}
+  .chip{
+    padding:9px 15px;border-radius:11px;
+    border:1px solid var(--line);
+    background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.015));
+    font-size:16px;font-weight:600;color:#C6D3E6;
+    box-shadow:0 8px 16px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.08);
+  }
+
+  .repo{
+    position:absolute;left:104px;bottom:44px;
+    font-family:'JetBrains Mono',monospace;font-size:17px;color:var(--ink-faint);
+  }
+  .repo b{color:var(--ink-dim);font-weight:500}
+</style>
+</head>
+<body>
+<div class="glow"></div>
+<div class="grid"></div>
+
+<div class="canvas">
+  <div class="tile"><img src="riplox_1024.png" alt=""></div>
+
+  <div class="copy">
+    <span class="eyebrow"><i></i>Windows 10 &amp; 11</span>
+    <h1>Riplox <span>Desktop</span></h1>
+    <p class="sub">A <b>free video downloader</b> for Windows. A thousand-plus sites,
+       4K down to MP3 — no caps, no account, nothing bundled.</p>
+    <div class="chips">
+      <span class="chip">Open source</span>
+      <span class="chip">Playlists, your pick</span>
+      <span class="chip">Clipboard + hotkey</span>
+      <span class="chip">Self-updating engine</span>
+    </div>
+  </div>
+</div>
+
+<div class="repo"><b>github.com</b>/xniperbuilds/riplox-desktop</div>
+</body>
+</html>
