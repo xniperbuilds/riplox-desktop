@@ -17,11 +17,18 @@ thousand other sites.
 | | |
 |---|---|
 | Quality | 4K, 1440p, 1080p, 720p, 480p, 360p, or MP3 audio |
-| Playlists | Queue an entire playlist or channel in one go |
+| Playlists | The whole playlist in one click, or tick only the videos you want — with a title filter, shift-click ranges, and a download button on each row |
 | Queue | Several downloads at once, with live speed and ETA |
-| Clipboard | Copy a link anywhere and the app offers to take it |
-| Cookies | Optionally use your browser's cookies for private or age-gated videos |
+| Clipboard | Copy a link anywhere and Riplox catches it, even while hidden. Optionally queue it without asking |
+| Shortcut | A global hotkey downloads whatever link you just copied, without switching windows |
+| Tray | Closing the window keeps downloads running, with progress on the taskbar button and a notification when each file lands |
+| Cookies | Firefox cookies directly, or an exported `cookies.txt` for any browser, for private or age-gated videos |
 | Library | Every finished file, with play and show-in-folder |
+
+Chrome, Edge and Brave encrypt their cookie database so that only the browser
+itself can read it (Chrome 127, July 2024). No downloader can use those cookies
+any more, so for those browsers export a `cookies.txt` instead. The app says
+which is which.
 
 ## Install
 
@@ -65,8 +72,13 @@ the app window.
 
 The interface is HTML rendered in a native window. A local server on a random
 port drives it, and every request carries a token issued at startup so nothing
-else on the machine can talk to it. Downloads are handled by `yt-dlp`, and
-merging and audio conversion by `ffmpeg`. Both ship with the app.
+else on the machine can drive it. The single exception is the call that raises
+the window: launching Riplox while it is hidden in the tray hands the running
+copy back instead of starting a second one, and a starting copy cannot know the
+token. That endpoint only shows a window.
+
+Downloads are handled by `yt-dlp`, and merging and audio conversion by
+`ffmpeg`. Both ship with the app.
 
 Settings, history and the updatable engine live in
 `%LOCALAPPDATA%\RiploxDesktop`.

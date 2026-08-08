@@ -1,10 +1,13 @@
 # Shipped binaries - fetched with build\fetch_binaries.py, ~180 MB
 bin/
 
-# Build output
+# Build output. PyInstaller writes its working files under build\<specname>\;
+# they are rebuilt every time, weigh ~24 MB, and the .toc/xref files record the
+# absolute paths of the machine that built them.
 dist/
 dist_installer/
 build/work/
+build/riplox/
 *.spec.bak
 
 # Python
