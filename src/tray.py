@@ -135,6 +135,12 @@ class TaskbarProgress:
 # Tray icon + notifications
 # --------------------------------------------------------------------------
 
+# The shell reports a click on the notification itself as its own message.
+# pystray only looks for clicks on the icon, so without this a notification is
+# something you can read but not act on.
+NIN_BALLOONUSERCLICK = 0x0405       # WM_USER + 5
+
+
 class Tray:
     def __init__(self, manager, icon_path: Path, on_show=None, on_quit=None):
         self.manager = manager
@@ -164,9 +170,29 @@ class Tray:
                 pystray.MenuItem("Quit", self._quit),
             )
             self.icon = pystray.Icon("riplox", image, "Riplox", menu)
+            self._hook_notification_click()
             self.icon.run()
         except Exception:
             self.icon = None
+
+    def _hook_notification_click(self):
+        """Make clicking a notification open the window."""
+        try:
+            handlers = self.icon._message_handlers
+            for message, handler in list(handlers.items()):
+                if handler == self.icon._on_notify:
+                    handlers[message] = self._notification_handler(handler)
+                    break
+        except Exception:
+            pass        # a newer pystray may not look like this; not fatal
+
+    def _notification_handler(self, original):
+        def handle(wparam, lparam):
+            if lparam == NIN_BALLOONUSERCLICK:
+                self._show()
+                return None
+            return original(wparam, lparam)
+        return handle
 
     def stop(self):
         self._running = False

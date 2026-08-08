@@ -7,6 +7,7 @@ instead (useful while working on the interface).
 """
 
 import ctypes
+import json
 import logging
 import os
 import re
@@ -16,6 +17,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.request
 import webbrowser
 from ctypes import wintypes
 from pathlib import Path
@@ -59,6 +61,12 @@ def _guard():
     host = (request.host or "").split(":")[0]
     if host not in ("127.0.0.1", "localhost"):
         return jsonify({"ok": False, "error": "Blocked."}), 403
+
+    # A second copy of Riplox starting up asks the running one to show itself.
+    # It cannot know this run's token, and all the call does is raise a window,
+    # so it is the one endpoint that does not need one.
+    if request.path == "/api/show":
+        return None
 
     if request.headers.get("X-Riplox-Token") != TOKEN:
         return jsonify({"ok": False, "error": "Blocked."}), 403
@@ -312,6 +320,13 @@ def api_clipboard_dismiss():
     return jsonify({"ok": True})
 
 
+@app.post("/api/show")
+def api_show():
+    """Raise the window - used by the tray, and by a second copy on startup."""
+    show_window()
+    return jsonify({"ok": True})
+
+
 # --------------------------------------------------------------------------
 # Clipboard (Win32, no extra dependency)
 # --------------------------------------------------------------------------
@@ -507,6 +522,83 @@ watcher = ClipboardWatcher(manager)
 
 
 # --------------------------------------------------------------------------
+# One copy at a time
+# --------------------------------------------------------------------------
+
+# Closing the window only hides it, so it is easy to launch Riplox again
+# believing the first copy is gone. Two copies means two queues, two clipboard
+# watchers, two tray icons, and a global shortcut owned by whichever started
+# first - which looks exactly like a shortcut that downloads into nowhere.
+
+MUTEX_NAME = "Local\\RiploxDesktop.SingleInstance"
+ERROR_ALREADY_EXISTS = 183
+_mutex = None
+
+
+def instance_file() -> Path:
+    return engine.data_dir() / "instance.json"
+
+
+def show_window() -> None:
+    """Bring the window back from the tray. Safe to call from any thread."""
+    if _window is None:
+        return
+    try:
+        _window.show()
+        _window.restore()
+    except Exception:
+        pass
+
+
+def claim_single_instance() -> bool:
+    """
+    True when this is the only copy. Otherwise the copy already running is
+    asked to show itself and this one should quit.
+    """
+    global _mutex
+    if os.name != "nt":
+        return True
+
+    kernel32 = ctypes.windll.kernel32
+    kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, wintypes.BOOL,
+                                      wintypes.LPCWSTR]
+    kernel32.CreateMutexW.restype = wintypes.HANDLE
+
+    # Held for the life of the process; Windows releases it when we exit, even
+    # on a crash, so a dead copy never blocks the next start.
+    _mutex = kernel32.CreateMutexW(None, True, MUTEX_NAME)
+    if kernel32.GetLastError() != ERROR_ALREADY_EXISTS:
+        return True
+
+    _wake_running_copy()
+    return False
+
+
+def _wake_running_copy() -> None:
+    try:
+        with open(instance_file(), "r", encoding="utf-8") as fh:
+            port = int(json.load(fh)["port"])
+    except (OSError, ValueError, TypeError, KeyError):
+        return          # no port to talk to; quitting quietly is still right
+
+    try:
+        request_ = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/show", data=b"", method="POST")
+        urllib.request.urlopen(request_, timeout=2).close()
+    except OSError:
+        pass
+
+
+def publish_port(port: int) -> None:
+    """Leave the port where the next copy can find it."""
+    try:
+        with open(instance_file(), "w", encoding="utf-8") as fh:
+            json.dump({"port": port, "pid": os.getpid()}, fh)
+    except OSError:
+        pass
+
+
+# --------------------------------------------------------------------------
 # Boot
 # --------------------------------------------------------------------------
 
@@ -531,11 +623,7 @@ def start_tray(window) -> None:
     import tray
 
     def show():
-        try:
-            window.show()
-            window.restore()
-        except Exception:
-            pass
+        show_window()
 
     def quit_app():
         try:
@@ -556,6 +644,10 @@ def start_tray(window) -> None:
 def main() -> None:
     global _window
     dev = "--dev" in sys.argv or os.environ.get("RIPLOX_DEV") == "1"
+
+    if not dev and not claim_single_instance():
+        return          # the copy already running has been raised instead
+
     port = 5010 if dev else free_port()
 
     if dev:
@@ -565,6 +657,7 @@ def main() -> None:
         return
 
     threading.Thread(target=serve, args=(port,), daemon=True).start()
+    publish_port(port)
     watcher.start()
 
     try:

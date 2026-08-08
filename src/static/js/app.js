@@ -605,6 +605,14 @@
         } else if (label && res.hotkeyLabel) {
           label.textContent = res.hotkeyLabel;
         }
+
+        // The shortcut is the fastest way to use Riplox, so the first screen
+        // shows it instead of leaving it buried in Settings.
+        var tip = $("hotkeyTip"), keys = $("hotkeyTipKeys");
+        if (tip && keys && res.hotkey === "on" && res.hotkeyLabel) {
+          keys.textContent = res.hotkeyLabel;
+          tip.hidden = false;
+        }
       }
 
       if (!$("view-capture").classList.contains("is-active")) return;
