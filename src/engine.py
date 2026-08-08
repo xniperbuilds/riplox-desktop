@@ -130,6 +130,8 @@ DEFAULT_SETTINGS = {
     "prefer_h264": True,             # play-anywhere codec over raw quality
     "subfolder_per_site": False,
     "auto_paste": True,              # watch clipboard for links
+    "auto_download": False,          # queue a copied link without asking
+    "hotkey": True,                  # Ctrl+Shift+D from anywhere
     "write_thumbnail": False,
 }
 
@@ -536,11 +538,22 @@ class DownloadManager:
 
     # -- public API ------------------------------------------------------
 
+    ACTIVE = ("queued", "starting", "downloading", "converting")
+
     def add(self, url, title="", thumbnail="", quality="best", uploader="") -> Job:
-        job = Job(url, title, thumbnail, quality, uploader)
         with self._lock:
+            # The same link at the same quality writes the same file, so two
+            # copies running at once would fight over it. Hand back the job
+            # that is already doing the work.
+            for existing in self._jobs.values():
+                if (existing.url == url and existing.quality == quality
+                        and existing.status in self.ACTIVE):
+                    return existing
+
+            job = Job(url, title, thumbnail, quality, uploader)
             self._jobs[job.id] = job
             self._order.append(job.id)
+
         self._wake.set()
         return job
 

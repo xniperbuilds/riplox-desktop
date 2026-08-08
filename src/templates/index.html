@@ -216,10 +216,32 @@
       <div class="field">
         <div class="field-text">
           <label>Watch clipboard</label>
-          <span>Offer to use a link as soon as you copy it.</span>
+          <span>Offer to use a link as soon as you copy it, even while Riplox
+                sits in the background.</span>
         </div>
         <button class="toggle {% if settings.auto_paste %}on{% endif %}"
                 id="setAutoPaste" role="switch"><i></i></button>
+      </div>
+
+      <div class="field">
+        <div class="field-text">
+          <label>Download copied links instantly</label>
+          <span>Skip the preview — copy a link and it starts downloading at
+                your default quality. Needs clipboard watching on.</span>
+        </div>
+        <button class="toggle {% if settings.auto_download %}on{% endif %}"
+                id="setAutoDownload" role="switch"><i></i></button>
+      </div>
+
+      <div class="field">
+        <div class="field-text">
+          <label>Shortcut: <code class="inline" id="hotkeyLabel">checking…</code></label>
+          <span id="hotkeyNote">Copy a link in any program and press it —
+                Riplox downloads it without you switching windows. Changing
+                this takes effect after you restart Riplox.</span>
+        </div>
+        <button class="toggle {% if settings.hotkey %}on{% endif %}"
+                id="setHotkey" role="switch"><i></i></button>
       </div>
 
       <div class="field">

@@ -29,7 +29,7 @@ datas = [
 # Anything pulled in transitively that this app never touches. Left in, these
 # add hundreds of MB and have repeatedly caused boot crashes in past builds.
 excludes = [
-    "numpy", "pandas", "matplotlib", "scipy", "PIL", "cv2",
+    "numpy", "pandas", "matplotlib", "scipy", "cv2",
     "tkinter", "PyQt5", "PyQt6", "PySide2", "PySide6", "wx",
     "notebook", "IPython", "pytest", "sqlite3", "test", "unittest",
     "pydoc_data", "lib2to3", "distutils",
@@ -42,9 +42,11 @@ a = Analysis(
     datas=datas,
     hiddenimports=[
         "engine",
+        "tray",
         "clr_loader",
         "webview.platforms.edgechromium",
         "webview.platforms.winforms",
+        "pystray._win32",
     ] + webview_hidden,
     hookspath=[],
     runtime_hooks=[],

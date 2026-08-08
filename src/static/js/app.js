@@ -14,6 +14,8 @@
   var lastClip = "";
   var dismissedClip = "";
   var rows = {};           // job id -> cached DOM row, patched in place
+  var lastAutoCount = null;
+  var hotkeyWarned = false;
 
   var $ = function (id) { return document.getElementById(id); };
 
@@ -525,11 +527,14 @@
       $(id).classList.toggle("on", on);
       var patch = {}; patch[key] = on;
       saveSetting(patch);
-      if (key === "auto_paste") on ? startClipboardWatch() : stopClipboardWatch();
+      if (key === "auto_paste" && !on) $("clipHint").hidden = true;
+      if (key === "hotkey") toast("Restart Riplox for this to take effect");
     });
   }
   bindToggle("setH264", "prefer_h264");
   bindToggle("setSubfolder", "subfolder_per_site");
+  bindToggle("setAutoDownload", "auto_download");
+  bindToggle("setHotkey", "hotkey");
   bindToggle("setAutoPaste", "auto_paste");
   bindToggle("setThumb", "write_thumbnail");
 
@@ -578,13 +583,36 @@
   }
 
   function checkClipboard() {
-    if (!$("view-capture").classList.contains("is-active")) return;
     api("/api/clipboard").then(function (res) {
-      var text = (res.text || "").trim();
-      if (text === lastClip) return;
-      lastClip = text;
+      // Instant downloads are queued by the app itself; just say so.
+      if (typeof res.autoCount === "number") {
+        if (lastAutoCount !== null && res.autoCount > lastAutoCount) {
+          toast("Copied link queued", "good");
+          pollJobs();
+        }
+        lastAutoCount = res.autoCount;
+      }
 
-      if (!URL_RE.test(text) || text === dismissedClip || text === $("urlInput").value.trim()) {
+      if (!hotkeyWarned && res.hotkey && res.hotkey !== "off") {
+        hotkeyWarned = true;
+        var label = $("hotkeyLabel");
+        var note = $("hotkeyNote");
+        if (res.hotkey === "taken" && note) {
+          note.innerHTML = '<b class="warn">Every shortcut Riplox tried is ' +
+            'already used by another program.</b> Use the Paste button, or ' +
+            'close whatever owns those keys and restart Riplox.';
+          if (label) label.textContent = "unavailable";
+        } else if (label && res.hotkeyLabel) {
+          label.textContent = res.hotkeyLabel;
+        }
+      }
+
+      if (!$("view-capture").classList.contains("is-active")) return;
+
+      var text = (res.pending || "").trim();
+      lastClip = text || (res.text || "").trim();
+
+      if (!text || text === dismissedClip || text === $("urlInput").value.trim()) {
         $("clipHint").hidden = true;
         return;
       }
@@ -597,6 +625,7 @@
     $("urlInput").value = lastClip;
     dismissedClip = lastClip;
     $("clipHint").hidden = true;
+    api("/api/clipboard/dismiss", {});
     analyze(lastClip);
   });
 
@@ -627,5 +656,7 @@
 
   $("urlInput").focus();
   pollJobs();
-  if (settings.auto_paste) startClipboardWatch();
+  // Always polling: even with clipboard watching off, this is how the window
+  // hears about downloads the global shortcut started.
+  startClipboardWatch();
 })();

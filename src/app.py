@@ -9,12 +9,15 @@ instead (useful while working on the interface).
 import ctypes
 import logging
 import os
+import re
 import secrets
 import socket
 import subprocess
 import sys
 import threading
+import time
 import webbrowser
+from ctypes import wintypes
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request
@@ -22,7 +25,7 @@ from flask import Flask, jsonify, render_template, request
 import engine
 
 APP_TITLE = "Riplox"
-VERSION = "1.0.1"
+VERSION = "1.0.0"
 
 
 def resource_dir() -> Path:
@@ -39,6 +42,7 @@ app.config["JSON_SORT_KEYS"] = False
 
 manager = engine.DownloadManager()
 _window = None
+tray_app = None
 
 # The UI talks to a real HTTP server on localhost. Anything else running on
 # this machine - including a web page open in the user's browser - can reach
@@ -114,7 +118,7 @@ def api_add():
     if not items:
         return jsonify({"ok": False, "error": "Nothing to download."}), 400
 
-    added = []
+    added = set()
     for item in items[:200]:
         url = (item.get("url") or "").strip()
         if not url:
@@ -126,7 +130,9 @@ def api_add():
             uploader=item.get("uploader", ""),
             quality=quality,
         )
-        added.append(job.id)
+        # add() returns the running job for a duplicate, so a set keeps the
+        # count honest instead of claiming we queued the same thing twice.
+        added.add(job.id)
 
     if not added:
         return jsonify({"ok": False, "error": "No usable links found."}), 400
@@ -282,7 +288,28 @@ def api_history_clear():
 
 @app.get("/api/clipboard")
 def api_clipboard():
-    return jsonify({"ok": True, "text": read_clipboard()})
+    """
+    The pending link is found by a background thread, not by this call, so
+    clipboard watching keeps working while the app sits on another tab or
+    minimised.
+    """
+    return jsonify({
+        "ok": True,
+        "text": read_clipboard(),
+        "pending": watcher.pending,
+        "autoCount": watcher.auto_count,
+        "hotkey": watcher.hotkey_state,
+        "hotkeyLabel": watcher.hotkey_label,
+        # The window only hides on close when there is a tray icon to get it
+        # back from, so the UI needs to know whether one exists.
+        "tray": tray_app is not None and tray_app.icon is not None,
+    })
+
+
+@app.post("/api/clipboard/dismiss")
+def api_clipboard_dismiss():
+    watcher.pending = ""
+    return jsonify({"ok": True})
 
 
 # --------------------------------------------------------------------------
@@ -341,6 +368,145 @@ def read_clipboard() -> str:
 
 
 # --------------------------------------------------------------------------
+# Clipboard watching and the global shortcut
+# --------------------------------------------------------------------------
+
+URL_RE = re.compile(r"^https?://\S+$", re.IGNORECASE)
+
+MOD_ALT = 0x0001
+MOD_CONTROL = 0x0002
+MOD_SHIFT = 0x0004
+MOD_NOREPEAT = 0x4000
+WM_HOTKEY = 0x0312
+HOTKEY_ID = 1
+
+# Any of these combinations may already belong to another program, so try
+# them in order and use the first one Windows actually grants us.
+HOTKEY_CHOICES = [
+    (MOD_CONTROL | MOD_SHIFT, 0x44, "Ctrl + Shift + D"),
+    (MOD_CONTROL | MOD_ALT, 0x44, "Ctrl + Alt + D"),
+    (MOD_CONTROL | MOD_SHIFT, 0x59, "Ctrl + Shift + Y"),
+    (MOD_CONTROL | MOD_ALT, 0x59, "Ctrl + Alt + Y"),
+]
+
+
+class ClipboardWatcher:
+    """
+    Polls the clipboard on its own thread and, optionally, queues what it
+    finds. Also owns the global shortcut, because both do the same job: turn
+    a copied link into a download without the user opening the window.
+    """
+
+    def __init__(self, download_manager):
+        self.manager = download_manager
+        self.pending = ""           # link offered to the UI, not yet used
+        self.auto_count = 0         # bumped whenever we queue something
+        self.hotkey_state = "off"   # off | on | taken
+        self.hotkey_label = ""      # the combination we actually got
+        self._last_seen = ""
+        self._handled = set()
+
+    def start(self):
+        threading.Thread(target=self._clip_loop, daemon=True).start()
+        threading.Thread(target=self._hotkey_loop, daemon=True).start()
+
+    # -- clipboard -------------------------------------------------------
+
+    def _clip_loop(self):
+        while True:
+            try:
+                self._check()
+            except Exception:
+                pass          # a watcher must never take the app down
+            time.sleep(1.0)
+
+    def _check(self):
+        settings = engine.load_settings()
+        if not settings.get("auto_paste"):
+            self.pending = ""
+            return
+
+        text = (read_clipboard() or "").strip()
+        if not text or text == self._last_seen:
+            return
+        self._last_seen = text
+
+        if not URL_RE.match(text) or text in self._handled:
+            return
+
+        if settings.get("auto_download"):
+            self._queue(text, settings)
+        else:
+            self.pending = text
+
+    def _queue(self, url, settings=None):
+        settings = settings or engine.load_settings()
+        self._handled.add(url)
+        if len(self._handled) > 200:
+            self._handled.clear()
+
+        self.manager.add(url, title=url,
+                         quality=settings.get("default_quality", "best"))
+        self.auto_count += 1
+        self.pending = ""
+
+    # -- global shortcut -------------------------------------------------
+
+    def _hotkey_loop(self):
+        if os.name != "nt":
+            return
+        if not engine.load_settings().get("hotkey", True):
+            return
+
+        user32 = ctypes.windll.user32
+        user32.RegisterHotKey.argtypes = [wintypes.HWND, ctypes.c_int,
+                                          wintypes.UINT, wintypes.UINT]
+        user32.RegisterHotKey.restype = wintypes.BOOL
+        user32.GetMessageW.argtypes = [ctypes.POINTER(wintypes.MSG),
+                                       wintypes.HWND, wintypes.UINT, wintypes.UINT]
+        user32.GetMessageW.restype = ctypes.c_int
+
+        for mods, key, label in HOTKEY_CHOICES:
+            if user32.RegisterHotKey(None, HOTKEY_ID, mods | MOD_NOREPEAT, key):
+                self.hotkey_state = "on"
+                self.hotkey_label = label
+                break
+        else:
+            # Every candidate is spoken for by some other program.
+            self.hotkey_state = "taken"
+            return
+        msg = wintypes.MSG()
+        while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
+            if msg.message == WM_HOTKEY:
+                try:
+                    self._on_hotkey()
+                except Exception:
+                    pass
+
+    def _on_hotkey(self):
+        text = (read_clipboard() or "").strip()
+        if not text:
+            self._announce("Nothing to download", "Copy a video link first.")
+            return
+        if not URL_RE.match(text):
+            self._announce("Not a link", "What you copied is not a web address.")
+            return
+
+        # The shortcut is an explicit instruction, so it downloads even when
+        # the auto-download setting is off.
+        self._handled.discard(text)
+        self._queue(text)
+        self._announce("Riplox", "Download started.")
+
+    def _announce(self, title, message):
+        if tray_app is not None:
+            tray_app.notify(title, message)
+
+
+watcher = ClipboardWatcher(manager)
+
+
+# --------------------------------------------------------------------------
 # Boot
 # --------------------------------------------------------------------------
 
@@ -359,6 +525,34 @@ def serve(port: int, host: str = "127.0.0.1") -> None:
     make_server(host, port, app, threaded=True).serve_forever()
 
 
+def start_tray(window) -> None:
+    """Notification-area icon, notifications and taskbar progress."""
+    global tray_app
+    import tray
+
+    def show():
+        try:
+            window.show()
+            window.restore()
+        except Exception:
+            pass
+
+    def quit_app():
+        try:
+            window.destroy()
+        except Exception:
+            pass
+        os._exit(0)
+
+    tray_app = tray.Tray(
+        manager,
+        icon_path=BASE / "static" / "img" / "riplox.png",
+        on_show=show,
+        on_quit=quit_app,
+    )
+    tray_app.start()
+
+
 def main() -> None:
     global _window
     dev = "--dev" in sys.argv or os.environ.get("RIPLOX_DEV") == "1"
@@ -366,10 +560,12 @@ def main() -> None:
 
     if dev:
         print(f"Riplox dev server: http://127.0.0.1:{port}")
+        watcher.start()
         serve(port)
         return
 
     threading.Thread(target=serve, args=(port,), daemon=True).start()
+    watcher.start()
 
     try:
         import webview
@@ -387,7 +583,19 @@ def main() -> None:
         background_color="#0A101B",
         text_select=False,
     )
-    webview.start()
+
+    # Closing the window hides it instead of ending the app, so downloads and
+    # the global shortcut keep working. Quit lives in the tray menu.
+    def on_closing():
+        if tray_app is not None and tray_app.icon is not None:
+            _window.hide()
+            tray_app.notify("Riplox is still running",
+                            "Downloads continue. Quit from the tray icon.")
+            return False
+        return True
+
+    _window.events.closing += on_closing
+    webview.start(start_tray, _window)
 
 
 if __name__ == "__main__":
