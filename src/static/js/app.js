@@ -107,7 +107,7 @@
 
     $("analyzeError").hidden = true;
     $("preview").hidden = true;
-    $("playlistBox").hidden = true;
+    $("playlistWrap").hidden = true;
     setBusy(true);
 
     api("/api/analyze", { url: url }).then(function (res) {
@@ -165,19 +165,207 @@
         '" data-q="' + q + '">' + esc(labels[q] || q) + "</button>";
     }).join("");
 
-    $("downloadBtn").textContent = isList
-      ? "Download all " + info.count
-      : "Download";
-
     $("preview").hidden = false;
 
     if (isList) {
-      $("playlistBox").innerHTML = info.entries.slice(0, 100).map(function (e, i) {
-        return "<li><b>" + (i + 1) + "</b><span>" + esc(e.title) + "</span></li>";
-      }).join("");
-      $("playlistBox").hidden = false;
+      renderPlaylist(info.entries);
+    } else {
+      selected = null;
+      $("downloadBtn").disabled = false;
+      $("downloadBtn").textContent = "Download";
     }
   }
+
+  /* ------------------------------------------------------------- playlist */
+
+  // Rows rendered at once. "Select all" still queues everything past this.
+  var PL_LIMIT = 800;
+  var plRows = [];          // entry index -> <li>
+  var selected = null;      // Set of picked indices; null for a single video
+  var lastPicked = -1;      // anchor for shift-click ranges
+  var tailIncluded = false; // are the entries past PL_LIMIT still in?
+
+  function tailCount() {
+    if (!tailIncluded || !current || !current.entries) return 0;
+    return Math.max(0, current.entries.length - PL_LIMIT);
+  }
+
+  function renderPlaylist(entries) {
+    var shown = Math.min(entries.length, PL_LIMIT);
+    selected = new Set();
+    lastPicked = -1;
+    // Entries past the render limit ride along with Select all. They only drop
+    // when Select all is switched off - unticking one visible row must not
+    // silently take a hundred others with it.
+    tailIncluded = entries.length > shown;
+
+    var html = [];
+    for (var i = 0; i < shown; i++) {
+      selected.add(i);
+      html.push(
+        '<li data-i="' + i + '">' +
+          '<input type="checkbox" class="pl-check" checked>' +
+          "<b>" + (i + 1) + "</b>" +
+          "<span>" + esc(entries[i].title) + "</span>" +
+          "<em>" + esc(fmtDuration(entries[i].duration)) + "</em>" +
+          '<button type="button" class="pl-get" title="Download just this one">&#8595;</button>' +
+        "</li>");
+    }
+
+    var box = $("playlistBox");
+    box.innerHTML = html.join("");
+    plRows = Array.prototype.slice.call(box.children);
+
+    $("plFilter").value = "";
+    $("playlistWrap").hidden = false;
+    updateSelectionUi();
+  }
+
+  function visibleRows() {
+    return plRows.filter(function (li) { return !li.classList.contains("is-hidden"); });
+  }
+
+  function setPicked(i, on) {
+    var li = plRows[i];
+    if (!li) return;
+    if (on) selected.add(i); else selected.delete(i);
+    li.querySelector(".pl-check").checked = on;
+    li.classList.toggle("is-off", !on);
+  }
+
+  function updateSelectionUi() {
+    if (!selected || !current || !current.entries) return;
+
+    var total = current.entries.length;
+    var count = selected.size + tailCount();
+
+    var rows = visibleRows();
+    var pickedHere = rows.filter(function (li) {
+      return selected.has(parseInt(li.dataset.i, 10));
+    }).length;
+
+    $("plAll").checked = rows.length > 0 && pickedHere === rows.length;
+    $("plAll").indeterminate = pickedHere > 0 && pickedHere < rows.length;
+    $("plCount").textContent = count + " of " + total + " selected";
+
+    var btn = $("downloadBtn");
+    btn.disabled = count === 0;
+    btn.textContent = count === 0 ? "Nothing selected"
+      : count === total ? "Download all " + total
+      : "Download " + count + " selected";
+
+    updateNote(total);
+  }
+
+  // Two things the count alone cannot say: rows that were never drawn, and
+  // picked rows the filter is currently hiding. Both would otherwise make the
+  // button disagree with what is on screen.
+  function updateNote(total) {
+    var shown = Math.min(total, PL_LIMIT);
+    var lines = [];
+
+    if (total > shown) {
+      lines.push("Showing the first " + shown + " of " + total + ". The other " +
+        (total - shown) + (tailIncluded ? " are included." : " are not selected."));
+    }
+
+    var buried = plRows.filter(function (li) {
+      return li.classList.contains("is-hidden") &&
+             selected.has(parseInt(li.dataset.i, 10));
+    }).length;
+    if (buried) {
+      lines.push(buried + (buried === 1 ? " selected video is" : " selected videos are") +
+        " hidden by the filter.");
+    }
+
+    var note = $("plNote");
+    note.textContent = lines.join(" ");
+    note.hidden = lines.length === 0;
+  }
+
+  function selectedItems() {
+    var all = current.entries;
+    var indices = [];
+
+    selected.forEach(function (i) { indices.push(i); });
+    indices.sort(function (a, b) { return a - b; });
+
+    if (tailIncluded) {
+      for (var i = PL_LIMIT; i < all.length; i++) indices.push(i);
+    }
+
+    return indices.map(function (i) {
+      return {
+        url: all[i].url, title: all[i].title,
+        thumbnail: all[i].thumbnail, uploader: current.uploader
+      };
+    }).filter(function (e) { return e.url; });
+  }
+
+  function queueOne(i) {
+    var entry = current.entries[i];
+    if (!entry || !entry.url) { toast("That video has no link.", "bad"); return; }
+
+    api("/api/add", {
+      items: [{
+        url: entry.url, title: entry.title,
+        thumbnail: entry.thumbnail, uploader: current.uploader
+      }],
+      quality: quality
+    }).then(function (res) {
+      if (!res.ok) { toast(res.error || "Could not queue that.", "bad"); return; }
+      toast("Queued: " + entry.title.slice(0, 42), "good");
+      plRows[i].classList.add("is-queued");
+      pollJobs();
+    });
+  }
+
+  $("playlistBox").addEventListener("click", function (e) {
+    var li = e.target.closest("li");
+    if (!li) return;
+    var i = parseInt(li.dataset.i, 10);
+
+    if (e.target.closest(".pl-get")) { queueOne(i); return; }
+
+    // The checkbox flips itself; a click anywhere else in the row toggles it.
+    var box = li.querySelector(".pl-check");
+    var on = e.target === box ? box.checked : !selected.has(i);
+
+    if (e.shiftKey && lastPicked !== -1) {
+      var from = Math.min(lastPicked, i), to = Math.max(lastPicked, i);
+      for (var k = from; k <= to; k++) {
+        if (plRows[k] && !plRows[k].classList.contains("is-hidden")) setPicked(k, on);
+      }
+    } else {
+      setPicked(i, on);
+    }
+
+    lastPicked = i;
+    updateSelectionUi();
+  });
+
+  $("plAll").addEventListener("change", function () {
+    var on = this.checked;
+    // Only what is on screen, so a filter plus Select all means "these".
+    visibleRows().forEach(function (li) {
+      setPicked(parseInt(li.dataset.i, 10), on);
+    });
+    // With no filter this really does mean the whole playlist, so the entries
+    // past the render limit follow it.
+    if (!$("plFilter").value.trim()) tailIncluded = on;
+    lastPicked = -1;
+    updateSelectionUi();
+  });
+
+  $("plFilter").addEventListener("input", function () {
+    var needle = this.value.trim().toLowerCase();
+    plRows.forEach(function (li) {
+      var title = li.querySelector("span").textContent.toLowerCase();
+      li.classList.toggle("is-hidden", needle !== "" && title.indexOf(needle) === -1);
+    });
+    lastPicked = -1;
+    updateSelectionUi();
+  });
 
   $("qualityChips").addEventListener("click", function (e) {
     var chip = e.target.closest(".chip");
@@ -190,8 +378,9 @@
 
   $("resetBtn").addEventListener("click", function () {
     current = null;
+    selected = null;
     $("preview").hidden = true;
-    $("playlistBox").hidden = true;
+    $("playlistWrap").hidden = true;
     $("urlInput").value = "";
     $("urlInput").focus();
   });
@@ -201,25 +390,21 @@
   $("downloadBtn").addEventListener("click", function () {
     if (!current) return;
 
-    var items;
-    if (current.kind === "playlist") {
-      items = current.entries.map(function (e) {
-        return { url: e.url, title: e.title, thumbnail: e.thumbnail, uploader: current.uploader };
-      }).filter(function (e) { return e.url; });
-    } else {
-      items = [{
-        url: current.url, title: current.title,
-        thumbnail: current.thumbnail, uploader: current.uploader
-      }];
-    }
+    var items = current.kind === "playlist" ? selectedItems() : [{
+      url: current.url, title: current.title,
+      thumbnail: current.thumbnail, uploader: current.uploader
+    }];
+
+    if (!items.length) { toast("Nothing selected.", "bad"); return; }
 
     api("/api/add", { items: items, quality: quality }).then(function (res) {
       if (!res.ok) { toast(res.error || "Could not queue that.", "bad"); return; }
       toast(res.added > 1 ? res.added + " videos queued" : "Queued", "good");
       $("preview").hidden = true;
-      $("playlistBox").hidden = true;
+      $("playlistWrap").hidden = true;
       $("urlInput").value = "";
       current = null;
+      selected = null;
       show("queue");
       pollJobs();
     });

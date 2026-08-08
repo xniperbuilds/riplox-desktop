@@ -99,7 +99,19 @@
       </div>
     </div>
 
-    <ul class="playlist" id="playlistBox" hidden></ul>
+    <div class="playlist-wrap" id="playlistWrap" hidden>
+      <div class="playlist-bar">
+        <label class="pl-all">
+          <input type="checkbox" id="plAll" checked>
+          <span>Select all</span>
+        </label>
+        <input type="text" id="plFilter" class="pl-filter" spellcheck="false"
+               placeholder="Filter by title…">
+        <span class="pl-count" id="plCount"></span>
+      </div>
+      <ul class="playlist" id="playlistBox"></ul>
+      <p class="pl-note" id="plNote" hidden></p>
+    </div>
   </section>
 
   <!-- ============================= QUEUE ============================= -->
