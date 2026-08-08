@@ -164,16 +164,33 @@
 
       <div class="field">
         <div class="field-text">
-          <label>Use cookies from browser</label>
-          <span>Needed for private, age-restricted, or "confirm you're not a
-                bot" videos. Close the browser first so its cookies can be
-                read. Heavy downloading on your own account can get that
-                account limited, so a spare account is safer.</span>
+          <label>Cookies file</label>
+          <span>The reliable way in for private, age-restricted, or "confirm
+                you're not a bot" videos. Export <code class="inline">cookies.txt</code>
+                with a browser extension, then pick it here — this works with
+                every browser.</span>
+          <code id="cookieFileLabel">{{ settings.cookies_file or 'Not set' }}</code>
+        </div>
+        <div class="row-gap">
+          <button class="ghost small" id="chooseCookies">Choose</button>
+          <button class="ghost small" id="clearCookies">Clear</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="field-text">
+          <label>Or read cookies from a browser</label>
+          <span><b class="warn">Chrome, Edge and Brave no longer allow this</b> —
+                since 2024 they lock their cookies to themselves, and closing
+                the browser does not help. Firefox still works. Ignored when a
+                cookies file is set above.</span>
         </div>
         <select id="setCookies">
-          {% for b in ['none', 'chrome', 'edge', 'firefox', 'brave'] %}
-          <option value="{{ b }}" {% if settings.cookies_browser == b %}selected{% endif %}>{{ b }}</option>
-          {% endfor %}
+          <option value="none" {% if settings.cookies_browser == 'none' %}selected{% endif %}>none</option>
+          <option value="firefox" {% if settings.cookies_browser == 'firefox' %}selected{% endif %}>firefox (works)</option>
+          <option value="chrome" {% if settings.cookies_browser == 'chrome' %}selected{% endif %}>chrome (blocked)</option>
+          <option value="edge" {% if settings.cookies_browser == 'edge' %}selected{% endif %}>edge (blocked)</option>
+          <option value="brave" {% if settings.cookies_browser == 'brave' %}selected{% endif %}>brave (blocked)</option>
         </select>
       </div>
 

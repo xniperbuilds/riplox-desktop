@@ -729,9 +729,17 @@ button { font-family: var(--body); }
   font-weight: 600;
   margin-bottom: 2px;
 }
-.field-text span { font-size: 12.5px; color: var(--ink-faint); }
-.field-text code {
+.field-text span { font-size: 12.5px; color: var(--ink-faint); display: block; max-width: 62ch; }
+.field-text .warn { color: var(--amber); font-weight: 600; }
+.field-text .inline {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--cyan);
+  opacity: .85;
+}
+.field-text > code {
   display: block;
+  margin-top: 4px;
   font-family: var(--mono);
   font-size: 11.5px;
   color: var(--cyan);

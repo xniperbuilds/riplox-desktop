@@ -13,6 +13,7 @@
   var analyzing = false;
   var lastClip = "";
   var dismissedClip = "";
+  var rows = {};           // job id -> cached DOM row, patched in place
 
   var $ = function (id) { return document.getElementById(id); };
 
@@ -69,6 +70,7 @@
     });
     if (active) moveUnderline(active);
 
+    if (view === "queue") pollJobs();
     if (view === "library") loadHistory();
     if (view === "settings") loadEngineVersion();
   }
@@ -240,46 +242,149 @@
 
     $("queueEmpty").hidden = jobs.length > 0;
 
-    box.innerHTML = jobs.map(function (j) {
-      var stats = ['<span class="state">' + esc(STATE_TEXT[j.status] || j.status) + "</span>"];
-      if (j.status === "downloading") {
-        stats.push("<span>" + j.percent.toFixed(1) + "%</span>");
-        if (j.speed) stats.push("<span>" + esc(j.speed) + "</span>");
-        if (j.eta) stats.push("<span>ETA " + esc(j.eta) + "</span>");
-      } else if (j.status === "done") {
-        stats.push("<span>" + esc(j.qualityLabel) + "</span>");
-        if (j.size) stats.push("<span>" + esc(j.size) + "</span>");
-      } else {
-        stats.push("<span>" + esc(j.qualityLabel) + "</span>");
+    // Rows are patched in place. Rebuilding the list every poll reloaded each
+    // thumbnail, which made the whole queue flicker while downloading.
+    var seen = {};
+    jobs.forEach(function (j, index) {
+      var row = rows[j.id];
+      if (!row) {
+        row = buildRow(j);
+        rows[j.id] = row;
       }
+      updateRow(row, j);
+      seen[j.id] = true;
 
-      var actions = "";
-      if (j.status === "done") {
-        actions =
-          '<button class="icon-btn go" data-act="open" data-id="' + j.id + '" title="Play file">&#9654;</button>' +
-          '<button class="icon-btn" data-act="reveal" data-id="' + j.id + '" title="Show in folder">&#128193;</button>';
-      } else if (j.status === "error" || j.status === "cancelled") {
-        actions = '<button class="icon-btn go" data-act="retry" data-id="' + j.id + '" title="Try again">&#8635;</button>';
-      } else {
-        actions = '<button class="icon-btn stop" data-act="cancel" data-id="' + j.id + '" title="Stop">&#10005;</button>';
+      if (box.children[index] !== row.el) {
+        box.insertBefore(row.el, box.children[index] || null);
       }
-      actions += '<button class="icon-btn" data-act="remove" data-id="' + j.id + '" title="Remove">&#128465;</button>';
+    });
 
-      return '<div class="job ' + j.status + '">' +
-        (j.thumbnail
-          ? '<img class="job-thumb" src="' + esc(j.thumbnail) + '" alt="" onerror="this.style.visibility=\'hidden\'">'
-          : '<div class="job-thumb"></div>') +
-        '<div class="job-main">' +
-          '<div class="job-title" title="' + esc(j.title) + '">' + esc(j.title) + "</div>" +
-          '<div class="job-stats">' + stats.join("") + "</div>" +
-          '<div class="meter"><i style="width:' + (j.status === "done" ? 100 : j.percent) + '%"></i></div>' +
-          (j.error ? '<div class="job-error">' + esc(j.error) + "</div>" : "") +
-        "</div>" +
-        '<div class="job-actions">' + actions + "</div>" +
-      "</div>";
-    }).join("");
+    Object.keys(rows).forEach(function (id) {
+      if (!seen[id]) {
+        rows[id].el.remove();
+        delete rows[id];
+      }
+    });
 
     return active;
+  }
+
+  function buildRow(job) {
+    var el = document.createElement("div");
+    el.className = "job";
+
+    var thumb;
+    if (job.thumbnail) {
+      thumb = document.createElement("img");
+      thumb.className = "job-thumb";
+      thumb.alt = "";
+      thumb.src = job.thumbnail;
+      thumb.onerror = function () { thumb.style.visibility = "hidden"; };
+    } else {
+      thumb = document.createElement("div");
+      thumb.className = "job-thumb";
+    }
+
+    var main = document.createElement("div");
+    main.className = "job-main";
+
+    var title = document.createElement("div");
+    title.className = "job-title";
+    title.textContent = job.title;
+    title.title = job.title;
+
+    var stats = document.createElement("div");
+    stats.className = "job-stats";
+
+    var meter = document.createElement("div");
+    meter.className = "meter";
+    var fill = document.createElement("i");
+    meter.appendChild(fill);
+
+    var error = document.createElement("div");
+    error.className = "job-error";
+    error.hidden = true;
+
+    main.appendChild(title);
+    main.appendChild(stats);
+    main.appendChild(meter);
+    main.appendChild(error);
+
+    var actions = document.createElement("div");
+    actions.className = "job-actions";
+
+    el.appendChild(thumb);
+    el.appendChild(main);
+    el.appendChild(actions);
+
+    return {
+      el: el, title: title, stats: stats, fill: fill,
+      error: error, actions: actions,
+      lastStatus: null, lastTitle: job.title
+    };
+  }
+
+  var ACTIONS = {
+    done: [["open", "▶", "Play file", "go"], ["reveal", "📁", "Show in folder", ""]],
+    error: [["retry", "↻", "Try again", "go"]],
+    cancelled: [["retry", "↻", "Try again", "go"]],
+    busy: [["cancel", "✕", "Stop", "stop"]]
+  };
+
+  function updateRow(row, j) {
+    if (j.title !== row.lastTitle) {
+      row.title.textContent = j.title;
+      row.title.title = j.title;
+      row.lastTitle = j.title;
+    }
+
+    var bits = [["state", STATE_TEXT[j.status] || j.status]];
+    if (j.status === "downloading") {
+      bits.push(["", j.percent.toFixed(1) + "%"]);
+      if (j.speed) bits.push(["", j.speed]);
+      if (j.eta) bits.push(["", "ETA " + j.eta]);
+    } else {
+      bits.push(["", j.qualityLabel]);
+      if (j.status === "done" && j.size) bits.push(["", j.size]);
+    }
+
+    var text = bits.map(function (b) { return b[1]; }).join("");
+    if (text !== row.lastStats) {
+      row.stats.textContent = "";
+      bits.forEach(function (b) {
+        var span = document.createElement("span");
+        if (b[0]) span.className = b[0];
+        span.textContent = b[1];
+        row.stats.appendChild(span);
+      });
+      row.lastStats = text;
+    }
+
+    row.fill.style.width = (j.status === "done" ? 100 : j.percent) + "%";
+
+    if (j.error) {
+      row.error.textContent = j.error;
+      row.error.hidden = false;
+    } else if (!row.error.hidden) {
+      row.error.hidden = true;
+    }
+
+    if (j.status !== row.lastStatus) {
+      row.el.className = "job " + j.status;
+
+      var set = ACTIONS[j.status] || ACTIONS.busy;
+      row.actions.textContent = "";
+      set.concat([["remove", "🗑", "Remove", ""]]).forEach(function (a) {
+        var btn = document.createElement("button");
+        btn.className = "icon-btn " + a[3];
+        btn.dataset.act = a[0];
+        btn.dataset.id = j.id;
+        btn.title = a[2];
+        btn.textContent = a[1];
+        row.actions.appendChild(btn);
+      });
+      row.lastStatus = j.status;
+    }
   }
 
   $("jobs").addEventListener("click", function (e) {
@@ -381,9 +486,36 @@
     saveSetting({ max_parallel: parseInt(e.target.value, 10) }).then(function () { toast("Saved"); });
   });
 
+  var BLOCKED_BROWSERS = ["chrome", "edge", "brave", "opera", "vivaldi"];
+
   $("setCookies").addEventListener("change", function (e) {
-    saveSetting({ cookies_browser: e.target.value }).then(function () {
-      toast(e.target.value === "none" ? "Cookies off" : "Using " + e.target.value + " cookies");
+    var value = e.target.value;
+    saveSetting({ cookies_browser: value }).then(function () {
+      if (value === "none") {
+        toast("Cookies off");
+      } else if (BLOCKED_BROWSERS.indexOf(value) !== -1) {
+        toast(value + " locks its cookies — use a cookies file instead", "bad");
+      } else {
+        toast("Using " + value + " cookies", "good");
+      }
+    });
+  });
+
+  $("chooseCookies").addEventListener("click", function () {
+    api("/api/choose-cookies", {}).then(function (res) {
+      if (res.ok) {
+        $("cookieFileLabel").textContent = res.settings.cookies_file;
+        toast("Cookies file set", "good");
+      } else if (!res.cancelled) {
+        toast(res.error || "Could not open the picker.", "bad");
+      }
+    });
+  });
+
+  $("clearCookies").addEventListener("click", function () {
+    saveSetting({ cookies_file: "" }).then(function () {
+      $("cookieFileLabel").textContent = "Not set";
+      toast("Cookies file cleared");
     });
   });
 

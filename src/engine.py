@@ -125,7 +125,8 @@ DEFAULT_SETTINGS = {
     "download_dir": str(default_download_dir()),
     "default_quality": "best",
     "max_parallel": 2,
-    "cookies_browser": "none",       # none | chrome | edge | firefox | brave
+    "cookies_browser": "none",       # none | firefox | chrome | edge | brave
+    "cookies_file": "",              # path to an exported cookies.txt
     "prefer_h264": True,             # play-anywhere codec over raw quality
     "subfolder_per_site": False,
     "auto_paste": True,              # watch clipboard for links
@@ -227,11 +228,23 @@ def _base_args(settings: dict) -> list:
     if ff is not None:
         args += ["--ffmpeg-location", str(ff.parent)]
 
-    browser = (settings or {}).get("cookies_browser", "none")
-    if browser and browser != "none":
-        args += ["--cookies-from-browser", browser]
+    # A cookies.txt file wins over the browser reader. Since Chrome 127 bound
+    # its cookie store to its own process, reading Chromium browsers directly
+    # fails on Windows no matter what - an exported file is the way through.
+    cookie_file = (settings or {}).get("cookies_file", "")
+    if cookie_file and Path(cookie_file).exists():
+        args += ["--cookies", str(cookie_file)]
+    else:
+        browser = (settings or {}).get("cookies_browser", "none")
+        if browser and browser != "none":
+            args += ["--cookies-from-browser", browser]
 
     return args
+
+
+# Chromium-based browsers encrypt cookies so only the browser itself can read
+# them (Chrome 127+, July 2024). Firefox does not.
+LOCKED_BROWSERS = {"chrome", "edge", "brave", "opera", "vivaldi", "chromium"}
 
 
 def _run(args: list, timeout: int = 180) -> subprocess.CompletedProcess:
@@ -415,6 +428,17 @@ def _clean_error(stderr: str) -> str:
         return "That link could not be opened."
 
     low_all = text.lower()
+
+    # Chrome-family cookie stores cannot be decrypted by anything but the
+    # browser itself. Closing it does not help, so do not tell them to.
+    if ("dpapi" in low_all
+            or "app-bound" in low_all
+            or "object has no attribute 'decode'" in low_all
+            or ("cookie" in low_all and "decrypt" in low_all)):
+        return ("Chrome-based browsers lock their cookies so no other program "
+                "can read them. Use Firefox instead, or export a cookies.txt "
+                "file and pick it in Settings.")
+
     if "cookie" in low_all and ("permission" in low_all or "could not copy"
                                 in low_all or "database" in low_all):
         return ("Close your browser completely and try again - its cookies "
@@ -617,7 +641,14 @@ class DownloadManager:
         root = Path(settings["download_dir"])
         if settings.get("subfolder_per_site"):
             root = root / "%(extractor_key)s"
-        return str(root / "%(title).120B [%(id)s].%(ext)s")
+
+        if job.quality == "mp3":
+            # Audio lands as .mp3, so it can never collide with a video file.
+            return str(root / "%(title).110B [%(id)s].%(ext)s")
+
+        # Height belongs in the name: without it, grabbing the same video at
+        # 720p and then at 1080p silently overwrote the first file.
+        return str(root / "%(title).100B [%(id)s] %(height)sp.%(ext)s")
 
     def _run_job(self, job: Job) -> None:
         settings = load_settings()
@@ -703,6 +734,13 @@ class DownloadManager:
             job.speed = job.eta = ""
             if job.filepath and job.title in (job.url, ""):
                 job.title = Path(job.filepath).stem
+
+            # Progress reports one stream at a time, so the running total is
+            # only the last stream. The finished file on disk is the truth.
+            try:
+                job.size = _human_bytes(Path(job.filepath).stat().st_size)
+            except (OSError, ValueError):
+                pass
             add_history({
                 "title": job.title,
                 "url": job.url,

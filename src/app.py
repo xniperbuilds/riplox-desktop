@@ -22,7 +22,7 @@ from flask import Flask, jsonify, render_template, request
 import engine
 
 APP_TITLE = "Riplox"
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 
 def resource_dir() -> Path:
@@ -205,6 +205,26 @@ def _inside_downloads(path: Path) -> bool:
     except OSError:
         return False
     return target == root or root in target.parents
+
+
+@app.post("/api/choose-cookies")
+def api_choose_cookies():
+    """Pick an exported cookies.txt. Works for browsers we cannot read."""
+    if _window is None:
+        return jsonify({"ok": False, "error": "File picker needs the app window."}), 400
+
+    import webview
+    result = _window.create_file_dialog(
+        webview.OPEN_DIALOG,
+        allow_multiple=False,
+        file_types=("Cookie files (*.txt)", "All files (*.*)"),
+    )
+    if not result:
+        return jsonify({"ok": False, "cancelled": True})
+
+    chosen = result[0] if isinstance(result, (list, tuple)) else result
+    saved = engine.save_settings({"cookies_file": str(chosen)})
+    return jsonify({"ok": True, "settings": saved})
 
 
 @app.post("/api/open")

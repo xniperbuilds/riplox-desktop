@@ -1,10 +1,10 @@
-# Windows version resource. An executable with real metadata draws fewer
+﻿# Windows version resource. An executable with real metadata draws fewer
 # antivirus heuristics than a blank one, and it is what users see in the
 # file properties dialog.
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 0, 0, 0),
-    prodvers=(1, 0, 0, 0),
+    filevers=(1, 0, 1, 0),
+    prodvers=(1, 0, 1, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -18,12 +18,12 @@ VSVersionInfo(
         '040904B0',
         [StringStruct('CompanyName', 'XniperBuilds'),
          StringStruct('FileDescription', 'Riplox Desktop - video downloader'),
-         StringStruct('FileVersion', '1.0.0.0'),
+         StringStruct('FileVersion', '1.0.1.0'),
          StringStruct('InternalName', 'Riplox'),
          StringStruct('LegalCopyright', 'Copyright (c) XniperBuilds'),
          StringStruct('OriginalFilename', 'Riplox.exe'),
          StringStruct('ProductName', 'Riplox Desktop'),
-         StringStruct('ProductVersion', '1.0.0.0')])
+         StringStruct('ProductVersion', '1.0.1.0')])
     ]),
     VarFileInfo([VarStruct('Translation', [1033, 1200])])
   ]

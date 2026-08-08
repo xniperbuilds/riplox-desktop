@@ -1,8 +1,8 @@
-; Riplox Desktop installer (Inno Setup 6)
+﻿; Riplox Desktop installer (Inno Setup 6)
 ; Build the app first:  pyinstaller build\riplox.spec --noconfirm
 
 #define AppName      "Riplox"
-#define AppVersion   "1.0.0"
+#define AppVersion   "1.0.1"
 #define AppPublisher "XniperBuilds"
 #define AppURL       "https://xniperbuilds.com"
 #define AppExe       "Riplox.exe"
