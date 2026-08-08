@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Riplox</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="glow" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <img class="mark" src="{{ url_for('static', filename='img/riplox.png') }}"
+         alt="Riplox" width="32" height="32">
+    <div class="wordmark">
+      <b>Riplox</b>
+      <span>desktop <i>v{{ version }}</i></span>
+    </div>
+  </div>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab is-active" data-view="capture" role="tab">Capture</button>
+    <button class="tab" data-view="queue" role="tab">
+      Queue <em class="badge" id="queueBadge" hidden>0</em>
+    </button>
+    <button class="tab" data-view="library" role="tab">Library</button>
+    <button class="tab" data-view="settings" role="tab">Settings</button>
+    <span class="tab-underline" id="tabUnderline"></span>
+  </nav>
+
+  <div class="status" id="engineStatus" title="Download engine">
+    <span class="dot"></span><span id="engineLabel">ready</span>
+  </div>
+</header>
+
+{% if not has_ffmpeg %}
+<div class="alert" id="ffmpegAlert">
+  <strong>Limited mode.</strong>
+  ffmpeg is missing, so 1080p+ merging and MP3 conversion are unavailable.
+  Reinstall Riplox to restore them.
+</div>
+{% endif %}
+
+<main>
+
+  <!-- ============================ CAPTURE ============================ -->
+  <section class="view is-active" id="view-capture">
+
+    <div class="capture-head reveal" style="--d:0ms">
+      <h1>Paste a link.<br><span>Keep the video.</span></h1>
+      <p class="sub">YouTube · TikTok · Instagram · Facebook · X · Reddit — and a thousand more.</p>
+    </div>
+
+    <form class="urlbar reveal" id="urlForm" style="--d:60ms" autocomplete="off">
+      <span class="urlbar-tag">URL</span>
+      <input type="text" id="urlInput" spellcheck="false"
+             placeholder="https://…">
+      <button type="button" class="ghost" id="pasteBtn" title="Paste from clipboard">Paste</button>
+      <button type="submit" class="primary" id="analyzeBtn">
+        <span class="label">Analyze</span>
+        <span class="spinner" hidden></span>
+      </button>
+    </form>
+
+    <div class="hint reveal" id="clipHint" style="--d:100ms" hidden>
+      <span>Link copied — </span><button type="button" id="clipUse">use it</button>
+      <em id="clipText"></em>
+    </div>
+
+    <div class="error-box" id="analyzeError" hidden></div>
+
+    <div class="preview" id="preview" hidden>
+      <div class="preview-media">
+        <img id="pvThumb" alt="" style="visibility:hidden">
+        <span class="preview-kind" id="pvKind">VIDEO</span>
+      </div>
+      <div class="preview-body">
+        <h2 id="pvTitle">—</h2>
+        <div class="meta" id="pvMeta"></div>
+
+        <div class="quality-block">
+          <label>Quality</label>
+          <div class="chips" id="qualityChips"></div>
+        </div>
+
+        <div class="preview-actions">
+          <button class="primary big" id="downloadBtn">Download</button>
+          <button class="ghost" id="resetBtn">Clear</button>
+        </div>
+      </div>
+    </div>
+
+    <ul class="playlist" id="playlistBox" hidden></ul>
+  </section>
+
+  <!-- ============================= QUEUE ============================= -->
+  <section class="view" id="view-queue">
+    <div class="view-head">
+      <h2>Queue</h2>
+      <button class="ghost small" id="clearFinished">Clear finished</button>
+    </div>
+    <div class="empty" id="queueEmpty">
+      <p>Nothing downloading.</p>
+      <span>Analyzed links land here.</span>
+    </div>
+    <div class="jobs" id="jobs"></div>
+  </section>
+
+  <!-- ============================ LIBRARY ============================ -->
+  <section class="view" id="view-library">
+    <div class="view-head">
+      <h2>Library</h2>
+      <div class="row-gap">
+        <button class="ghost small" id="openFolder">Open folder</button>
+        <button class="ghost small danger" id="clearHistory">Clear history</button>
+      </div>
+    </div>
+    <div class="empty" id="libraryEmpty">
+      <p>No downloads yet.</p>
+      <span>Finished files are listed here.</span>
+    </div>
+    <div class="history" id="history"></div>
+  </section>
+
+  <!-- =========================== SETTINGS ============================ -->
+  <section class="view" id="view-settings">
+    <div class="view-head"><h2>Settings</h2></div>
+
+    <div class="panel">
+      <div class="field">
+        <div class="field-text">
+          <label>Save downloads to</label>
+          <code id="dirLabel">{{ settings.download_dir }}</code>
+        </div>
+        <button class="ghost small" id="chooseDir">Change</button>
+      </div>
+
+      <div class="field">
+        <div class="field-text">
+          <label>Default quality</label>
+          <span>Pre-selected every time you analyze a link.</span>
+        </div>
+        <select id="setQuality">
+          {% for key, label in quality_labels.items() %}
+          <option value="{{ key }}" {% if settings.default_quality == key %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field">
+        <div class="field-text">
+          <label>Downloads at once</label>
+          <span>More is not always faster on a slow connection.</span>
+        </div>
+        <select id="setParallel">
+          {% for n in [1, 2, 3, 4, 5] %}
+          <option value="{{ n }}" {% if settings.max_parallel == n %}selected{% endif %}>{{ n }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field">
+        <div class="field-text">
+          <label>Use cookies from browser</label>
+          <span>Needed for private, age-restricted, or "confirm you're not a
+                bot" videos. Close the browser first so its cookies can be
+                read. Heavy downloading on your own account can get that
+                account limited, so a spare account is safer.</span>
+        </div>
+        <select id="setCookies">
+          {% for b in ['none', 'chrome', 'edge', 'firefox', 'brave'] %}
+          <option value="{{ b }}" {% if settings.cookies_browser == b %}selected{% endif %}>{{ b }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field">
+        <div class="field-text">
+          <label>Play-anywhere video</label>
+          <span>Prefer H.264 so files open in Windows Media Player, WhatsApp and
+                phones. Turn off only if you want maximum resolution.</span>
+        </div>
+        <button class="toggle {% if settings.prefer_h264 %}on{% endif %}"
+                id="setH264" role="switch"><i></i></button>
+      </div>
+
+      <div class="field">
+        <div class="field-text">
+          <label>Folder per site</label>
+          <span>Sort files into YouTube, TikTok, Instagram subfolders.</span>
+        </div>
+        <button class="toggle {% if settings.subfolder_per_site %}on{% endif %}"
+                id="setSubfolder" role="switch"><i></i></button>
+      </div>
+
+      <div class="field">
+        <div class="field-text">
+          <label>Watch clipboard</label>
+          <span>Offer to use a link as soon as you copy it.</span>
+        </div>
+        <button class="toggle {% if settings.auto_paste %}on{% endif %}"
+                id="setAutoPaste" role="switch"><i></i></button>
+      </div>
+
+      <div class="field">
+        <div class="field-text">
+          <label>Save thumbnail</label>
+          <span>Write the cover image next to the video.</span>
+        </div>
+        <button class="toggle {% if settings.write_thumbnail %}on{% endif %}"
+                id="setThumb" role="switch"><i></i></button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="field">
+        <div class="field-text">
+          <label>Download engine</label>
+          <span id="engineVersion">checking…</span>
+        </div>
+        <button class="ghost small" id="updateEngine">Update</button>
+      </div>
+      <p class="footnote">
+        Sites change how they serve video. If a link stops working, update the
+        engine first — that fixes it most of the time.
+      </p>
+    </div>
+
+    <p class="credit">Riplox Desktop · XniperBuilds</p>
+  </section>
+
+</main>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+  window.RIPLOX = {
+    token: {{ token | tojson }},
+    settings: {{ settings | tojson }},
+    hasFfmpeg: {{ has_ffmpeg | tojson }},
+    labels: {{ quality_labels | tojson }}
+  };
+</script>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

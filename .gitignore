@@ -1,0 +1,20 @@
+# Shipped binaries - fetched with build\fetch_binaries.py, ~180 MB
+bin/
+
+# Build output
+dist/
+dist_installer/
+build/work/
+*.spec.bak
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
