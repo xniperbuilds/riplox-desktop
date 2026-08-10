@@ -416,6 +416,7 @@ const PAGE = String.raw`<!doctype html>
   button:disabled{opacity:.5}
   button.quiet{background:none;border:1px solid rgba(255,255,255,.14);
         color:#E9EFF8;font-weight:500;padding:13px;margin-top:12px}
+  #chooseCard h2{font-size:16px}
   .msg{margin-top:18px;padding:12px 14px;border-radius:11px;font-size:14px;display:none}
   .msg.ok{display:block;background:rgba(43,233,224,.1);border:1px solid rgba(43,233,224,.35);color:#9BF6F1}
   .msg.bad{display:block;background:rgba(255,61,110,.1);border:1px solid rgba(255,61,110,.35);color:#FFC5D4}
@@ -438,6 +439,21 @@ const PAGE = String.raw`<!doctype html>
 <div class="brand">
   <img src="/icon-192.png" alt="">
   <h1>Send to Riplox</h1>
+</div>
+
+<!-- Shown when a fresh pairing code arrives on a phone that could use the app.
+     The page deliberately does not pair itself here: a code works once, so
+     pairing the browser left the app with nothing and a second code had to be
+     generated for it. -->
+<div class="card" id="chooseCard" style="display:none;margin-top:0">
+  <h2>Pair the app, or this browser?</h2>
+  <p>The app takes a share without opening anything. This browser works too,
+     but sharing opens this page for a moment — and <b>the code works once</b>,
+     so it pairs whichever you pick.</p>
+  <a class="btn" id="toApp">Pair the Riplox Send app</a>
+  <button class="quiet" id="toBrowser">Pair this browser instead</button>
+  <p class="tiny" id="chooseNote">No app yet? The button installs it, then come
+     back to this page and tap it again.</p>
 </div>
 
 <div class="card" id="appCard" style="display:none;margin-top:0">
@@ -612,6 +628,8 @@ const PAGE = String.raw`<!doctype html>
     var android = /Android/.test(navigator.userAgent);
     var apple = /iPhone|iPad|iPod/.test(navigator.userAgent);
 
+    // The choice card owns the screen while it is up.
+    if ($("chooseCard").style.display === "block") return;
     if (installed) { card.style.display = app.style.display = "none"; return; }
 
     // The app is the real answer on Android and the only one that can take a
@@ -841,8 +859,36 @@ const PAGE = String.raw`<!doctype html>
     return "Phone";
   }
 
+  /* A fresh code on an Android phone is not paired on the spot any more.
+     The code works once, so pairing the browser here spent it - and the app,
+     which is the whole point on Android, was then left needing a second code
+     generated on the PC. Ask which one it is for. */
+  function offerChoice(invite) {
+    var code = invite.room + "." + invite.key + "." + invite.code;
+    var apk = location.origin + "/app.apk";
+
+    // Chrome's intent syntax: opens the app if it is installed, and falls
+    // through to the download if it is not. The code rides in the URL and
+    // never reaches a server - this link is built and followed on the phone.
+    $("toApp").href = "intent://pair?c=" + encodeURIComponent(code)
+      + "#Intent;scheme=riploxsend;package=com.xniperbuilds.sendtoriplox;"
+      + "S.browser_fallback_url=" + encodeURIComponent(apk) + ";end";
+
+    $("chooseCard").style.display = "block";
+    $("appCard").style.display = "none";
+    $("installCard").style.display = "none";
+
+    $("toBrowser").addEventListener("click", function () {
+      $("chooseCard").style.display = "none";
+      doPair(invite);
+    });
+  }
+
   show();
-  if (fresh) doPair(fresh);
+  if (fresh) {
+    if (/Android/.test(navigator.userAgent)) offerChoice(fresh);
+    else doPair(fresh);
+  }
 
   $("pair").addEventListener("click", function () {
     doPair(readInvite($("code").value));
