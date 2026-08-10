@@ -3,3 +3,8 @@ pywebview>=6.0
 pystray>=0.19
 pyinstaller>=6.0
 pillow>=10.0
+# Send to Riplox: the pairing QR, and the AES-GCM that seals every message the
+# relay carries. segno is pure Python; cryptography is the vetted AEAD rather
+# than one composed by hand.
+segno>=1.6
+cryptography>=42.0

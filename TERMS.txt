@@ -1,0 +1,122 @@
+RIPLOX DESKTOP - TERMS AND CONDITIONS
+XniperBuilds
+Version 1.0 - please read before installing.
+
+
+1. WHAT RIPLOX IS
+
+Riplox Desktop is a free program for saving video and audio from websites to
+your own computer. There is no purchase, no subscription, no account, no
+advertising and no bundled software of any kind. If you paid anyone for this
+program, you were overcharged.
+
+The program is open source and published under the GNU General Public License
+version 3. The full licence text is installed alongside it as LICENSE, and the
+source code is available at github.com/xniperbuilds/riplox-desktop. Nothing in
+these terms takes away any right that licence gives you.
+
+
+2. YOU ARE RESPONSIBLE FOR WHAT YOU DOWNLOAD
+
+Riplox is a tool. It does not host, store, publish or supply any video. It
+asks a website for a file the same way a browser does, and writes the result
+to your disk. What you ask it for, and what you then do with the result, is
+your decision and your responsibility alone.
+
+By installing Riplox you confirm that you will use it only for material you
+have the right to download - your own uploads, material that is in the public
+domain, material published under a licence that permits it, material you have
+permission from the rights holder to keep, or copying that is permitted by the
+law that applies to you.
+
+You must also respect the terms of service of any website you use Riplox with.
+Some sites do not allow downloading. Whether you are permitted to download from
+a given site is between you and that site.
+
+Do not use Riplox to infringe copyright, to redistribute other people's work,
+to strip payment from creators, or to break any law that applies where you
+live. If you are unsure whether a particular download is permitted, the honest
+answer is to ask the rights holder or take advice - not to guess.
+
+
+3. NO WARRANTY
+
+Riplox is provided "as is", without warranty of any kind, express or implied,
+including but not limited to warranties of merchantability, fitness for a
+particular purpose and non-infringement.
+
+Websites change how they serve video, often without notice. A link that works
+today may stop working tomorrow. Riplox may fail, may download a file you did
+not expect, or may not run at all on a given computer. No promise is made that
+it will work, that it will keep working, or that any particular website will
+remain supported.
+
+
+4. LIMIT OF LIABILITY
+
+To the fullest extent permitted by law, XniperBuilds and the authors of Riplox
+are not liable for any loss or damage arising from the use of this program.
+That includes lost or overwritten files, lost time, loss of data, loss of
+profit, any consequence of a website restricting or closing your account, and
+any claim brought against you by a rights holder or a website.
+
+You use Riplox at your own risk. Keep backups of anything you cannot afford to
+lose.
+
+Nothing here excludes liability that cannot lawfully be excluded.
+
+
+5. WHAT RIPLOX SENDS AND DOES NOT SEND
+
+Riplox has no accounts, no telemetry and no analytics. It does not collect,
+transmit or sell any personal information, and your download history stays on
+your own computer. XniperBuilds receives nothing from your use of the program.
+
+Riplox makes network connections only for these purposes:
+
+  a) the website you asked it to download from;
+  b) once a day, a check with GitHub for a newer version - this can be turned
+     off in Settings, and it never installs anything on its own;
+  c) when you press Update in Settings, downloading a new copy of the download
+     engine;
+  d) if you choose to enable it, downloading an optional helper that some
+     sites require, which then runs entirely on your own computer;
+  e) if you sign in through Riplox for private videos, the sign-in goes to
+     that site and the session is stored encrypted on this machine only;
+  f) if you turn on Sharing, an encrypted message carrying only a link, sent
+     between your own paired devices. The content of a video never passes
+     through anyone else's server.
+
+If you turn on the optional sponsor-segment feature, Riplox asks a public
+community database about the video you are downloading. If you would rather
+nothing was asked, leave that feature off.
+
+
+6. THIRD-PARTY COMPONENTS
+
+Riplox uses independent open-source components, each under its own licence,
+including yt-dlp and FFmpeg. Those components are the work of their own
+authors, are not owned by XniperBuilds, and carry their own terms and their
+own absence of warranty. Their licences are included with the installation.
+
+
+7. SIGNING IN TO WEBSITES
+
+If you sign in through Riplox to reach private or members-only material, that
+account remains subject to the rules of the website concerned. Heavy automated
+downloading can cause a site to limit or suspend an account. That risk is
+yours. Using a spare account is the safer choice, and Riplox says so in the
+program itself.
+
+
+8. THESE TERMS
+
+If any part of these terms is found unenforceable, the rest continues to
+apply. These terms may be updated in later versions of the program; the
+version you accepted is the one installed on this computer, and it is placed
+in the installation folder as TERMS.txt so you can read it again at any time.
+
+If you do not accept these terms, do not install or use Riplox.
+
+
+XniperBuilds - https://xniperbuilds.com

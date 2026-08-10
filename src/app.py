@@ -24,7 +24,11 @@ from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request
 
+import cookies
 import engine
+import potoken
+import sharing
+import watch
 
 APP_TITLE = "Riplox"
 VERSION = "1.0.0"
@@ -92,6 +96,9 @@ def index():
         settings=engine.load_settings(),
         has_ffmpeg=engine.has_ffmpeg(),
         quality_labels=engine.QUALITY_LABELS,
+        # The Library uses these to tell a folder name that is really a site
+        # from one that is just where a file happened to land.
+        sites=engine.known_sites(),
     )
 
 
@@ -117,6 +124,48 @@ def api_analyze():
     return jsonify({"ok": True, "info": info})
 
 
+@app.post("/api/command")
+def api_command():
+    """
+    The command Riplox is about to run, in full.
+
+    Built by the queue's own builder rather than a second copy of it, so what
+    is shown here is what actually runs. The cookie file is a per-job
+    temporary that does not exist yet, so it is named rather than opened.
+    """
+    body = request.json or {}
+    url = (body.get("url") or "").strip()
+    if not url.lower().startswith(("http://", "https://")):
+        return jsonify({"ok": False, "error": "Paste a link first."}), 400
+
+    settings = engine.load_settings()
+    opts = engine.clean_opts(body.get("opts"))
+    job = engine.Job(
+        url=url,
+        quality=body.get("quality") or settings.get("default_quality", "best"),
+        start=str(body.get("start") or "")[:12],
+        end=str(body.get("end") or "")[:12],
+        exact=bool(body.get("exact")),
+        opts=opts,
+    )
+
+    cookie_path = None
+    if not opts.get("no_cookies"):
+        chosen = settings.get("cookies_file", "")
+        if chosen:
+            cookie_path = chosen
+        elif settings.get("cookies_signin", True):
+            cookie_path = "<this site's saved session>"
+
+    try:
+        args = manager.build_args(job, settings, "", cookie_path)
+    except engine.EngineMissing:
+        return jsonify({"ok": False, "error": "Download engine is missing."}), 500
+
+    quoted = " ".join(f'"{a}"' if (" " in a or not a) else a for a in args)
+    return jsonify({"ok": True, "command": quoted})
+
+
 @app.post("/api/add")
 def api_add():
     body = request.json or {}
@@ -125,6 +174,29 @@ def api_add():
 
     if not items:
         return jsonify({"ok": False, "error": "Nothing to download."}), 400
+
+    # A batch is paced differently: a burst of requests off one playlist is
+    # what gets an address asked to prove it is a person.
+    batch = len(items) > 1
+
+    # Trimming only makes sense for a single video, and only with ffmpeg.
+    start = end = ""
+    exact = False
+    if not batch and engine.has_ffmpeg():
+        start = str(body.get("start") or "")[:12]
+        end = str(body.get("end") or "")[:12]
+        exact = bool(body.get("exact"))
+        if not (engine.valid_time(start) and engine.valid_time(end)):
+            return jsonify({"ok": False,
+                            "error": "Times should look like 1:30 or 1:02:15."}), 400
+
+    # Whatever "More options" was showing. It belongs to this one download,
+    # so it travels with the request and is never written to Settings. A
+    # picked format is about one video, so a batch cannot carry one.
+    opts = engine.clean_opts(body.get("opts"))
+    if batch:
+        opts.pop("format_id", None)
+        opts.pop("outtmpl", None)
 
     added = set()
     for item in items[:200]:
@@ -137,6 +209,11 @@ def api_add():
             thumbnail=item.get("thumbnail", ""),
             uploader=item.get("uploader", ""),
             quality=quality,
+            batch=batch,
+            start=start,
+            end=end,
+            exact=exact,
+            opts=opts,
         )
         # add() returns the running job for a duplicate, so a set keeps the
         # count honest instead of claiming we queued the same thing twice.
@@ -144,7 +221,15 @@ def api_add():
 
     if not added:
         return jsonify({"ok": False, "error": "No usable links found."}), 400
-    return jsonify({"ok": True, "added": len(added)})
+
+    # Said once, as the queue grows, rather than nagging on every screen.
+    warning = ""
+    room = engine.free_space(engine.load_settings().get("download_dir", ""))
+    if 0 <= room < engine.SPACE_WARN:
+        warning = f"Only {engine.human_bytes(room)} free on that drive."
+
+
+    return jsonify({"ok": True, "added": len(added), "warning": warning})
 
 
 @app.get("/api/jobs")
@@ -153,6 +238,8 @@ def api_jobs():
         "ok": True,
         "jobs": manager.snapshot(),
         "hasFfmpeg": engine.has_ffmpeg(),
+        # Decides whether a failed job is offered a "Fix this" button.
+        "hasPotoken": potoken.installed(),
     })
 
 
@@ -161,11 +248,206 @@ def api_job_action(action):
     job_id = (request.json or {}).get("id", "")
     if action == "cancel":
         return jsonify({"ok": manager.cancel(job_id)})
+    if action == "pause":
+        return jsonify({"ok": manager.pause(job_id)})
     if action == "retry":
         return jsonify({"ok": manager.retry(job_id)})
     if action == "remove":
         return jsonify({"ok": manager.remove(job_id)})
     return jsonify({"ok": False, "error": "Unknown action."}), 400
+
+
+@app.post("/api/check-update")
+def api_check_update():
+    """Ask GitHub whether a newer Riplox exists. Never installs anything."""
+    body = request.get_json(silent=True) or {}
+    return jsonify(engine.check_for_update(VERSION, force=bool(body.get("force"))))
+
+
+@app.post("/api/fix-botcheck")
+def api_fix_botcheck():
+    """
+    One button for "Sign in to confirm you're not a bot": fetch the helper if
+    it is missing, then start the job again.
+    """
+    body = request.get_json(silent=True) or {}
+    job_id = str(body.get("id", ""))
+
+    if not potoken.installed():
+        result = potoken.install()
+        if not result.get("ok"):
+            return jsonify({"ok": False,
+                            "error": result.get("message", "Could not set that up.")})
+        engine.save_settings({"potoken": True})
+
+    if job_id and not manager.retry(job_id):
+        return jsonify({"ok": False, "error": "That download is no longer waiting."})
+    return jsonify({"ok": True})
+
+
+@app.get("/api/convert/formats")
+def api_convert_formats():
+    import convert
+    return jsonify({
+        "ok": True,
+        "formats": [{"id": k, "label": v["label"]} for k, v in convert.FORMATS.items()],
+        "quality": [{"id": k, "label": v["label"]} for k, v in convert.QUALITY.items()],
+    })
+
+
+@app.get("/api/convert/library")
+def api_convert_library():
+    """Everything Riplox has downloaded that still exists and has audio in it."""
+    import convert
+    seen, out = set(), []
+    for item in engine.load_history():
+        path = item.get("filepath") or ""
+        if not path or path in seen:
+            continue
+        seen.add(path)
+        target = Path(path)
+        if not target.exists() or target.suffix.lower() not in convert.MEDIA_SUFFIXES:
+            continue
+        out.append({"path": path, "name": target.name,
+                    "size": engine.human_bytes(target.stat().st_size),
+                    "source": item.get("quality", "")})
+    return jsonify({"ok": True, "files": out[:400]})
+
+
+@app.post("/api/convert/pick")
+def api_convert_pick():
+    """Choose files from anywhere on the PC, not only what Riplox downloaded."""
+    if _window is None:
+        return jsonify({"ok": False, "error": "Picking files needs the app window."}), 400
+
+    import webview
+    result = _window.create_file_dialog(
+        webview.OPEN_DIALOG, allow_multiple=True,
+        file_types=("Video and audio (*.mp4;*.mkv;*.webm;*.mov;*.avi;*.m4v;"
+                    "*.mp3;*.m4a;*.opus;*.ogg;*.wav;*.flac;*.aac)",))
+    if not result:
+        return jsonify({"ok": False, "cancelled": True})
+
+    picked = [{"path": str(p), "name": Path(p).name,
+               "size": engine.human_bytes(Path(p).stat().st_size)}
+              for p in result if Path(p).exists()]
+    return jsonify({"ok": True, "files": picked})
+
+
+@app.post("/api/convert")
+def api_convert():
+    import convert
+    body = request.get_json(silent=True) or {}
+    paths = body.get("paths") or []
+    fmt = str(body.get("format", "mp3")).lower()
+    quality = str(body.get("quality", "high")).lower()
+    beside = bool(body.get("beside", True))
+
+    if not paths:
+        return jsonify({"ok": False, "error": "Nothing chosen."}), 400
+    if fmt not in convert.FORMATS:
+        return jsonify({"ok": False, "error": "Unknown format."}), 400
+
+    target_dir = "" if beside else engine.load_settings().get("download_dir", "")
+
+    added = 0
+    for raw in paths[:200]:
+        source = Path(str(raw))
+        if not source.exists():
+            continue
+        manager.add_convert(source, fmt, quality, target_dir)
+        added += 1
+
+    if not added:
+        return jsonify({"ok": False, "error": "None of those files are there."})
+    return jsonify({"ok": True, "added": added})
+
+
+@app.post("/api/settings/export")
+def api_settings_export():
+    if _window is None:
+        return jsonify({"ok": False, "error": "Saving a file needs the app window."}), 400
+
+    import webview
+    result = _window.create_file_dialog(
+        webview.SAVE_DIALOG, save_filename="riplox-settings.json",
+        file_types=("JSON file (*.json)",))
+    if not result:
+        return jsonify({"ok": False, "cancelled": True})
+
+    chosen = Path(result[0] if isinstance(result, (list, tuple)) else result)
+    try:
+        chosen.write_text(engine.export_settings(), encoding="utf-8")
+    except OSError as exc:
+        return jsonify({"ok": False, "error": f"Could not write it: {exc}"})
+    return jsonify({"ok": True, "path": str(chosen)})
+
+
+@app.post("/api/settings/import")
+def api_settings_import():
+    if _window is None:
+        return jsonify({"ok": False, "error": "Opening a file needs the app window."}), 400
+
+    import webview
+    result = _window.create_file_dialog(
+        webview.OPEN_DIALOG, file_types=("JSON file (*.json)",))
+    if not result:
+        return jsonify({"ok": False, "cancelled": True})
+
+    chosen = Path(result[0] if isinstance(result, (list, tuple)) else result)
+    try:
+        outcome = engine.import_settings(chosen.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return jsonify({"ok": False, "error": f"Could not read it: {exc}"})
+    return jsonify(outcome)
+
+
+@app.post("/api/export-links")
+def api_export_links():
+    """Write the library out as a list of links, a spreadsheet, or everything."""
+    body = request.get_json(silent=True) or {}
+    kind = str(body.get("format", "txt")).lower()
+    if kind not in ("txt", "csv", "json"):
+        return jsonify({"ok": False, "error": "Unknown format."}), 400
+
+    items = engine.load_history()
+    if not items:
+        return jsonify({"ok": False, "error": "Nothing downloaded yet."})
+
+    if _window is None:
+        return jsonify({"ok": False,
+                        "error": "Saving a file needs the app window."}), 400
+
+    import webview
+    result = _window.create_file_dialog(
+        webview.SAVE_DIALOG,
+        save_filename=f"riplox-links.{kind}",
+        file_types=(f"{kind.upper()} file (*.{kind})",),
+    )
+    if not result:
+        return jsonify({"ok": False, "cancelled": True})
+
+    chosen = result[0] if isinstance(result, (list, tuple)) else result
+    target = Path(chosen)
+    try:
+        target.write_text(engine.export_links(items, kind), encoding="utf-8")
+    except OSError as exc:
+        return jsonify({"ok": False, "error": f"Could not write it: {exc}"})
+
+    return jsonify({"ok": True, "count": len(items), "path": str(target)})
+
+
+@app.post("/api/resume-all")
+def api_resume_all():
+    """Start the downloads that were still waiting when Riplox last closed."""
+    return jsonify({"ok": True, "resumed": manager.resume_all()})
+
+
+@app.post("/api/job-log")
+def api_job_log():
+    """The raw engine output for one job - for reporting a problem."""
+    job_id = (request.json or {}).get("id", "")
+    return jsonify({"ok": True, "log": manager.job_log(job_id)})
 
 
 @app.post("/api/clear-finished")
@@ -178,13 +460,209 @@ def api_clear_finished():
 def api_get_settings():
     return jsonify({"ok": True, "settings": engine.load_settings(),
                     "engineVersion": engine.engine_version(),
+                    "environment": engine.environment(),
                     "hasFfmpeg": engine.has_ffmpeg()})
+
+
+# --------------------------------------------------------------------------
+# Browser sign-in
+# --------------------------------------------------------------------------
+
+@app.get("/api/cookies/status")
+def api_cookies_status():
+    return jsonify({"ok": True, "cookies": cookies.status()})
+
+
+@app.post("/api/cookies/signin")
+def api_cookies_signin():
+    url = (request.json or {}).get("url") or "https://www.youtube.com/"
+    if not str(url).lower().startswith("https://"):
+        return jsonify({"ok": False, "error": "Blocked."}), 400
+    return jsonify(cookies.start_login(url))
+
+
+@app.post("/api/cookies/refresh")
+def api_cookies_refresh():
+    return jsonify(cookies.refresh())
+
+
+@app.post("/api/cookies/forget")
+def api_cookies_forget():
+    cookies.forget()
+    return jsonify({"ok": True, "cookies": cookies.status()})
+
+
+# --------------------------------------------------------------------------
+# Proof-of-origin helper
+# --------------------------------------------------------------------------
+
+@app.get("/api/potoken/status")
+def api_potoken_status():
+    return jsonify({"ok": True, "potoken": potoken.status()})
+
+
+@app.post("/api/potoken/install")
+def api_potoken_install():
+    return jsonify(potoken.install())
+
+
+@app.post("/api/potoken/remove")
+def api_potoken_remove():
+    engine.save_settings({"potoken": False})
+    return jsonify(potoken.remove())
 
 
 @app.post("/api/settings")
 def api_set_settings():
-    saved = engine.save_settings(request.json or {})
+    patch = request.json or {}
+    saved = engine.save_settings(patch)
+    # Turning Sharing on or off has to take effect now, not at the next start.
+    if "sharing" in patch or "share_lan_only" in patch or "share_relay" in patch:
+        sharing.apply_setting(bool(saved.get("sharing")))
+    if "watch" in patch:
+        watch.apply_setting(bool(saved.get("watch")))
     return jsonify({"ok": True, "settings": saved})
+
+
+# --------------------------------------------------------------------------
+# Watching a channel or playlist
+# --------------------------------------------------------------------------
+
+@app.post("/api/watch/state")
+def api_watch_state():
+    return jsonify({"ok": True, "state": watch.state()})
+
+
+@app.post("/api/watch/add")
+def api_watch_add():
+    body = request.json or {}
+    try:
+        result = watch.add(str(body.get("url", ""))[:2000],
+                           str(body.get("kind", ""))[:12])
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)[:200]}), 500
+    return jsonify({"ok": True, "result": result, "state": watch.state()})
+
+
+@app.post("/api/watch/remove")
+def api_watch_remove():
+    body = request.json or {}
+    return jsonify({"ok": watch.remove(str(body.get("id", ""))[:24]),
+                    "state": watch.state()})
+
+
+@app.post("/api/watch/pause")
+def api_watch_pause():
+    body = request.json or {}
+    done = watch.set_paused(str(body.get("id", ""))[:24], bool(body.get("paused")))
+    return jsonify({"ok": done, "state": watch.state()})
+
+
+@app.post("/api/watch/seen")
+def api_watch_seen():
+    body = request.json or {}
+    done = watch.clear_new(str(body.get("id", ""))[:24],
+                           str(body.get("video", ""))[:64])
+    return jsonify({"ok": done, "state": watch.state()})
+
+
+@app.post("/api/watch/check")
+def api_watch_check():
+    """One item, or everything. Either way it runs off the request thread."""
+    body = request.json or {}
+    item_id = str(body.get("id", ""))[:24]
+    if item_id:
+        result = watch.check(item_id)
+    else:
+        result = watch.check_all()
+    return jsonify({"ok": bool(result.get("ok")),
+                    "error": result.get("error", ""),
+                    "new": result.get("new", 0),
+                    "state": watch.state()})
+
+
+# --------------------------------------------------------------------------
+# Send to Riplox
+# --------------------------------------------------------------------------
+
+def _share_sink(url: str, quality: str, who: str, opts=None, device="") -> None:
+    """A link that arrived from a paired device. Queued like any other."""
+    job = manager.add(url=url, title=url, quality=quality, opts=opts or {},
+                      origin=device)
+    if tray_app is not None:
+        tray_app.notify("Sent from " + (who or "your phone"), "Download started.")
+    return job
+
+
+sharing.set_sink(_share_sink)
+
+
+@app.post("/api/share/state")
+def api_share_state():
+    return jsonify({"ok": True, "state": sharing.state()})
+
+
+@app.post("/api/share/invite")
+def api_share_invite():
+    if not engine.load_settings().get("sharing"):
+        return jsonify({"ok": False, "error": "Turn Sharing on first."}), 400
+    if not sharing.crypto_available():
+        return jsonify({"ok": False,
+                        "error": "This build cannot encrypt. Reinstall Riplox."}), 500
+    try:
+        return jsonify({"ok": True, "invite": sharing.make_invite(
+            (request.json or {}).get("name", ""))})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)[:140]}), 500
+
+
+@app.post("/api/share/revoke")
+def api_share_revoke():
+    device = str((request.json or {}).get("id", ""))[:24]
+    return jsonify({"ok": sharing.revoke(device), "state": sharing.state()})
+
+
+@app.post("/api/share/revoke-all")
+def api_share_revoke_all():
+    return jsonify({"ok": True, "gone": sharing.revoke_all(),
+                    "state": sharing.state()})
+
+
+@app.post("/api/share/pause")
+def api_share_pause():
+    body = request.json or {}
+    done = sharing.set_paused(str(body.get("id", ""))[:24], bool(body.get("paused")))
+    return jsonify({"ok": done, "state": sharing.state()})
+
+
+@app.post("/api/share/rename")
+def api_share_rename():
+    body = request.json or {}
+    done = sharing.rename(str(body.get("id", ""))[:24], body.get("name", ""))
+    return jsonify({"ok": done, "state": sharing.state()})
+
+
+@app.post("/api/share/limits")
+def api_share_limits():
+    body = request.json or {}
+    done = sharing.set_limits(str(body.get("id", ""))[:24],
+                              body.get("limits") or {})
+    return jsonify({"ok": done, "state": sharing.state()})
+
+
+@app.post("/api/share/approve")
+def api_share_approve():
+    body = request.json or {}
+    done = sharing.approve(str(body.get("id", ""))[:24], bool(body.get("ok")))
+    return jsonify({"ok": done, "state": sharing.state()})
+
+
+@app.post("/api/share/clear")
+def api_share_clear():
+    sharing.clear_log()
+    return jsonify({"ok": True, "state": sharing.state()})
 
 
 @app.post("/api/choose-folder")
@@ -202,6 +680,27 @@ def api_choose_folder():
     chosen = result[0] if isinstance(result, (list, tuple)) else result
     saved = engine.save_settings({"download_dir": str(chosen)})
     return jsonify({"ok": True, "settings": saved})
+
+
+@app.post("/api/choose-folder-once")
+def api_choose_folder_once():
+    """
+    The same picker, for a folder that applies to one download only.
+
+    Deliberately does not save: "More options" must never change a setting,
+    or a stray click there would quietly redirect every future download.
+    """
+    if _window is None:
+        return jsonify({"ok": False, "error": "Folder picker needs the app window."}), 400
+
+    import webview
+    result = _window.create_file_dialog(
+        webview.FOLDER_DIALOG, directory=engine.load_settings()["download_dir"])
+    if not result:
+        return jsonify({"ok": False, "cancelled": True})
+
+    chosen = result[0] if isinstance(result, (list, tuple)) else result
+    return jsonify({"ok": True, "dir": str(chosen)})
 
 
 
@@ -239,6 +738,20 @@ def api_choose_cookies():
     chosen = result[0] if isinstance(result, (list, tuple)) else result
     saved = engine.save_settings({"cookies_file": str(chosen)})
     return jsonify({"ok": True, "settings": saved})
+
+
+@app.post("/api/open-url")
+def api_open_url():
+    """
+    Open a page in the real browser. Restricted to a short allowlist, so a
+    page that talked its way past the token could not use Riplox to launch
+    arbitrary links.
+    """
+    url = ((request.json or {}).get("url") or "").strip()
+    if url not in engine.OPENABLE:
+        return jsonify({"ok": False, "error": "Not a link Riplox opens."}), 400
+    webbrowser.open(url)
+    return jsonify({"ok": True})
 
 
 @app.post("/api/open")
@@ -280,7 +793,8 @@ def api_open():
 
 @app.post("/api/update-engine")
 def api_update_engine():
-    return jsonify(engine.update_engine())
+    channel = (request.json or {}).get("channel", "")
+    return jsonify(engine.update_engine(channel))
 
 
 @app.get("/api/history")
@@ -574,7 +1088,37 @@ def claim_single_instance() -> bool:
     return False
 
 
+def _raise_existing_window() -> bool:
+    """
+    Bring the running copy's window up by finding it, not by asking it.
+
+    This is the first thing tried because it depends on nothing: no file, no
+    port, no HTTP. Found in real use - instance.json on this machine was a day
+    older than the running app, so the second copy had a port that answered
+    nothing and quit in silence, which looks exactly like Riplox refusing to
+    open.
+    """
+    if os.name != "nt":
+        return False
+    try:
+        user32 = ctypes.windll.user32
+        user32.FindWindowW.restype = wintypes.HWND
+        hwnd = user32.FindWindowW(None, APP_TITLE)
+        if not hwnd:
+            return False
+        user32.ShowWindow(hwnd, 9)             # SW_RESTORE, undoes minimised
+        user32.SetForegroundWindow(hwnd)
+        return True
+    except Exception:
+        return False
+
+
 def _wake_running_copy() -> None:
+    if _raise_existing_window():
+        return
+
+    # Hidden to the tray, so there is no window to find. Ask it over its own
+    # API instead - which is what the port file is for.
     try:
         with open(instance_file(), "r", encoding="utf-8") as fh:
             port = int(json.load(fh)["port"])
@@ -590,12 +1134,24 @@ def _wake_running_copy() -> None:
 
 
 def publish_port(port: int) -> None:
-    """Leave the port where the next copy can find it."""
+    """
+    Leave the port where the next copy can find it.
+
+    Written to a temporary file and moved into place, the same way settings
+    and the queue are: a half-written line here would be read as no port at
+    all by the next copy that starts.
+    """
+    path = instance_file()
+    tmp = path.with_suffix(f".{os.getpid()}.tmp")
     try:
-        with open(instance_file(), "w", encoding="utf-8") as fh:
+        with open(tmp, "w", encoding="utf-8") as fh:
             json.dump({"port": port, "pid": os.getpid()}, fh)
+        os.replace(tmp, path)
     except OSError:
-        pass
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
 
 
 # --------------------------------------------------------------------------
@@ -626,6 +1182,7 @@ def start_tray(window) -> None:
         show_window()
 
     def quit_app():
+        shutdown_children()
         try:
             window.destroy()
         except Exception:
@@ -641,12 +1198,47 @@ def start_tray(window) -> None:
     tray_app.start()
 
 
+def shutdown_children() -> None:
+    """
+    Nothing Riplox started may outlive it. A stray helper server or a headless
+    browser left running is the kind of thing users only notice as a machine
+    that never quite goes idle.
+    """
+    try:
+        potoken.stop()
+    except Exception:
+        pass
+    try:
+        cookies.cancel()
+    except Exception:
+        pass
+    try:
+        sharing.stop()
+    except Exception:
+        pass
+    try:
+        watch.stop()
+    except Exception:
+        pass
+
+
 def main() -> None:
     global _window
     dev = "--dev" in sys.argv or os.environ.get("RIPLOX_DEV") == "1"
 
     if not dev and not claim_single_instance():
         return          # the copy already running has been raised instead
+
+    # A crash can leave a decrypted cookie file or a helper server behind.
+    cookies.sweep_temp()
+    potoken.kill_orphans()
+    manager.restore()
+
+    # A phone that was paired yesterday should not have to be told again.
+    if engine.load_settings().get("sharing"):
+        sharing.start()
+    if engine.load_settings().get("watch"):
+        watch.start()
 
     port = 5010 if dev else free_port()
 

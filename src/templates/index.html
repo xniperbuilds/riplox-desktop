@@ -11,7 +11,9 @@
 <div class="grain" aria-hidden="true"></div>
 <div class="glow" aria-hidden="true"></div>
 
-<header class="topbar">
+<div class="app">
+
+<aside class="sidebar">
   <div class="brand">
     <img class="mark" src="{{ url_for('static', filename='img/riplox.png') }}"
          alt="Riplox" width="32" height="32">
@@ -22,19 +24,75 @@
   </div>
 
   <nav class="tabs" role="tablist">
-    <button class="tab is-active" data-view="capture" role="tab">Capture</button>
-    <button class="tab" data-view="queue" role="tab">
-      Queue <em class="badge" id="queueBadge" hidden>0</em>
+    <button class="tab is-active" data-view="capture" role="tab" title="Capture">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3v10m0 0 4-4m-4 4-4-4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>
+      </svg>
+      <span class="tab-label">Capture</span>
     </button>
-    <button class="tab" data-view="library" role="tab">Library</button>
-    <button class="tab" data-view="settings" role="tab">Settings</button>
-    <span class="tab-underline" id="tabUnderline"></span>
+    <button class="tab" data-view="queue" role="tab" title="Queue">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/>
+      </svg>
+      <span class="tab-label">Queue</span>
+      <em class="badge" id="queueBadge" hidden>0</em>
+    </button>
+    <button class="tab" data-view="library" role="tab" title="Library">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 7a2 2 0 0 1 2-2h3.5l2 2.5H19a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+      </svg>
+      <span class="tab-label">Library</span>
+    </button>
+    <button class="tab" data-view="convert" role="tab" title="Convert">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 8h13l-3.2-3.2M20 16H7l3.2 3.2"/>
+      </svg>
+      <span class="tab-label">Convert</span>
+    </button>
+    <button class="tab" data-view="watch" role="tab" title="Watch">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="8.2"/><path d="M12 7.4V12l3 1.8"/>
+      </svg>
+      <span class="tab-label">Watch</span>
+      <em class="badge" id="watchBadge" hidden>0</em>
+    </button>
+    <button class="tab" data-view="sharing" role="tab" title="Sharing">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="18" cy="5.5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="18.5" r="2.6"/>
+        <path d="M8.4 10.8 15.6 6.8M8.4 13.2l7.2 4"/>
+      </svg>
+      <span class="tab-label">Sharing</span>
+      <em class="badge" id="shareBadge" hidden>0</em>
+    </button>
+    <button class="tab" data-view="settings" role="tab" title="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M6 4v5M6 13v7M12 4v9M12 17v3M18 4v3M18 11v9"/>
+        <circle cx="6" cy="11" r="1.8"/><circle cx="12" cy="15" r="1.8"/><circle cx="18" cy="9" r="1.8"/>
+      </svg>
+      <span class="tab-label">Settings</span>
+    </button>
   </nav>
 
-  <div class="status" id="engineStatus" title="Download engine">
-    <span class="dot"></span><span id="engineLabel">ready</span>
+  <div class="side-foot">
+    <div class="theme-pick" id="themePick" role="group" aria-label="Appearance">
+      <button type="button" data-theme="auto"><b>A</b><span>Auto</span></button>
+      <button type="button" data-theme="light"><b>L</b><span>Light</span></button>
+      <button type="button" data-theme="dark"><b>D</b><span>Dark</span></button>
+    </div>
+    <div class="status" id="engineStatus" title="Download engine">
+      <span class="dot"></span><span id="engineLabel">ready</span>
+    </div>
   </div>
-</header>
+</aside>
+
+<div class="stage">
 
 {% if not has_ffmpeg %}
 <div class="alert" id="ffmpegAlert">
@@ -92,11 +150,149 @@
           <div class="chips" id="qualityChips"></div>
         </div>
 
+        <!-- One quiet line, closed on every install and after every link. It
+             may add controls; it never changes what the closed state does,
+             and everything set here applies to this one download only. -->
+        <details class="more" id="moreBox">
+          <summary>More options</summary>
+          <div class="more-body">
+
+          <div class="more-sec" id="fmtSec">
+            <div class="more-row between">
+              <label>Exact format</label>
+              <span class="more-note" id="fmtPick">Using the quality above.</span>
+            </div>
+            <div class="fmt-wrap"><table class="fmt" id="fmtTable"></table></div>
+          </div>
+
+          <div class="more-sec" id="langSec" hidden>
+            <div class="more-row">
+              <label class="more-field" id="audioLangField" hidden>
+                <span>Audio language</span>
+                <select id="optAudioLang"></select>
+              </label>
+              <label class="more-field" id="optSubField" hidden>
+                <span>Subtitles</span>
+                <select id="optSubLang"></select>
+              </label>
+            </div>
+          </div>
+
+        <div class="trim-block more-sec" id="trimBlock" hidden>
+          <label class="trim-toggle">
+            <input type="checkbox" id="trimOn">
+            <span>Download only part of it</span>
+          </label>
+
+          <div class="trim-panel" id="trimRow" hidden>
+            <div class="trim-line">
+              <span class="trim-label">Start</span>
+              <span class="stepper">
+                <input type="number" id="startMin" value="0" min="0" max="599"
+                       aria-label="Start minutes">
+                <span class="stepper-unit">min</span>
+              </span>
+              <span class="stepper">
+                <input type="number" id="startSec" value="0" min="-1" max="60"
+                       aria-label="Start seconds">
+                <span class="stepper-unit">sec</span>
+              </span>
+            </div>
+
+            <div class="trim-line">
+              <span class="trim-label">End</span>
+              <span class="stepper">
+                <input type="number" id="endMin" value="0" min="0" max="599"
+                       aria-label="End minutes" disabled>
+                <span class="stepper-unit">min</span>
+              </span>
+              <span class="stepper">
+                <input type="number" id="endSec" value="0" min="-1" max="60"
+                       aria-label="End seconds" disabled>
+                <span class="stepper-unit">sec</span>
+              </span>
+              <label class="trim-check">
+                <input type="checkbox" id="toEnd" checked>
+                <span>to the end</span>
+              </label>
+            </div>
+
+            <div class="trim-line">
+              <label class="trim-check">
+                <input type="checkbox" id="exactCut">
+                <span>Cut on the exact second <em>— slower, re-encodes</em></span>
+              </label>
+            </div>
+
+            <p class="trim-summary" id="trimSummary"></p>
+          </div>
+        </div>
+
+          <div class="more-sec">
+            <div class="more-row">
+              <label class="more-field grow">
+                <span>Save as</span>
+                <input type="text" id="optName" class="text-input"
+                       spellcheck="false" maxlength="160"
+                       placeholder="%(title)s [%(id)s].%(ext)s">
+              </label>
+              <div class="more-field">
+                <span>Into</span>
+                <button type="button" class="ghost small" id="optDir"
+                        data-dir="">Default folder</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="more-sec">
+            <div class="more-row">
+              <label class="more-field">
+                <span>Sign-in for this download</span>
+                <select id="optCookies">
+                  <option value="">Use the saved session</option>
+                  <option value="off">Send no sign-in</option>
+                </select>
+              </label>
+              <label class="more-field">
+                <span>Player client</span>
+                <select id="optClient">
+                  <option value="">Let Riplox choose</option>
+                  <option value="tv_simply">tv_simply</option>
+                  <option value="web_safari">web_safari</option>
+                  <option value="mweb">mweb</option>
+                  <option value="android_vr">android_vr</option>
+                  <option value="ios">ios</option>
+                  <option value="web">web</option>
+                </select>
+              </label>
+            </div>
+            <p class="more-note" id="cookieNow"></p>
+          </div>
+
+          <div class="more-sec">
+            <div class="more-row between">
+              <label>The command Riplox will run</label>
+              <button type="button" class="ghost small" id="cmdCopy">Copy</button>
+            </div>
+            <pre class="cmd" id="cmdBox">…</pre>
+          </div>
+
+          </div>
+        </details>
+
         <div class="preview-actions">
           <button class="primary big" id="downloadBtn">Download</button>
           <button class="ghost" id="resetBtn">Clear</button>
         </div>
       </div>
+    </div>
+
+    <div class="channel-wrap" id="channelWrap" hidden>
+      <div class="channel-head">
+        <h3 id="channelTitle"></h3>
+        <span>Pick a section to see what is in it.</span>
+      </div>
+      <div class="chips" id="channelTabs"></div>
     </div>
 
     <div class="playlist-wrap" id="playlistWrap" hidden>
@@ -107,6 +303,19 @@
         </label>
         <input type="text" id="plFilter" class="pl-filter" spellcheck="false"
                placeholder="Filter by title…">
+        <select id="plSort" title="Order of the list">
+          <option value="order">Playlist order</option>
+          <option value="long">Longest first</option>
+          <option value="short">Shortest first</option>
+          <option value="title">By title</option>
+          <option value="new" hidden>Newest first</option>
+          <option value="old" hidden>Oldest first</option>
+        </select>
+        <label class="pl-first">First
+          <input type="number" id="plFirst" min="1" step="1" placeholder="10">
+          <button type="button" class="ghost small" id="plFirstGo">Pick</button>
+        </label>
+        <button type="button" class="ghost small" id="plInvert">Invert</button>
         <span class="pl-count" id="plCount"></span>
       </div>
       <ul class="playlist" id="playlistBox"></ul>
@@ -119,6 +328,14 @@
     <div class="view-head">
       <h2>Queue</h2>
       <button class="ghost small" id="clearFinished">Clear finished</button>
+    </div>
+    <div class="resume-bar update-bar" id="updateBar" hidden>
+      <span id="updateText"></span>
+      <button class="ghost small" id="updateOpen">Open the release page</button>
+    </div>
+    <div class="resume-bar" id="resumeBar" hidden>
+      <span id="resumeText"></span>
+      <button class="primary small" id="resumeAll">Resume</button>
     </div>
     <div class="empty" id="queueEmpty">
       <p>Nothing downloading.</p>
@@ -136,6 +353,18 @@
         <button class="ghost small danger" id="clearHistory">Clear history</button>
       </div>
     </div>
+    <div class="lib-controls" id="libControls" hidden>
+      <input type="search" id="libSearch" class="text-input lib-search"
+             placeholder="Search your downloads" autocomplete="off">
+      <select id="libSort">
+        <option value="new">Newest first</option>
+        <option value="old">Oldest first</option>
+        <option value="name">By name</option>
+        <option value="big">Biggest first</option>
+      </select>
+      <span class="lib-count" id="libCount"></span>
+      <div class="chips lib-chips" id="libChips"></div>
+    </div>
     <div class="empty" id="libraryEmpty">
       <p>No downloads yet.</p>
       <span>Finished files are listed here.</span>
@@ -143,10 +372,235 @@
     <div class="history" id="history"></div>
   </section>
 
+  <!-- ============================ CONVERT ============================ -->
+  <section class="view" id="view-convert">
+    <div class="view-head">
+      <h2>Convert to audio</h2>
+      <button class="ghost small" id="convPick">Choose files from this PC…</button>
+    </div>
+
+    <p class="conv-note">Pulls the sound out of anything already on your
+      computer. The original is never touched.</p>
+
+    <div class="conv-controls">
+      <label class="conv-field">
+        <span>Format</span>
+        <select id="convFormat"></select>
+      </label>
+      <label class="conv-field">
+        <span>Quality</span>
+        <select id="convQuality"></select>
+      </label>
+      <label class="conv-field conv-where">
+        <input type="checkbox" id="convBeside" checked>
+        <span>Save next to the original</span>
+      </label>
+      <button class="primary" id="convStart" disabled>Convert</button>
+    </div>
+
+    <div class="conv-picked" id="convPicked" hidden></div>
+
+    <div class="view-head sub-head">
+      <h3>From your library</h3>
+      <label class="conv-field"><input type="checkbox" id="convAll"><span>Select all</span></label>
+    </div>
+    <div class="empty" id="convEmpty">
+      <p>Nothing to convert yet.</p>
+      <span>Download something, or choose a file from this PC.</span>
+    </div>
+    <ul class="conv-list" id="convList"></ul>
+  </section>
+
+  <!-- ============================= WATCH ============================= -->
+  <section class="view" id="view-watch">
+    <div class="view-head">
+      <h2>Watch</h2>
+      <div class="row-gap">
+        <span class="share-state" id="watchState">off</span>
+        <button class="toggle" id="setWatch" role="switch"
+                title="Check watched links for new videos"><i></i></button>
+      </div>
+    </div>
+
+    <p class="conv-note">Riplox checks the channels and playlists you add here
+      and tells you what is new. It never downloads anything on its own.</p>
+
+    <div class="watch-add">
+      <input type="url" id="watchUrl" class="text-input"
+             placeholder="Paste a channel or playlist link" autocomplete="off">
+      <button class="ghost small" id="addChannel">Add channel</button>
+      <button class="ghost small" id="addPlaylist">Add playlist</button>
+    </div>
+    <p class="warn" id="watchError" hidden></p>
+
+    <div class="watch-pick" id="watchPick" hidden>
+      <p class="more-note">That is a whole channel. Pick the section to watch —
+        a channel's front page never changes when a video is posted.</p>
+      <div class="chips" id="watchTabs"></div>
+    </div>
+
+    <div class="view-head sub-head">
+      <h3>Watching <span class="lib-count" id="watchCount"></span></h3>
+      <div class="row-gap">
+        <label class="watch-every">Check every
+          <select id="watchHours">
+            <option value="6">6 hours</option>
+            <option value="12">12 hours</option>
+            <option value="24">24 hours</option>
+            <option value="48">2 days</option>
+          </select>
+        </label>
+        <button class="ghost small" id="watchCheckAll">Check now</button>
+      </div>
+    </div>
+
+    <div class="empty" id="watchEmpty">
+      <p>Nothing being watched.</p>
+      <span>Paste a channel or playlist link above.</span>
+    </div>
+    <div id="watchList"></div>
+
+    <details class="more" id="watchHelp">
+      <summary>If YouTube starts asking whether you are a bot</summary>
+      <div class="more-body">
+        <p class="more-note">This is the one thing watching can cause. It is
+          usually temporary and it does not break anything — ordinary downloads
+          keep working. In order:</p>
+        <div class="more-sec">
+          <label>1 · Slow it down</label>
+          <p class="more-note">Set <b>Check every</b> to 24 hours or 2 days, and
+            remove any channel you do not really follow. Every watched item is
+            another request.</p>
+        </div>
+        <div class="more-sec">
+          <label>2 · Wait it out</label>
+          <p class="more-note">Turn Watch off for a day. These blocks lift on
+            their own far more often than not.</p>
+        </div>
+        <div class="more-sec">
+          <label>3 · Sign in</label>
+          <p class="more-note"><b>Settings → Sign-in → Sign in to YouTube</b>.
+            A signed-in request is rarely challenged. Use an account you do not
+            mind losing — heavy automated use can get the account itself
+            limited, and that is a real risk, not a formality.</p>
+        </div>
+        <div class="more-sec">
+          <label>4 · Turn on the helper</label>
+          <p class="more-note"><b>Settings → YouTube → proof-of-origin
+            helper</b>. It answers the check YouTube is making, which is exactly
+            what this failure is.</p>
+        </div>
+        <div class="more-sec">
+          <label>5 · Update the engine</label>
+          <p class="more-note"><b>Settings → Advanced → Update engine</b>. When
+            YouTube changes something, the fix usually arrives there first.</p>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <!-- =========================== SHARING ============================= -->
+  <section class="view" id="view-sharing">
+    <div class="view-head">
+      <h2>Send to Riplox</h2>
+      <div class="row-gap">
+        <span class="share-state" id="shareState">off</span>
+        <button class="toggle" id="setSharing" role="switch"
+                title="Let paired devices send links here"><i></i></button>
+      </div>
+    </div>
+
+    <p class="conv-note">Share a link from your phone — it downloads on this
+      PC. Only the link travels, and nothing on the internet can reach this
+      computer.</p>
+
+    <div class="share-grid">
+      <div class="panel share-pair">
+        <div class="field">
+          <div class="field-text">
+            <label>Pair a device</label>
+            <span>One device, two minutes.</span>
+          </div>
+          <div class="row-gap">
+            <input type="text" id="shareName" class="text-input pair-name"
+                   maxlength="24" autocomplete="off" placeholder="Whose phone?">
+            <button class="ghost small" id="shareInvite">Show code</button>
+          </div>
+        </div>
+        <div class="qr-box" id="qrBox" hidden>
+          <div class="qr" id="qrImage"></div>
+          <div class="qr-side">
+            <p class="qr-note" id="qrExpiry"></p>
+            <code id="qrCode"></code>
+            <p class="qr-note dim">Can't scan? Open
+              <code class="inline">relay.xniperbuilds.com/p/</code> on the phone
+              and paste this code.</p>
+            <div class="btn-row">
+              <button class="ghost small" id="qrCopy">Copy code</button>
+              <button class="ghost small" id="qrCopyLink">Copy link</button>
+            </div>
+            <code id="qrLink" hidden></code>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="view-head sub-head panel-head">
+          <h3>Paired devices</h3>
+          <button class="ghost small danger" id="revokeAll" hidden>Remove all</button>
+        </div>
+        <div class="empty small" id="devicesEmpty">
+          <p>No devices yet.</p>
+          <span>Pair one above and it appears here.</span>
+        </div>
+        <div id="devicesList"></div>
+      </div>
+    </div>
+
+    <details class="more phone-help">
+      <summary>One tap from the share sheet</summary>
+      <div class="more-body">
+        <div class="more-sec">
+          <label>Android — the app</label>
+          <p class="more-note">Open the paired link on the phone and tap
+            <b>Download Riplox Send</b> (77 KB). Pair it with the code above,
+            and from then on <b>Share → Riplox Send</b> sends the link with
+            <b>nothing opening at all</b> — just a tick.</p>
+        </div>
+        <div class="more-sec">
+          <label>Android — without installing</label>
+          <p class="more-note">Open the paired link in Chrome →
+            <b>menu → Install app</b>. Riplox appears in the share sheet the
+            same way, but sharing opens the page for a moment.</p>
+        </div>
+        <div class="more-sec">
+          <label>iPhone</label>
+          <p class="more-note">iOS has no share target for web pages. In
+            Shortcuts: <b>new Shortcut → Open URLs</b>, tick <b>Show in Share
+            Sheet</b>, accept <b>URLs</b>, and set the URL to your paired link
+            with <code class="inline">?text=</code> and the <b>Shortcut
+            Input</b> on the end.</p>
+        </div>
+      </div>
+    </details>
+
+    <div class="view-head sub-head">
+      <h3>Incoming</h3>
+      <button class="ghost small" id="shareClearLog">Clear</button>
+    </div>
+    <div class="empty small" id="incomingEmpty">
+      <p>Nothing has been sent yet.</p>
+      <span>Links sent from a paired device show up here.</span>
+    </div>
+    <div id="incomingList"></div>
+  </section>
+
   <!-- =========================== SETTINGS ============================ -->
   <section class="view" id="view-settings">
     <div class="view-head"><h2>Settings</h2></div>
 
+    <!-- ---------------------------------------------------- Downloads -->
+    <h3 class="group-head">Downloads</h3>
     <div class="panel">
       <div class="field">
         <div class="field-text">
@@ -159,7 +613,7 @@
       <div class="field">
         <div class="field-text">
           <label>Default quality</label>
-          <span>Pre-selected every time you analyze a link.</span>
+          <span>Pre-selected when you analyze a link.</span>
         </div>
         <select id="setQuality">
           {% for key, label in quality_labels.items() %}
@@ -182,11 +636,193 @@
 
       <div class="field">
         <div class="field-text">
-          <label>Cookies file</label>
-          <span>The reliable way in for private, age-restricted, or "confirm
-                you're not a bot" videos. Export <code class="inline">cookies.txt</code>
-                with a browser extension, then pick it here — this works with
-                every browser.</span>
+          <label>Speed limit</label>
+          <span>Leaves the rest of your connection usable.</span>
+        </div>
+        <select id="setSpeedLimit">
+          {% for kb, name in [(0,'No limit'), (256,'256 KB/s'), (512,'512 KB/s'),
+                              (1024,'1 MB/s'), (2048,'2 MB/s'), (5120,'5 MB/s'),
+                              (10240,'10 MB/s')] %}
+          <option value="{{ kb }}" {% if settings.speed_limit == kb %}selected{% endif %}>{{ name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field">
+        <div class="field-text">
+          <label>Play-anywhere video</label>
+          <span>H.264, so files open in any player. Off for maximum resolution.</span>
+        </div>
+        <button class="toggle {% if settings.prefer_h264 %}on{% endif %}"
+                id="setH264" role="switch"><i></i></button>
+      </div>
+
+      <div class="field">
+        <div class="field-text">
+          <label>Watch clipboard</label>
+          <span>Offers a link as soon as you copy it, even in the background.</span>
+        </div>
+        <button class="toggle {% if settings.auto_paste %}on{% endif %}"
+                id="setAutoPaste" role="switch"><i></i></button>
+      </div>
+
+      <div class="field sub-field">
+        <div class="field-text">
+          <label>Download copied links instantly</label>
+          <span>Skips the preview and uses your default quality.</span>
+        </div>
+        <button class="toggle {% if settings.auto_download %}on{% endif %}"
+                id="setAutoDownload" role="switch"><i></i></button>
+      </div>
+
+      <div class="field sub-field">
+        <div class="field-text">
+          <label>Shortcut: <code class="inline" id="hotkeyLabel">checking…</code></label>
+          <span id="hotkeyNote">Downloads the copied link from any program.
+                Restart Riplox after changing this.</span>
+        </div>
+        <button class="toggle {% if settings.hotkey %}on{% endif %}"
+                id="setHotkey" role="switch"><i></i></button>
+      </div>
+
+      <div class="field">
+        <div class="field-text">
+          <label>Subtitles</label>
+          <span>Saved next to the video, automatic ones included.</span>
+        </div>
+        <button class="toggle {% if settings.write_subs %}on{% endif %}"
+                id="setSubs" role="switch"><i></i></button>
+      </div>
+
+      <div class="field sub-field" id="subLangField">
+        <div class="field-text">
+          <label>Subtitle languages</label>
+          <span>Codes separated by commas — <code class="inline">en</code>,
+                <code class="inline">en,ur</code>, or
+                <code class="inline">all</code>.</span>
+        </div>
+        <input type="text" id="setSubLangs" class="text-input"
+               value="{{ settings.sub_langs or 'en' }}" maxlength="60">
+      </div>
+
+      <div class="field sub-field" id="embedSubField">
+        <div class="field-text">
+          <label>Put subtitles inside the video</label>
+          <span>One file instead of two. Older players ignore them.</span>
+        </div>
+        <button class="toggle {% if settings.embed_subs %}on{% endif %}"
+                id="setEmbedSubs" role="switch"><i></i></button>
+      </div>
+
+      <div class="field">
+        <div class="field-text">
+          <label>Chapter marks</label>
+          <span>So a player can jump between the video's chapters.</span>
+        </div>
+        <button class="toggle {% if settings.embed_chapters %}on{% endif %}"
+                id="setChapters" role="switch"><i></i></button>
+      </div>
+
+      <div class="field">
+        <div class="field-text">
+          <label>Save thumbnail</label>
+          <span>Writes the cover image next to the video.</span>
+        </div>
+        <button class="toggle {% if settings.write_thumbnail %}on{% endif %}"
+                id="setThumb" role="switch"><i></i></button>
+      </div>
+
+      <div class="field">
+        <div class="field-text">
+          <label>Folder per site</label>
+          <span>YouTube, TikTok and Instagram get folders of their own.</span>
+        </div>
+        <button class="toggle {% if settings.subfolder_per_site %}on{% endif %}"
+                id="setSubfolder" role="switch"><i></i></button>
+      </div>
+
+      <div class="field">
+        <div class="field-text">
+          <label>Never download the same video twice</label>
+          <span>Skips anything already downloaded.
+                <b class="warn">Including one you want again at another
+                quality.</b></span>
+        </div>
+        <button class="toggle {% if settings.skip_existing %}on{% endif %}"
+                id="setSkipExisting" role="switch"><i></i></button>
+      </div>
+    </div>
+
+    <!-- ------------------------------------------------------ YouTube -->
+    <h3 class="group-head">YouTube</h3>
+    <div class="panel">
+      <div class="field">
+        <div class="field-text">
+          <label>Steady pace</label>
+          <span>A short pause between requests. Leave this on.</span>
+        </div>
+        <button class="toggle {% if settings.polite_mode %}on{% endif %}"
+                id="setPolite" role="switch"><i></i></button>
+      </div>
+
+      <div class="field">
+        <div class="field-text">
+          <label>Allow YouTube's AI-enlarged versions</label>
+          <span>Off means you get the video as it was uploaded.</span>
+        </div>
+        <button class="toggle {% if settings.allow_ai_upscale %}on{% endif %}"
+                id="setUpscale" role="switch"><i></i></button>
+      </div>
+
+      <div class="field">
+        <div class="field-text">
+          <label>Skip sponsor segments</label>
+          <span>Cuts sponsor reads out. Asks the community SponsorBlock
+                database about each video.</span>
+        </div>
+        <button class="toggle {% if settings.sponsorblock %}on{% endif %}"
+                id="setSponsor" role="switch"><i></i></button>
+      </div>
+
+      <div class="field">
+        <div class="field-text">
+          <label>YouTube helper</label>
+          <span>A <span id="potSize">44 MB</span> helper that runs on this PC,
+                for when YouTube asks you to prove you are not a bot.</span>
+          <code id="potState">checking…</code>
+        </div>
+        <div class="row-gap">
+          <button class="toggle {% if settings.potoken %}on{% endif %}"
+                  id="setPotoken" role="switch"><i></i></button>
+          <button class="ghost small" id="removePotoken" hidden>Remove</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ------------------------------------------------------ Sign-in -->
+    <h3 class="group-head">Sign-in</h3>
+    <div class="panel">
+      <div class="field">
+        <div class="field-text">
+          <label>Sign in with your browser</label>
+          <span>For private, members-only and age-restricted videos. Riplox
+                opens <b id="signinBrowser">your browser</b> in a window of its
+                own; your normal profile is never touched.</span>
+          <span class="note">Downloading a lot while signed in can get that
+                account limited. A spare account is the safe choice.</span>
+          <code id="cookieState">checking…</code>
+        </div>
+        <div class="row-gap">
+          <button class="ghost small" id="signIn">Sign in</button>
+          <button class="ghost small" id="refreshCookies" hidden>Refresh</button>
+          <button class="ghost small" id="forgetCookies" hidden>Forget</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="field-text">
+          <label>Or use a cookies.txt file</label>
+          <span>Already exported one? It takes priority over the sign-in above.</span>
           <code id="cookieFileLabel">{{ settings.cookies_file or 'Not set' }}</code>
         </div>
         <div class="row-gap">
@@ -197,108 +833,197 @@
 
       <div class="field">
         <div class="field-text">
-          <label>Or read cookies from a browser</label>
-          <span><b class="warn">Chrome, Edge and Brave no longer allow this</b> —
-                since 2024 they lock their cookies to themselves, and closing
-                the browser does not help. Firefox still works. Ignored when a
-                cookies file is set above.</span>
+          <label>Or read cookies from Firefox</label>
+          <span>The one browser that still lets another program read its
+                cookies. Ignored when either option above is set.</span>
         </div>
         <select id="setCookies">
           <option value="none" {% if settings.cookies_browser == 'none' %}selected{% endif %}>none</option>
-          <option value="firefox" {% if settings.cookies_browser == 'firefox' %}selected{% endif %}>firefox (works)</option>
-          <option value="chrome" {% if settings.cookies_browser == 'chrome' %}selected{% endif %}>chrome (blocked)</option>
-          <option value="edge" {% if settings.cookies_browser == 'edge' %}selected{% endif %}>edge (blocked)</option>
-          <option value="brave" {% if settings.cookies_browser == 'brave' %}selected{% endif %}>brave (blocked)</option>
+          <option value="firefox" {% if settings.cookies_browser == 'firefox' %}selected{% endif %}>firefox</option>
         </select>
-      </div>
-
-      <div class="field">
-        <div class="field-text">
-          <label>Play-anywhere video</label>
-          <span>Prefer H.264 so files open in Windows Media Player, WhatsApp and
-                phones. Turn off only if you want maximum resolution.</span>
-        </div>
-        <button class="toggle {% if settings.prefer_h264 %}on{% endif %}"
-                id="setH264" role="switch"><i></i></button>
-      </div>
-
-      <div class="field">
-        <div class="field-text">
-          <label>Folder per site</label>
-          <span>Sort files into YouTube, TikTok, Instagram subfolders.</span>
-        </div>
-        <button class="toggle {% if settings.subfolder_per_site %}on{% endif %}"
-                id="setSubfolder" role="switch"><i></i></button>
-      </div>
-
-      <div class="field">
-        <div class="field-text">
-          <label>Watch clipboard</label>
-          <span>Offer to use a link as soon as you copy it, even while Riplox
-                sits in the background.</span>
-        </div>
-        <button class="toggle {% if settings.auto_paste %}on{% endif %}"
-                id="setAutoPaste" role="switch"><i></i></button>
-      </div>
-
-      <div class="field">
-        <div class="field-text">
-          <label>Download copied links instantly</label>
-          <span>Skip the preview — copy a link and it starts downloading at
-                your default quality. Needs clipboard watching on.</span>
-        </div>
-        <button class="toggle {% if settings.auto_download %}on{% endif %}"
-                id="setAutoDownload" role="switch"><i></i></button>
-      </div>
-
-      <div class="field">
-        <div class="field-text">
-          <label>Shortcut: <code class="inline" id="hotkeyLabel">checking…</code></label>
-          <span id="hotkeyNote">Copy a link in any program and press it —
-                Riplox downloads it without you switching windows. Changing
-                this takes effect after you restart Riplox.</span>
-        </div>
-        <button class="toggle {% if settings.hotkey %}on{% endif %}"
-                id="setHotkey" role="switch"><i></i></button>
-      </div>
-
-      <div class="field">
-        <div class="field-text">
-          <label>Save thumbnail</label>
-          <span>Write the cover image next to the video.</span>
-        </div>
-        <button class="toggle {% if settings.write_thumbnail %}on{% endif %}"
-                id="setThumb" role="switch"><i></i></button>
       </div>
     </div>
 
+    <!-- ------------------------------------------------------ Sharing -->
+    <h3 class="group-head">Sharing</h3>
     <div class="panel">
       <div class="field">
         <div class="field-text">
-          <label>Download engine</label>
-          <span id="engineVersion">checking…</span>
+          <label>Ask before starting</label>
+          <span>Holds every link sent from a phone until you approve it.</span>
         </div>
-        <button class="ghost small" id="updateEngine">Update</button>
+        <button class="toggle {% if settings.share_approve %}on{% endif %}"
+                id="setShareApprove" role="switch"><i></i></button>
       </div>
-      <p class="footnote">
-        Sites change how they serve video. If a link stops working, update the
-        engine first — that fixes it most of the time.
-      </p>
+
+      <div class="field">
+        <div class="field-text">
+          <label>Relay address</label>
+          <span>Where your devices meet when they are not on the same network.
+                It carries a link, never a video.</span>
+        </div>
+        <input type="text" id="setRelay" class="text-input"
+               value="{{ settings.share_relay }}" maxlength="200" spellcheck="false">
+      </div>
     </div>
 
-    <p class="credit">Riplox Desktop · XniperBuilds</p>
+    <!-- ------------------------------------------------------- Backup -->
+    <h3 class="group-head">Backup</h3>
+    <div class="panel">
+      <div class="field">
+        <div class="field-text">
+          <label>Export your links</label>
+          <span>Every video you have downloaded, as a list or a spreadsheet.</span>
+        </div>
+        <div class="btn-row">
+          <button class="ghost small" data-export="txt">.txt</button>
+          <button class="ghost small" data-export="csv">.csv</button>
+          <button class="ghost small" data-export="json">.json</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="field-text">
+          <label>Back up your settings</label>
+          <span>One file for a new PC. Your sign-in and pairings stay on this
+                machine.</span>
+        </div>
+        <div class="btn-row">
+          <button class="ghost small" id="settingsExport">Save</button>
+          <button class="ghost small" id="settingsImport">Restore</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ----------------------------------------------------- Advanced -->
+    <details class="group-adv">
+      <summary class="group-head">Advanced</summary>
+      <div class="panel">
+        <div class="field">
+          <div class="field-text">
+            <label>Download engine</label>
+            <span id="engineVersion">checking…</span>
+          </div>
+          <button class="ghost small" id="updateEngine">Update</button>
+        </div>
+
+        <div class="field">
+          <div class="field-text">
+            <label>Engine updates</label>
+            <span>Nightly is newer and slightly less tested than stable.</span>
+          </div>
+          <select id="setChannel">
+            <option value="stable" {% if settings.engine_channel != 'nightly' %}selected{% endif %}>stable</option>
+            <option value="nightly" {% if settings.engine_channel == 'nightly' %}selected{% endif %}>nightly</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <div class="field-text">
+            <label>Pieces per file</label>
+            <span>Parts of one video pulled at the same time. Higher is worse
+                  on a weak connection.</span>
+          </div>
+          <select id="setFragments">
+            {% for n in [1, 2, 4, 8, 16] %}
+            <option value="{{ n }}" {% if settings.fragments == n %}selected{% endif %}>{{ n }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="field">
+          <div class="field-text">
+            <label>Tell me about new versions</label>
+            <span>Asks GitHub once a day. Never installs anything on its own.</span>
+          </div>
+          <button class="toggle {% if settings.check_updates %}on{% endif %}"
+                  id="setCheckUpdates" role="switch"><i></i></button>
+        </div>
+
+        <div class="field">
+          <div class="field-text">
+            <label>Check now</label>
+            <span>You are on v{{ version }}.</span>
+          </div>
+          <button class="ghost small" id="checkUpdateNow">Check</button>
+        </div>
+
+        <p class="footnote">
+          Sites change how they serve video. If a link stops working, update the
+          engine first — that fixes it most of the time.
+          <span id="envLine"></span>
+        </p>
+      </div>
+    </details>
+
+    <p class="credit">Riplox Desktop ·
+      <a href="https://xniperbuilds.com" id="brandLink">XniperBuilds</a></p>
   </section>
 
 </main>
+</div><!-- /stage -->
+</div><!-- /app -->
+
+<!-- Riplox's own ask/tell box, replacing the browser's native one.
+     WebView2 titles a native confirm() with the address it is serving from -
+     "127.0.0.1:50473 says" - which looks like something has gone wrong and
+     puts a port number in front of the user for no reason. Same fix as
+     Transport Ledger and RentLedger. -->
+<div class="scrim" id="xdlg" hidden>
+  <div class="dlg dlg-ask" role="dialog" aria-modal="true" aria-labelledby="xdlgTitle">
+    <h3 id="xdlgTitle">Riplox</h3>
+    <p class="dlg-msg" id="xdlgMsg"></p>
+    <div class="dlg-input" id="xdlgInputWrap" hidden>
+      <input type="text" id="xdlgInput" class="text-input" autocomplete="off">
+    </div>
+    <div class="dlg-foot">
+      <button class="ghost" id="xdlgCancel">Cancel</button>
+      <button class="primary" id="xdlgOk">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- Shown once, before watching is ever switched on. The button below stays
+     dead for fifteen seconds on purpose: this is the only feature in Riplox
+     that makes repeated requests on its own, and the one that can get a
+     Google account limited. It should not be possible to click past it. -->
+<div class="scrim" id="watchWarn" hidden>
+  <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="watchWarnTitle">
+    <h3 id="watchWarnTitle">Read this before turning watching on</h3>
+    <ul class="dlg-list">
+      <li><b>This is automated.</b> Riplox will ask the site for each watched
+        channel's newest videos on a timer, on its own, for as long as it is
+        on.</li>
+      <li><b>Sites push back on that.</b> YouTube can answer a repeated
+        automated request with “Sign in to confirm you're not a bot”. If you
+        have signed in through Riplox, heavy use can get <i>that account</i>
+        limited — not just this app.</li>
+      <li><b>Nothing downloads by itself.</b> Riplox only shows you what is
+        new. Every download is still a button you press.</li>
+      <li><b>It is kept as small as it can be:</b> the newest 30 items only,
+        one check at a time, at least 90 seconds apart, and once every 12 hours
+        per channel by default.</li>
+      <li><b>If it does happen</b>, the fix is on this page, under <i>“If
+        YouTube starts asking whether you are a bot”</i>. It is usually
+        temporary, and ordinary downloads keep working.</li>
+    </ul>
+    <div class="dlg-foot">
+      <button class="ghost" id="watchWarnNo">Cancel</button>
+      <button class="primary" id="watchWarnOk" disabled>I understand (15)</button>
+    </div>
+  </div>
+</div>
 
 <div class="toast" id="toast" hidden></div>
 
 <script>
   window.RIPLOX = {
     token: {{ token | tojson }},
+    version: {{ version | tojson }},
     settings: {{ settings | tojson }},
     hasFfmpeg: {{ has_ffmpeg | tojson }},
-    labels: {{ quality_labels | tojson }}
+    labels: {{ quality_labels | tojson }},
+    sites: {{ sites | tojson }}
   };
 </script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>

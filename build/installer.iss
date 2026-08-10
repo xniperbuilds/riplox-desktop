@@ -23,6 +23,9 @@ OutputDir=..\dist_installer
 OutputBaseFilename=Riplox_Setup_v{#AppVersion}
 SetupIconFile=..\src\static\img\riplox.ico
 UninstallDisplayIcon={app}\{#AppExe}
+; Shown as a page the user has to accept before anything is written. The file
+; is installed alongside the app as well, so it can be read again later.
+LicenseFile=..\TERMS.txt
 WizardStyle=modern
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -36,6 +39,16 @@ PrivilegesRequiredOverridesAllowed=dialog
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
+; Inno calls this page "License Agreement", which reads like a purchase.
+; It is a set of terms about what the program does and what it does not
+; promise, so it should say that.
+[Messages]
+WizardLicense=Terms and Conditions
+LicenseLabel=Please read the following terms before continuing.
+LicenseLabel3=Please read the following Terms and Conditions. You must accept them before Riplox can be installed.
+LicenseAccepted=I &accept the terms
+LicenseNotAccepted=I &do not accept the terms
+
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"
 
@@ -45,6 +58,10 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 Source: "..\dist\Riplox\*"; DestDir: "{app}"; Excludes: "bin\*"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; ffmpeg is a shared build - the exe and its DLLs must stay in one folder.
 Source: "..\bin\*"; DestDir: "{app}\bin"; Flags: ignoreversion
+; The terms the user accepted, and the licence they were told about, both
+; readable after the fact rather than only during setup.
+Source: "..\TERMS.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
 
 [InstallDelete]
 ; Wipe the previous payload before writing the new one. Leftover files from an

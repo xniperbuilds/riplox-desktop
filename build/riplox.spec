@@ -43,6 +43,16 @@ a = Analysis(
     hiddenimports=[
         "engine",
         "tray",
+        "cookies",
+        "potoken",
+        "sharing",
+        "convert",
+        "watch",
+        # Reached only through sharing.py, so PyInstaller cannot see them:
+        # segno draws the pairing QR, and AES-GCM seals every message the
+        # relay carries. Without these Sharing cannot be turned on at all.
+        "segno",
+        "cryptography.hazmat.primitives.ciphers.aead",
         "clr_loader",
         "webview.platforms.edgechromium",
         "webview.platforms.winforms",

@@ -1,0 +1,24 @@
+name = "riplox-relay"
+main = "worker.js"
+compatibility_date = "2026-08-01"
+workers_dev = true
+
+# The pairing URL is printed into a QR code and shipped as the app's default,
+# so it has to be a brand address. The generated workers.dev subdomain carries
+# the account owner's email in it, which is not something to hand to every
+# user of a public app.
+[[routes]]
+pattern = "relay.xniperbuilds.com"
+custom_domain = true
+
+# One Durable Object per pairing. It exists so the desktop app's held-open
+# request has something to wait on - Workers KV cannot do that, and its free
+# tier caps writes at 1,000 a day, which a postbox would burn through.
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+# SQLite-backed, which is the class the free plan allows.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]

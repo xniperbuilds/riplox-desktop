@@ -1,13 +1,14 @@
 """
-Download the two binaries Riplox ships with into bin/.
+Download the binaries Riplox ships with into bin/.
 
-They are not kept in the repository: together they are ~180 MB, and both are
-maintained upstream far more often than this app is. Run this once before
+They are not kept in the repository: together they are ~180 MB, and all of them
+are maintained upstream far more often than this app is. Run this once before
 building.
 
     python build\\fetch_binaries.py
 """
 
+import hashlib
 import io
 import shutil
 import sys
@@ -18,6 +19,14 @@ from pathlib import Path
 BIN = Path(__file__).resolve().parent.parent / "bin"
 
 YTDLP_URL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
+
+# yt-dlp needs an external JavaScript runtime for YouTube. Deno is the one it
+# prefers, but the Windows build is over 100 MB; QuickJS does the same job in
+# two. Pinned and checksummed, because this ships inside the installer.
+QJS_VERSION = "v0.16.1"
+QJS_URL = ("https://github.com/quickjs-ng/quickjs/releases/download/"
+           f"{QJS_VERSION}/qjs-windows-x86_64.exe")
+QJS_SHA = "55a1b69cd4fdb6b0d3f8fdd910d0e89519f5330e408462084140c7b3b964fdae"
 
 # Shared build: small executables plus their DLLs, roughly a third of the size
 # of the static build. Every file must land in the same folder.
@@ -41,6 +50,21 @@ def fetch_ytdlp() -> None:
     print(f"  -> {target.name} ({target.stat().st_size / 1e6:.1f} MB)")
 
 
+def fetch_qjs() -> None:
+    # yt-dlp only recognises this runtime under the name "qjs".
+    target = BIN / "qjs.exe"
+    print(f"quickjs {QJS_VERSION}:")
+    body = download(QJS_URL)
+
+    digest = hashlib.sha256(body).hexdigest()
+    if digest != QJS_SHA:
+        raise SystemExit(f"  checksum mismatch - refusing to write\n"
+                         f"  expected {QJS_SHA}\n  got      {digest}")
+
+    target.write_bytes(body)
+    print(f"  -> {target.name} ({target.stat().st_size / 1e6:.1f} MB, sha256 ok)")
+
+
 def fetch_ffmpeg() -> None:
     print("ffmpeg:")
     archive = zipfile.ZipFile(io.BytesIO(download(FFMPEG_URL)))
@@ -62,6 +86,7 @@ def main() -> None:
     BIN.mkdir(parents=True, exist_ok=True)
     try:
         fetch_ytdlp()
+        fetch_qjs()
         fetch_ffmpeg()
     except (urllib.error.URLError, OSError) as exc:
         raise SystemExit(f"download failed: {exc}")

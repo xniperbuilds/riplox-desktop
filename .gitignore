@@ -7,8 +7,19 @@ bin/
 dist/
 dist_installer/
 build/work/
+build/_work/
 build/riplox/
 *.spec.bak
+
+# The phone app, base64 for the relay to serve. A build output that changes
+# with every Android build, and this repository has already had to have its
+# history rewritten once to get binaries back out of it. Rebuild it with
+# SendToRiplox\build\pack_for_relay.py before deploying the relay.
+relay/apk.js
+
+# Working notes. They name people and machines, and this repository is public.
+V1.2_PLAN.md
+YOUTUBE_FIX_PLAN.md
 
 # Python
 __pycache__/
