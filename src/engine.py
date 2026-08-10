@@ -193,27 +193,78 @@ def _shipped(name: str) -> Path | None:
     return None
 
 
+def _newer(source: Path, target: Path) -> bool:
+    try:
+        return not target.exists() or source.stat().st_mtime > target.stat().st_mtime
+    except OSError:
+        return False
+
+
 def ytdlp_path() -> Path | None:
     """
     yt-dlp runs from a writable copy in LOCALAPPDATA so that "Update engine"
     works without admin rights. Program Files is read-only for normal users.
+
+    It ships as a folder - yt-dlp.exe beside its _internal - rather than the
+    single-file build, because the single-file build unpacks itself into a
+    temp directory on every single run. Measured on this machine: 2.2s before
+    one request had gone out, against 0.77s for the folder. Riplox starts
+    yt-dlp for every paste, every job and every watch check, so that is 1.4s
+    off each of them. yt-dlp's own --update-to handles this layout, which is
+    the only reason it is an option at all.
     """
     name = "yt-dlp.exe" if os.name == "nt" else "yt-dlp"
-    live = bin_dir() / name
-    shipped = _shipped(name)
 
-    if shipped is not None:
-        if not live.exists() or shipped.stat().st_mtime > live.stat().st_mtime:
-            try:
-                shutil.copy2(shipped, live)
-            except OSError:
-                # A running yt-dlp can hold a lock; the existing copy is fine.
-                pass
+    live_dir = bin_dir() / "ytdlp"
+    live = live_dir / name
+    shipped_dir = None
+    for root in bundle_roots():
+        candidate = root / "bin" / "ytdlp" / name
+        if candidate.exists():
+            shipped_dir = candidate.parent
+            break
+
+    if shipped_dir is not None and _newer(shipped_dir / name, live):
+        # Staged and swapped whole, never copied over in place. A running
+        # yt-dlp holds its own files open, and a half-replaced folder - a new
+        # _internal beside the old exe - is a broken engine whose failure
+        # turns up long after the thing that caused it. If any step refuses,
+        # the copy already there is untouched and still works.
+        staged = live_dir.with_name("ytdlp.new")
+        try:
+            shutil.rmtree(staged, ignore_errors=True)
+            shutil.copytree(shipped_dir, staged)
+            if live_dir.exists():
+                shutil.rmtree(live_dir)
+            staged.rename(live_dir)
+        except OSError:
+            shutil.rmtree(staged, ignore_errors=True)
 
     if live.exists():
+        # An install from before the folder build left a 17 MB copy behind.
+        legacy = bin_dir() / name
+        if legacy.exists():
+            try:
+                legacy.unlink()
+            except OSError:
+                pass
         return live
-    if shipped is not None:
-        return shipped
+    if shipped_dir is not None:
+        return shipped_dir / name
+
+    # Older layout: one file, straight in bin. Kept so that an install which
+    # cannot copy the folder for any reason still has a working engine.
+    flat_live = bin_dir() / name
+    flat_shipped = _shipped(name)
+    if flat_shipped is not None and _newer(flat_shipped, flat_live):
+        try:
+            shutil.copy2(flat_shipped, flat_live)
+        except OSError:
+            pass
+    if flat_live.exists():
+        return flat_live
+    if flat_shipped is not None:
+        return flat_shipped
 
     found = shutil.which("yt-dlp")
     return Path(found) if found else None
@@ -879,12 +930,16 @@ def queue_file() -> Path:
 RELEASES_API = "https://api.github.com/repos/xniperbuilds/riplox-desktop/releases/latest"
 RELEASES_PAGE = "https://github.com/xniperbuilds/riplox-desktop/releases/latest"
 HOME_PAGE = "https://xniperbuilds.com"
+# Where a bug or an idea goes. A GitHub issue rather than an email address:
+# it is public, so it cannot be quietly lost, and the person reporting can see
+# what happened to it.
+ISSUES_PAGE = "https://github.com/xniperbuilds/riplox-desktop/issues/new/choose"
 _UPDATE_GAP = 24 * 3600
 
 # The only addresses Riplox will ever hand to the real browser. An allowlist
 # rather than a check on the string, so a page that talked its way past the
 # token still cannot use the app as a launcher for anything it likes.
-OPENABLE = (RELEASES_PAGE, HOME_PAGE)
+OPENABLE = (RELEASES_PAGE, HOME_PAGE, ISSUES_PAGE)
 
 
 def _version_tuple(text: str) -> tuple:
@@ -1021,19 +1076,37 @@ def analyze(url: str, settings: dict) -> dict:
     Inspect a URL without downloading.
     Returns a single video dict, or a playlist dict with entries.
     """
+    # The same ladder a download climbs. Reading a link failed on a passing
+    # bot check and stopped there, while queueing the very same link retried
+    # and went through - and the message shown even said the retries were
+    # spent, which they were not. Pasting is the first thing anyone does, so
+    # it is the worst place to be the one path that gives up immediately.
+    plans = _RETRY_CLIENTS if _is_youtube(url) else _PLAIN_RETRIES
+    out = None
+
     cookie_path, temp_cookie = open_cookies(settings, url)
     try:
-        args = _base_args(settings, cookie_path) + [
-            "-J", "--flat-playlist", "--no-progress", url,
-        ]
-        out = _run(args, timeout=120)
-    except subprocess.TimeoutExpired:
-        raise RuntimeError("Timed out while reading that link.")
+        for index, client in enumerate(plans):
+            args = _base_args(settings, cookie_path)
+            if client:
+                args += ["--extractor-args", f"youtube:player_client={client}"]
+            args += ["-J", "--flat-playlist", "--no-progress", url]
+
+            try:
+                out = _run(args, timeout=120)
+            except subprocess.TimeoutExpired:
+                raise RuntimeError("Timed out while reading that link.")
+
+            if out.returncode == 0 and (out.stdout or "").strip():
+                break
+            if index + 1 >= len(plans) or not _is_transient(out.stderr):
+                break
+            time.sleep(1 + index)      # short, because someone is watching
     finally:
         close_cookies(cookie_path, temp_cookie)
 
-    if out.returncode != 0 or not (out.stdout or "").strip():
-        raise RuntimeError(_clean_error(out.stderr))
+    if out is None or out.returncode != 0 or not (out.stdout or "").strip():
+        raise RuntimeError(_clean_error(out.stderr if out is not None else ""))
 
     try:
         info = json.loads(out.stdout)
@@ -1318,6 +1391,16 @@ def _clean_error(stderr: str) -> str:
         return ("Chrome-based browsers will not let another program read their "
                 "cookies. Use 'Sign in with your browser' in Settings instead.")
 
+    # TikTok's own words for "prove you are a person". Measured on a link that
+    # failed here: the page it serves carries a captcha and the line "Video
+    # currently unavailable", and both the stable and the nightly engine fail
+    # on it identically - so telling the user to update or to open an issue,
+    # which is what the raw message says, would send them nowhere.
+    if "unexpected response from webpage" in low_all:
+        return ("TikTok is asking this computer to verify itself, so it served "
+                "a check page instead of the video. Sign in from Settings, or "
+                "try again in a while.")
+
     if "cookie" in low_all and ("permission" in low_all or "could not copy"
                                 in low_all or "database" in low_all):
         return ("Those cookies cannot be read while the browser is open. Use "
@@ -1365,6 +1448,10 @@ def _clean_error(stderr: str) -> str:
 PROGRESS_TAG = "@@RPX@@"
 POST_TAG = "@@RPXPP@@"
 PATH_TAG = "@@RPXFILE@@"
+# A link sent from a phone was never analysed here, so nothing ever knew what
+# it looked like and the Library showed it as a blank tile. The engine already
+# knows; it just has to be asked as the download starts.
+THUMB_TAG = "@@RPXTHUMB@@"
 
 # First attempt uses whatever yt-dlp picks. The next two ask YouTube through a
 # different player client, which is what usually clears a bot check.
@@ -1387,6 +1474,11 @@ _TRANSIENT = (
     # half-built.
     "unable to extract", "rehydration", "unable to parse",
     "no video formats found", "unable to download json metadata",
+    # TikTok short links (vt.tiktok.com) answer with this when the page comes
+    # back half-built, which it does often and at random. The engine was
+    # already on its newest release when this was reported, so waiting for an
+    # update would have fixed nothing - the same link works on a second try.
+    "unexpected response from webpage",
 )
 
 
@@ -1498,7 +1590,7 @@ class Job:
                  "speed", "eta", "size", "filepath", "error", "created", "proc",
                  "cancelled", "uploader", "batch", "log", "attempt",
                  "start", "end", "exact", "stage", "paused", "kind", "conv",
-                 "opts", "origin")
+                 "opts", "origin", "streams")
 
     def __init__(self, url, title="", thumbnail="", quality="best", uploader="",
                  batch=False, start="", end="", exact=False, opts=None,
@@ -1540,6 +1632,9 @@ class Job:
         self.conv = {}
         # What a trimmed download is doing while yt-dlp reports no percentage.
         self.stage = ""
+        # How many streams have finished. A merged download is video then
+        # audio, and the one progress bar has to cover both.
+        self.streams = 0
         # Kept so the user can hand a real error to someone who can read it,
         # instead of the one friendly sentence the UI shows.
         self.log = ""
@@ -1993,6 +2088,9 @@ class DownloadManager:
             "--progress-template",
             "postprocess:" + POST_TAG + "%(progress.status)s|%(progress.postprocessor)s",
             "--print", "after_move:" + PATH_TAG + "%(filepath)s",
+            # Costs nothing - the engine has already read the page by then -
+            # and it is the only way a phone-sent download ever gets a picture.
+            "--print", "before_dl:" + THUMB_TAG + "%(thumbnail)s|%(title)s",
             "--no-simulate",
         ]
 
@@ -2007,6 +2105,9 @@ class DownloadManager:
 
         job.status = "downloading"
         job.error = ""
+        # A retry starts the streams again from the top, so the bar's idea of
+        # which one is running has to start again too.
+        job.streams = 0
         # Working out which streams to cut takes half a minute before ffmpeg
         # says anything, and a blank row for half a minute reads as broken.
         job.stage = "preparing" if (job.start or job.end) else ""
@@ -2057,6 +2158,16 @@ class DownloadManager:
                 job.status = "converting"
             elif line.startswith(PATH_TAG):
                 job.filepath = line[len(PATH_TAG):].strip()
+            elif line.startswith(THUMB_TAG):
+                # Only fills gaps. A link analysed on this PC already carries
+                # the picture and the title the user saw before pressing
+                # Download, and those must win.
+                rest = line[len(THUMB_TAG):].strip()
+                thumb, _, title = rest.partition("|")
+                if not job.thumbnail and thumb and thumb.startswith("http"):
+                    job.thumbnail = thumb
+                if title and title != "NA" and job.title in (job.url, ""):
+                    job.title = title
             elif "has already been downloaded" in line:
                 # Nothing moves, so after_move never fires - take the path here
                 # or the Play button would have nothing to open.
@@ -2169,6 +2280,13 @@ class DownloadManager:
         if job.status not in ("converting", "cancelled"):
             job.status = "downloading"
 
+    # Where each stream sits on the one bar the user sees. yt-dlp reports
+    # progress per stream, so a merged download used to race to 99% on the
+    # video and then sit there, apparently frozen, for the whole of the audio
+    # track - which is exactly what it was reported as. Video is the large
+    # one, so it gets almost all of the bar and audio gets the rest.
+    _STREAM_BANDS = ((0.0, 92.0), (92.0, 99.0))
+
     def _apply_progress(self, job: Job, payload: str) -> None:
         parts = payload.split("|")
         if len(parts) < 6:
@@ -2178,18 +2296,27 @@ class DownloadManager:
         downloaded = _num(done)
         size = _num(total) or _num(total_est)
 
+        index = min(job.streams, len(self._STREAM_BANDS) - 1)
+        low, high = self._STREAM_BANDS[index]
+
         if size:
-            pct = downloaded / size * 100.0
-            # A merged download reports progress per stream, so the raw number
-            # drops back to zero when the audio track starts. Only ever move
-            # forward, and save 100% for the moment the job actually finishes.
-            job.percent = max(job.percent, min(99.0, pct))
+            pct = min(1.0, downloaded / size)
+            # Only ever forward, and 100% is saved for the moment the file is
+            # actually on the disk.
+            job.percent = max(job.percent, min(99.0, low + (high - low) * pct))
             job.size = human_bytes(size)
+
         job.speed = f"{human_bytes(_num(speed))}/s" if _num(speed) else ""
         job.eta = _human_time(_num(eta))
 
+        # Says which half is running, so a bar that slows down still reads as
+        # working rather than stuck.
+        if not (job.start or job.end):
+            job.stage = "audio" if index else ""
+
         if status == "finished":
             job.speed = job.eta = ""
+            job.streams += 1
         elif job.status not in ("converting", "cancelled"):
             job.status = "downloading"
 

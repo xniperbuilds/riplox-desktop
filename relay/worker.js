@@ -18,7 +18,7 @@
  */
 
 import { ICON_192, ICON_512 } from "./icons.js";
-import { APK_B64, APK_SIZE, APK_SHA256, APK_VERSION } from "./apk.js";
+import { APK_B64, APK_SIZE, APK_SHA256, APK_VERSION, APK_CODE } from "./apk.js";
 
 const MAX_BODY = 4096;             // an envelope is a few hundred bytes
 const MAX_HOLD = 30;               // seconds a /wait request is held open
@@ -110,9 +110,13 @@ export default {
         },
       });
     }
+    // What the installed app asks before offering an update. The version code
+    // is the one that decides - a name like "1.0.1" is for people to read,
+    // and comparing those is guesswork the moment one gains a suffix.
     if (parts[0] === "app.json") {
       return json({
         version: APK_VERSION,
+        code: APK_CODE,
         size: APK_SIZE,
         sha256: APK_SHA256,
         url: "/app.apk",

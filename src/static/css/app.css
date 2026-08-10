@@ -54,6 +54,7 @@
   --cyan-2:    #17C3D6;
   --cyan-rgb:  43, 233, 224;
   --cyan-ink:  #2BE9E0;
+  --cyan-ink-rgb: 43, 233, 224;
   --on-cyan:   #04222B;
 
   --pink:      #FF3D6E;
@@ -115,6 +116,7 @@
   --cyan-2:    #0C93AC;
   --cyan-rgb:  16, 176, 168;
   --cyan-ink:  #04696A;
+  --cyan-ink-rgb: 4, 105, 106;
   --on-cyan:   #002225;
 
   --pink:      #E4215D;
@@ -407,7 +409,14 @@ main {
   letter-spacing: -.005em;
 }
 .capture-head h1 span {
-  background: linear-gradient(96deg, var(--cyan) 12%, var(--pink) 88%);
+  /* One colour across the line, shaded rather than shifted. It used to run
+     from cyan into pink, which read as two different words in two different
+     inks instead of one heading.
+     --cyan-ink, not --cyan: the accent is tuned to sit behind things, and as
+     text on the light theme it only reaches 2.4:1 - under the 3:1 that even
+     large text needs. That was already true of the old gradient. */
+  background: linear-gradient(96deg, var(--cyan-ink) 10%,
+                              rgba(var(--cyan-ink-rgb), .88) 92%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;

@@ -58,6 +58,11 @@ Two ways in on the phone: a web page that needs nothing installed, or
 anything at all. Both are offered from the pairing link. The relay is in
 [`relay/`](relay/).
 
+Riplox Send keeps itself up to date without a store: it asks the relay what
+version is there and, if it is newer, offers it. The download is checked
+against the published SHA-256 as it arrives and thrown away if it does not
+match; Android's own dialog does the installing.
+
 ### Watching a channel
 
 Add a channel or a playlist and Riplox checks it on a timer and lists what it
@@ -132,13 +137,22 @@ python build\make_icon.py
 pyinstaller build\riplox.spec --noconfirm
 ```
 
-`fetch_binaries.py` pulls `yt-dlp.exe`, a QuickJS build and an ffmpeg shared
-build into `bin\`. They are not committed to this repository — together they are
+`fetch_binaries.py` pulls yt-dlp, a QuickJS build and an ffmpeg shared build
+into `bin\`. They are not committed to this repository — together they are
 around 180 MB and all of them are updated upstream far more often than this app.
 QuickJS is pinned and checksummed there, because it ships inside the installer.
 
-The build lands in `dist\Riplox`. To produce the installer, copy `bin\` beside
-the executable and compile `build\installer.iss` with Inno Setup 6.
+yt-dlp is fetched as the folder build (`yt-dlp_win.zip`, landing in
+`bin\ytdlp\`) rather than the single `yt-dlp.exe`. The single-file build
+unpacks itself into a temp directory on every run: 2.2 seconds before one
+request goes out, against 0.77 for the folder, measured here. Riplox starts
+yt-dlp for every paste, every download and every channel check, so it is worth
+12 MB on disk — and it compresses better, so the installer is smaller. Its own
+`--update-to` works on this layout, which is why the choice was available.
+
+The build lands in `dist\Riplox`. To produce the installer, compile
+`build\installer.iss` with Inno Setup 6; it takes `bin\` straight from the
+repository, so the payload is never compressed into the installer twice.
 
 `build\make_icons.py` is a different script: it rebuilds the two PWA icons the
 relay serves, which are what make the phone page installable — and therefore

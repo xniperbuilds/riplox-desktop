@@ -2,7 +2,7 @@
 ; Build the app first:  pyinstaller build\riplox.spec --noconfirm
 
 #define AppName      "Riplox"
-#define AppVersion   "1.1.0"
+#define AppVersion   "1.1.2"
 #define AppPublisher "XniperBuilds"
 #define AppURL       "https://xniperbuilds.com"
 #define AppExe       "Riplox.exe"
@@ -57,7 +57,10 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 ; into the installer twice - the dist copy exists only for local test runs.
 Source: "..\dist\Riplox\*"; DestDir: "{app}"; Excludes: "bin\*"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; ffmpeg is a shared build - the exe and its DLLs must stay in one folder.
-Source: "..\bin\*"; DestDir: "{app}\bin"; Flags: ignoreversion
+; recursesubdirs because yt-dlp ships as a folder now (yt-dlp.exe beside its
+; _internal): the single-file build unpacked itself into temp on every run,
+; which was 1.4 seconds before any request went out.
+Source: "..\bin\*"; DestDir: "{app}\bin"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; The terms the user accepted, and the licence they were told about, both
 ; readable after the fact rather than only during setup.
 Source: "..\TERMS.txt"; DestDir: "{app}"; Flags: ignoreversion
@@ -69,6 +72,9 @@ Source: "..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreve
 Type: filesandordirs; Name: "{app}\_internal"
 Type: files; Name: "{app}\*.pyd"
 Type: files; Name: "{app}\*.dll"
+; The single-file engine this build replaced. Left behind it is 17 MB of a
+; yt-dlp nothing runs any more.
+Type: files; Name: "{app}\bin\yt-dlp.exe"
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"

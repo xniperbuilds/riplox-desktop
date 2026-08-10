@@ -2576,6 +2576,14 @@
     api("/api/open-url", { url: "https://xniperbuilds.com" });
   });
 
+  $("reportIssue").addEventListener("click", function () {
+    api("/api/open-url", {
+      url: "https://github.com/xniperbuilds/riplox-desktop/issues/new/choose"
+    }).then(function (res) {
+      if (!res.ok) toast("Could not open the browser.", "bad");
+    });
+  });
+
   $("urlInput").focus();
   pollJobs();
 

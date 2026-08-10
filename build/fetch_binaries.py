@@ -18,7 +18,12 @@ from pathlib import Path
 
 BIN = Path(__file__).resolve().parent.parent / "bin"
 
-YTDLP_URL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
+# The folder build, not the single .exe. The single file unpacks itself into
+# a temp directory every time it runs - 2.2 seconds before a single request
+# goes out, against 0.77 for the folder, measured on this machine. Riplox
+# starts yt-dlp for every paste, every job and every watch check, so it is
+# worth the extra 12 MB in the installer. --update-to still works on it.
+YTDLP_URL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_win.zip"
 
 # yt-dlp needs an external JavaScript runtime for YouTube. Deno is the one it
 # prefers, but the Windows build is over 100 MB; QuickJS does the same job in
@@ -44,10 +49,21 @@ def download(url: str) -> bytes:
 
 
 def fetch_ytdlp() -> None:
-    target = BIN / "yt-dlp.exe"
+    target = BIN / "ytdlp"
     print("yt-dlp:")
-    target.write_bytes(download(YTDLP_URL))
-    print(f"  -> {target.name} ({target.stat().st_size / 1e6:.1f} MB)")
+    archive = zipfile.ZipFile(io.BytesIO(download(YTDLP_URL)))
+
+    # Replaced rather than merged: a stale file left behind from an older
+    # build inside _internal is exactly the kind of thing that works on this
+    # machine and fails on someone else's.
+    shutil.rmtree(target, ignore_errors=True)
+    archive.extractall(target)
+
+    # The old single-file copy, if this repo was built before the switch.
+    (BIN / "yt-dlp.exe").unlink(missing_ok=True)
+
+    size = sum(f.stat().st_size for f in target.rglob("*") if f.is_file())
+    print(f"  -> {target.name}\\ ({size / 1e6:.1f} MB)")
 
 
 def fetch_qjs() -> None:
@@ -91,7 +107,7 @@ def main() -> None:
     except (urllib.error.URLError, OSError) as exc:
         raise SystemExit(f"download failed: {exc}")
 
-    total = sum(f.stat().st_size for f in BIN.iterdir() if f.is_file())
+    total = sum(f.stat().st_size for f in BIN.rglob("*") if f.is_file())
     print(f"\nbin/ is ready - {total / 1e6:.0f} MB")
 
 

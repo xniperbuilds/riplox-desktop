@@ -21,6 +21,10 @@ relay/apk.js
 V1.2_PLAN.md
 YOUTUBE_FIX_PLAN.md
 
+# Local state from `wrangler dev`, which is a machine's own scratch copy of
+# the Durable Object storage.
+relay/.wrangler/
+
 # Python
 __pycache__/
 *.py[cod]

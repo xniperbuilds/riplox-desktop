@@ -1,4 +1,4 @@
-"""
+﻿"""
 Riplox Desktop - application shell.
 
 A Flask server bound to localhost renders the UI, and pywebview wraps it in a
@@ -31,7 +31,7 @@ import sharing
 import watch
 
 APP_TITLE = "Riplox"
-VERSION = "1.1.0"
+VERSION = "1.1.2"
 
 
 def resource_dir() -> Path:
