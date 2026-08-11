@@ -134,6 +134,14 @@
             Riplox queues it without you switching windows — even from the tray.</span>
     </div>
 
+    <!-- For the pages no extractor knows: a blog post with videos in it, a
+         links page, a thread. Read once, listed, and nothing is fetched until
+         something is picked. -->
+    <div class="hint reveal" id="grabHint" style="--d:150ms">
+      <span>A whole page with videos on it? </span>
+      <button type="button" id="grabBtn">Find everything on it</button>
+    </div>
+
     <div class="error-box" id="analyzeError" hidden></div>
 
     <div class="preview" id="preview" hidden>
@@ -337,6 +345,9 @@
       <span id="resumeText"></span>
       <button class="primary small" id="resumeAll">Resume</button>
     </div>
+    <!-- Why nothing is starting. A queue that just sits there, saying nothing,
+         is the difference between "it is waiting" and "it is broken". -->
+    <div class="hold-bar" id="holdBar" hidden></div>
     <div class="empty" id="queueEmpty">
       <p>Nothing downloading.</p>
       <span>Analyzed links land here.</span>
@@ -650,11 +661,38 @@
 
       <div class="field">
         <div class="field-text">
+          <label>Only download between these hours</label>
+          <span>Fill the queue whenever you like and let it run when nobody
+                is using the connection.</span>
+          <span class="note">A download already running is never cut off — only
+                the next one waits.</span>
+        </div>
+        <div class="row-gap">
+          <input type="time" id="setScheduleFrom" class="time-input"
+                 value="{{ settings.schedule_from or '01:00' }}">
+          <input type="time" id="setScheduleTo" class="time-input"
+                 value="{{ settings.schedule_to or '08:00' }}">
+          <button class="toggle {% if settings.schedule_on %}on{% endif %}"
+                  id="setSchedule" role="switch"><i></i></button>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="field-text">
           <label>Play-anywhere video</label>
           <span>H.264, so files open in any player. Off for maximum resolution.</span>
         </div>
         <button class="toggle {% if settings.prefer_h264 %}on{% endif %}"
                 id="setH264" role="switch"><i></i></button>
+      </div>
+
+      <div class="field">
+        <div class="field-text">
+          <label>Start with Windows</label>
+          <span>Starts in the tray at login, not on your screen. Per-user, no
+                administrator needed.</span>
+        </div>
+        <button class="toggle" id="setAutostart" role="switch"><i></i></button>
       </div>
 
       <div class="field">
@@ -808,26 +846,34 @@
           <span>For private, members-only and age-restricted videos. Riplox
                 opens <b id="signinBrowser">your browser</b> in a window of its
                 own; your normal profile is never touched.</span>
+          <span class="note">A download only ever carries the cookies of the
+                site it is for — signing in to one site tells the others
+                nothing.</span>
           <span class="note">Downloading a lot while signed in can get that
                 account limited. A spare account is the safe choice.</span>
           <code id="cookieState">checking…</code>
         </div>
         <div class="row-gap">
-          <button class="ghost small" id="signIn">Sign in</button>
           <button class="ghost small" id="refreshCookies" hidden>Refresh</button>
-          <button class="ghost small" id="forgetCookies" hidden>Forget</button>
+          <button class="ghost small" id="forgetCookies" hidden>Forget all</button>
         </div>
       </div>
 
+      <!-- One row per site, built from the table in cookies.py so this list
+           cannot drift away from the one the engine actually honours. -->
+      <div class="site-signins" id="siteSignins"></div>
+
       <div class="field">
         <div class="field-text">
-          <label>Or use a cookies.txt file</label>
-          <span>Already exported one? It takes priority over the sign-in above.</span>
-          <code id="cookieFileLabel">{{ settings.cookies_file or 'Not set' }}</code>
+          <label>Or use cookies.txt files</label>
+          <span>Already exported some? Add as many as you like — one per site
+                is easiest. Only the lines for the site being downloaded are
+                sent, and these take priority over the sign-ins above.</span>
+          <div class="cookie-files" id="cookieFileList"></div>
         </div>
         <div class="row-gap">
-          <button class="ghost small" id="chooseCookies">Choose</button>
-          <button class="ghost small" id="clearCookies">Clear</button>
+          <button class="ghost small" id="chooseCookies">Add files</button>
+          <button class="ghost small" id="clearCookies">Clear all</button>
         </div>
       </div>
 
@@ -903,6 +949,9 @@
           <div class="field-text">
             <label>Download engine</label>
             <span id="engineVersion">checking…</span>
+            <!-- Only ever a line of text. The check asks which version is
+                 published; nothing is fetched until Update is pressed. -->
+            <span id="engineUpdate" class="warn" hidden></span>
           </div>
           <button class="ghost small" id="updateEngine">Update</button>
         </div>

@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Riplox Send</title>
+<style>
+/* The same values as Riplox Desktop and the Android app, so the three read as
+   one product rather than three things by the same person. */
+:root {
+  --bg: #070C15;
+  --panel: #0B1220;
+  --well: #0D1421;
+  --line: #1C2635;
+  --ink: #E9EFF8;
+  --ink-dim: #93A2B8;
+  --ink-faint: #7E8DA6;
+  --cyan: #2BE9E0;
+  --cyan-deep: #04222B;
+  --violet: #7C5CFF;
+  --good: #2BE9E0;
+  --warn: #FFC14D;
+  --bad: #FF6B8A;
+  --idle: #5E6D84;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 22px;
+  background: var(--bg);
+  color: var(--ink);
+  font: 14px/1.5 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.brand { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+.brand h1 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: .01em; }
+.brand span { display: block; font-size: 12px; color: var(--ink-faint); }
+.mark {
+  width: 38px; height: 38px; flex: none;
+  border-radius: 10px;
+  background: linear-gradient(150deg, #16324a, #0B1220);
+  border: 1px solid var(--line);
+  display: grid; place-items: center;
+}
+.mark svg { width: 20px; height: 20px; }
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.state { display: flex; align-items: center; gap: 10px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--idle); flex: none; }
+.dot.ready { background: var(--good); }
+.dot.paused { background: var(--warn); }
+.dot.gone { background: var(--bad); }
+.dot.quiet { background: var(--idle); }
+.state b { font-size: 14px; }
+.why { margin: 6px 0 0 20px; font-size: 12.5px; color: var(--ink-dim); }
+
+h2 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
+.sub { margin: 0 0 12px; font-size: 12.5px; color: var(--ink-faint); }
+
+textarea, input[type=text] {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--well);
+  color: var(--ink);
+  font: 13px/1.45 "Cascadia Mono", ui-monospace, Consolas, monospace;
+  resize: none;
+  -webkit-user-select: text;
+  user-select: text;
+}
+textarea:focus, input:focus { outline: none; border-color: var(--cyan); }
+textarea::placeholder, input::placeholder { color: var(--idle); }
+
+button {
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+  border: 0;
+  border-radius: 10px;
+  font: 600 13.5px/1 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  cursor: pointer;
+}
+button.primary { background: var(--cyan); color: var(--cyan-deep); }
+button.ghost {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+button:disabled { opacity: .5; cursor: default; }
+
+.tip {
+  margin-top: 16px;
+  font-size: 12.5px;
+  color: var(--ink-dim);
+  line-height: 1.6;
+}
+.tip kbd {
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--well);
+  font: 12px "Cascadia Mono", ui-monospace, monospace;
+  color: var(--cyan);
+}
+
+/* --idle is for the dot and the placeholder, not for words: on this
+   background it measures 3.73:1, which is below readable. */
+.foot { margin-top: 18px; font-size: 11.5px; color: var(--ink-faint); }
+.foot a { color: var(--ink-faint); cursor: pointer; text-decoration: none; }
+.foot a:hover { color: var(--ink); }
+
+.toast {
+  position: fixed;
+  left: 22px; right: 22px; bottom: 18px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #121C2C;
+  border: 1px solid var(--line);
+  font-size: 13px;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity .18s, transform .18s;
+  pointer-events: none;
+}
+.toast.show { opacity: 1; transform: none; }
+.toast.good { border-color: rgba(43,233,224,.5); }
+.toast.bad { border-color: rgba(255,107,138,.5); }
+
+.hidden { display: none; }
+</style>
+</head>
+<body>
+
+<div class="brand">
+  <div class="mark">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#2BE9E0" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3v12"/><path d="M6 11l6 6 6-6"/><path d="M4 21h16"/>
+    </svg>
+  </div>
+  <div>
+    <h1>Riplox Send</h1>
+    <span>Your PC does the downloading</span>
+  </div>
+</div>
+
+<!-- what the PC is doing -->
+<div class="card">
+  <div class="state">
+    <i class="dot" id="dot"></i>
+    <b id="label">Checking…</b>
+  </div>
+  <p class="why" id="why">Asking your PC…</p>
+  <button class="ghost" id="check">Check my PC</button>
+</div>
+
+<!-- send a link -->
+<div class="card" id="sendCard">
+  <h2>Send a link</h2>
+  <p class="sub">Paste one here, or copy it anywhere and press the shortcut.</p>
+  <textarea id="link" rows="3" placeholder="https://…" spellcheck="false"></textarea>
+  <button class="primary" id="send">Send to my PC</button>
+  <button class="ghost" id="pasteSend">Paste and send</button>
+</div>
+
+<!-- pairing. Usually once, but reachable afterwards: a PC that has been
+     rebuilt, or a second one, needs this screen back and there was no way to
+     get to it once it had been hidden. -->
+<div class="card hidden" id="pairCard">
+  <h2 id="pairTitle">Add this PC</h2>
+  <p class="sub">In Riplox on the PC that downloads: <b>Sharing → Add a device</b>.
+     Paste the pairing link or the code here.</p>
+  <textarea id="code" rows="3" placeholder="Paste the pairing link or code" spellcheck="false"></textarea>
+  <input type="text" id="name" placeholder="Name this machine (optional)">
+  <button class="primary" id="pair">Pair</button>
+  <button class="ghost hidden" id="pairCancel">Cancel</button>
+</div>
+
+<p class="tip" id="tip"></p>
+
+<p class="foot">
+  Only the link travels — never a file, and never anything else on this machine.
+  <br><span id="ver"></span> · <a id="repair" class="hidden">Pair a different PC</a>
+  <span id="footSep" class="hidden">·</span> <a id="unpair">Unpair</a>
+</p>
+
+<div class="toast" id="toast"></div>
+
+<script>
+var $ = function (id) { return document.getElementById(id); };
+var api = null;
+var paired = false;
+var wantPair = false;      // the pairing screen was asked for, not just needed
+
+function toast(text, kind) {
+  var box = $("toast");
+  box.textContent = text;
+  box.className = "toast show " + (kind || "");
+  clearTimeout(box._t);
+  box._t = setTimeout(function () { box.className = "toast " + (kind || ""); }, 3200);
+}
+
+function refresh() {
+  if (!api) return;
+  api.state().then(function (s) {
+    paired = s.paired;
+    $("dot").className = "dot " + s.status;
+    $("label").textContent = s.label;
+    $("why").textContent = s.why;
+    $("ver").textContent = "Riplox Send " + s.version;
+
+    // Pairing is usually a once thing, so it is off screen unless it is needed
+    // or asked for. Asked-for wins: hiding it under the user is how the
+    // "there is no way to pair a different PC" complaint happened.
+    var showPair = !s.paired || wantPair;
+    $("pairCard").className = showPair ? "card" : "card hidden";
+    $("sendCard").className = s.paired ? "card" : "card hidden";
+    $("check").textContent = s.paired ? "Check my PC" : "Check again";
+    $("pairTitle").textContent = s.paired ? "Pair a different PC" : "Add this PC";
+    $("pairCancel").className = s.paired && wantPair ? "ghost" : "ghost hidden";
+    $("repair").className = s.paired && !wantPair ? "" : "hidden";
+    $("footSep").className = s.paired && !wantPair ? "" : "hidden";
+
+    $("tip").innerHTML = s.paired && window.HOTKEY
+      ? "Copy a link in any program and press <kbd>" + window.HOTKEY + "</kbd>. "
+        + "It goes without this window opening."
+      : "";
+  });
+}
+
+function send(url) {
+  if (!url) { toast("Paste a link first.", "bad"); return; }
+  $("send").disabled = true;
+  $("send").textContent = "Sending…";
+  api.send(url).then(function (r) {
+    $("send").disabled = false;
+    $("send").textContent = "Send to my PC";
+    if (r.error) { toast(r.error, "bad"); return; }
+    if (r.ok) {
+      $("link").value = "";
+      toast(r.words || "Left for your PC", "good");
+    } else {
+      toast(r.words || "Your PC refused that one", "bad");
+    }
+    refresh();
+  });
+}
+
+window.addEventListener("pywebviewready", function () {
+  api = window.pywebview.api;
+  refresh();
+
+  $("check").addEventListener("click", refresh);
+
+  $("send").addEventListener("click", function () {
+    send($("link").value.trim());
+  });
+
+  $("pasteSend").addEventListener("click", function () {
+    api.paste().then(function (url) {
+      if (!url) { toast("No link on the clipboard.", "bad"); return; }
+      $("link").value = url;
+      send(url);
+    });
+  });
+
+  $("pair").addEventListener("click", function () {
+    var text = $("code").value.trim();
+    if (!text) { toast("Paste the pairing link or code.", "bad"); return; }
+    $("pair").disabled = true;
+    $("pair").textContent = "Pairing…";
+    api.pair(text, $("name").value.trim()).then(function (r) {
+      $("pair").disabled = false;
+      $("pair").textContent = "Pair";
+      if (!r.ok) { toast(r.error || "That did not work.", "bad"); return; }
+      $("code").value = "";
+      wantPair = false;
+      toast("Paired", "good");
+      refresh();
+    });
+  });
+
+  $("repair").addEventListener("click", function () {
+    wantPair = true;
+    refresh();
+    $("code").focus();
+  });
+
+  $("pairCancel").addEventListener("click", function () {
+    wantPair = false;
+    $("code").value = "";
+    refresh();
+  });
+
+  $("unpair").addEventListener("click", function () {
+    api.forget().then(function () { wantPair = false; toast("Unpaired"); refresh(); });
+  });
+
+  // Enter sends, Shift+Enter is a new line - the box is three rows because a
+  // long link should be readable, not because anyone types prose into it.
+  $("link").addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      send($("link").value.trim());
+    }
+  });
+});
+</script>
+</body>
+</html>

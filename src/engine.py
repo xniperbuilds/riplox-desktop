@@ -18,9 +18,13 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.request
 import uuid
+import zipfile
 from datetime import datetime
+from html.parser import HTMLParser
 from pathlib import Path
+from urllib.parse import urljoin, urlsplit
 
 APP_NAME = "RiploxDesktop"
 
@@ -193,10 +197,54 @@ def _shipped(name: str) -> Path | None:
     return None
 
 
+# Where the folder build comes from. Two repositories, because the nightly
+# builds live in one of their own.
+_YTDLP_ZIP = {
+    "stable": "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_win.zip",
+    "nightly": ("https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/"
+                "latest/download/yt-dlp_win.zip"),
+}
+
+# The folder build's executable is around 8 MB because its Python lives beside
+# it in _internal. The single-file build carries all of that inside itself and
+# is over 17. Anything that size sitting in the folder is the single file that
+# yt-dlp's own updater put there - see update_engine().
+_ONEFILE_SIZE = 12 * 1024 * 1024
+
+
 def _newer(source: Path, target: Path) -> bool:
     try:
         return not target.exists() or source.stat().st_mtime > target.stat().st_mtime
     except OSError:
+        return False
+
+
+def _is_onefile(exe: Path) -> bool:
+    try:
+        return exe.stat().st_size > _ONEFILE_SIZE
+    except OSError:
+        return False
+
+
+def _swap_in(source: Path, live_dir: Path) -> bool:
+    """
+    Put a freshly unpacked engine in place, whole or not at all.
+
+    A running yt-dlp holds its own files open, and a half-replaced folder - a
+    new _internal beside an old exe - is a broken engine whose failure turns
+    up long after the thing that caused it. If any step refuses, whatever was
+    already there is untouched and still works.
+    """
+    staged = live_dir.with_name(live_dir.name + ".new")
+    try:
+        shutil.rmtree(staged, ignore_errors=True)
+        shutil.copytree(source, staged)
+        if live_dir.exists():
+            shutil.rmtree(live_dir)
+        staged.rename(live_dir)
+        return True
+    except OSError:
+        shutil.rmtree(staged, ignore_errors=True)
         return False
 
 
@@ -224,21 +272,15 @@ def ytdlp_path() -> Path | None:
             shipped_dir = candidate.parent
             break
 
-    if shipped_dir is not None and _newer(shipped_dir / name, live):
-        # Staged and swapped whole, never copied over in place. A running
-        # yt-dlp holds its own files open, and a half-replaced folder - a new
-        # _internal beside the old exe - is a broken engine whose failure
-        # turns up long after the thing that caused it. If any step refuses,
-        # the copy already there is untouched and still works.
-        staged = live_dir.with_name("ytdlp.new")
-        try:
-            shutil.rmtree(staged, ignore_errors=True)
-            shutil.copytree(shipped_dir, staged)
-            if live_dir.exists():
-                shutil.rmtree(live_dir)
-            staged.rename(live_dir)
-        except OSError:
-            shutil.rmtree(staged, ignore_errors=True)
+    # Repaired as well as updated. yt-dlp's own updater does not understand
+    # this layout: asked to update, it drops the single-file build into the
+    # folder and leaves _internal sitting there unused - which works, but
+    # costs back every bit of the start-up time the folder was chosen for.
+    # update_engine() no longer calls it, and this puts right the copies that
+    # already went through it.
+    if shipped_dir is not None and (_newer(shipped_dir / name, live)
+                                    or _is_onefile(live)):
+        _swap_in(shipped_dir, live_dir)
 
     if live.exists():
         # An install from before the folder build left a 17 MB copy behind.
@@ -325,17 +367,34 @@ DEFAULT_RELAY = "https://relay.xniperbuilds.com"
 # setting that can only ever fail.
 DEAD_RELAYS = ("wss://relay.riplox.workers.dev", "")
 
+# Every default below is what someone who never opens Settings gets, so each
+# one is an answer to "what goes wrong for that person". The reasons are
+# written down beside them - a default with no reason attached drifts.
 DEFAULT_SETTINGS = {
     "download_dir": str(default_download_dir()),
     "default_quality": "best",
+    # Two at once, not four: a home line shared between four downloads makes
+    # all four slow and none of them finish, and YouTube notices the fifth.
     "max_parallel": 2,
     "cookies_browser": "none",       # none | firefox | chrome | edge | brave
-    "cookies_file": "",              # path to an exported cookies.txt
-    "cookies_signin": True,          # use the session captured by cookies.py
+    "cookies_file": "",              # the old single path, folded in on read
+    "cookies_files": [],             # exported cookies.txt files, one per site
+    # Off. A download that silently waits until 1am looks like a broken app,
+    # and nobody who has not been to this screen is expecting it.
+    "schedule_on": False,
+    "schedule_from": "01:00",
+    "schedule_to": "08:00",
+    # On: the session was captured because someone signed in, so use it. It is
+    # already per-site, so a YouTube login never travels to another site.
+    "cookies_signin": True,
     "engine_channel": "stable",      # stable | nightly
     "potoken": False,                # opt-in: fetch the proof-of-origin helper
-    "polite_mode": True,             # pace requests so YouTube stays friendly
-    "prefer_h264": True,             # play-anywhere codec over raw quality
+    # On: pacing costs a second or two and is the difference between YouTube
+    # answering and YouTube asking to confirm you are not a bot.
+    "polite_mode": True,
+    # On: H.264 plays in Windows' own player and on a phone. AV1 is smaller and
+    # sharper and opens to a black screen, which is the bug that was reported.
+    "prefer_h264": True,
     "allow_ai_upscale": False,       # take YouTube's AI-enlarged versions too
     "write_subs": False,             # save subtitles alongside the video
     "sub_langs": "en",               # which languages, yt-dlp syntax
@@ -343,7 +402,10 @@ DEFAULT_SETTINGS = {
     "embed_chapters": False,         # chapter marks players can jump between
     "sponsorblock": False,           # cut sponsor segments out of YouTube
     "skip_existing": False,          # remember what has been downloaded
-    "fragments": 4,                  # parallel pieces per file
+    # Four pieces of the same file at once. This is where the real speed comes
+    # from on fragmented video, and it is also why aria2c was not needed.
+    # Higher looks faster on a fast line and starts being refused on a slow one.
+    "fragments": 4,
     "speed_limit": 0,                # KB/s ceiling; 0 means no limit
     "check_updates": True,           # ask GitHub once a day if there is a newer build
     # Remembered so the daily check is actually daily. save_settings drops any
@@ -351,7 +413,13 @@ DEFAULT_SETTINGS = {
     # persists and GitHub gets asked on every single start.
     "_update_checked": 0,
     "_update_latest": "",
-    "subfolder_per_site": False,
+    # The same throttle for the engine itself, kept apart from the app's own:
+    # they are different projects on different release schedules.
+    "engine_checked": 0,
+    "engine_latest": "",
+    # On: a YouTube folder and a TikTok folder beats two hundred files in one
+    # Downloads folder by the second week. Nothing is moved retrospectively.
+    "subfolder_per_site": True,
     "auto_paste": True,              # watch clipboard for links
     "auto_download": False,          # queue a copied link without asking
     "hotkey": True,                  # Ctrl+Shift+D from anywhere
@@ -483,6 +551,21 @@ class EngineMissing(RuntimeError):
     pass
 
 
+def cookie_files(settings: dict) -> list:
+    """
+    Every cookies.txt the user has added, in order, skipping ones that moved.
+
+    A single path used to live in `cookies_file`; it is folded in here so an
+    upgrade keeps working without asking anyone to pick their file again.
+    """
+    settings = settings or {}
+    raw = list(settings.get("cookies_files") or [])
+    one = settings.get("cookies_file", "")
+    if one and one not in raw:
+        raw.insert(0, one)
+    return [p for p in raw if p and Path(p).exists()]
+
+
 def open_cookies(settings: dict, url: str):
     """
     Choose a cookie source for this URL. Returns (path or None, temporary).
@@ -491,9 +574,18 @@ def open_cookies(settings: dict, url: str):
     captured by the built-in sign-in is written out - but only the cookies
     belonging to this site, and only into a temp file the caller deletes.
     """
-    chosen = (settings or {}).get("cookies_file", "")
-    if chosen and Path(chosen).exists():
-        return Path(chosen), False
+    files = cookie_files(settings)
+    if files:
+        try:
+            import cookies as cookie_store
+            path = cookie_store.from_files(files, url)
+        except Exception:
+            path = None            # never let cookie trouble block a download
+        if path:
+            return path, True
+        # Files are set but none of them knows this site: fall through to the
+        # sign-in rather than sending nothing, which is what a user who has
+        # both would expect.
 
     if (settings or {}).get("cookies_signin", True):
         try:
@@ -638,9 +730,98 @@ def engine_version() -> str:
     return value
 
 
+# --------------------------------------------------------------------------
+# Fetching the engine
+# --------------------------------------------------------------------------
+# Measured rather than guessed: the zip came down at 0.10 MB/s and the
+# connection was dropped at 15.9 MB of 18.4 after 161 seconds. So it was never
+# hanging - it is an 18 MB file on a slow line, on a button that said nothing
+# for minutes and then failed. Three answers, in the order they matter:
+# chunks with a percentage anyone can watch, a .part file the next attempt
+# continues instead of starting the 18 MB again, and timeouts that say what
+# happened rather than a button that goes quiet.
+
+_ENGINE_CHUNK = 256 * 1024
+_ENGINE_READ_TIMEOUT = 30            # per read, not for the whole download
+_ENGINE_TOTAL_CAP = 10 * 60          # the whole job, across every attempt
+_ENGINE_ATTEMPTS = 3
+
+_engine_dl = {"busy": False, "percent": 0.0, "bytes": 0, "total": 0,
+              "message": "", "done": False, "ok": None}
+_engine_dl_lock = threading.Lock()
+
+
+def engine_progress() -> dict:
+    """What the update button is doing right now. Read by /api/engine-progress."""
+    with _engine_dl_lock:
+        return dict(_engine_dl)
+
+
+def _engine_say(**fields) -> None:
+    with _engine_dl_lock:
+        _engine_dl.update(fields)
+
+
+def _download_engine_zip(url: str, part: Path, deadline: float) -> int:
+    """
+    One attempt at the zip, continuing a .part file if one is already there.
+
+    Raises OSError with a message meant to be read by a person. The .part is
+    left behind on purpose - the next attempt sends a Range header and carries
+    on from that byte rather than starting again.
+    """
+    have = part.stat().st_size if part.exists() else 0
+    headers = {"User-Agent": "Riplox"}
+    if have:
+        headers["Range"] = f"bytes={have}-"
+
+    request = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(request, timeout=_ENGINE_READ_TIMEOUT) as response:
+        # A server that ignores Range answers 200 with the whole file. Appending
+        # to what is already there would quietly corrupt the zip, so start over.
+        if have and getattr(response, "status", 200) != 206:
+            have = 0
+            part.unlink(missing_ok=True)
+
+        length = int(response.headers.get("Content-Length") or 0)
+        total = have + length if length else 0
+        _engine_say(total=total)
+
+        with open(part, "ab" if have else "wb") as out:
+            while True:
+                if time.monotonic() > deadline:
+                    raise OSError(
+                        "Gave up after ten minutes - the connection is too slow "
+                        "or keeps dropping. What arrived is kept, so pressing "
+                        "update again carries on from there.")
+                chunk = response.read(_ENGINE_CHUNK)
+                if not chunk:
+                    break
+                out.write(chunk)
+                have += len(chunk)
+                percent = (have / total * 100.0) if total else 0.0
+                _engine_say(bytes=have, percent=round(percent, 1),
+                            message=(f"Downloading {percent:.0f}%" if total
+                                     else f"Downloading {human_bytes(have)}"))
+
+    if total and have < total:
+        raise OSError("The connection dropped part-way through.")
+    return have
+
+
 def update_engine(channel: str = "") -> dict:
     """
-    Ask yt-dlp to update itself. Works because it lives in LOCALAPPDATA.
+    Fetch a new engine and put it in place.
+
+    Not `yt-dlp --update-to`, which is what this used to do. yt-dlp does not
+    recognise the folder layout as one of its own: asked to update, it writes
+    the single-file build over the executable and leaves _internal sitting
+    there unused. That still runs - and starts nearly three times slower,
+    which is the entire reason the folder build was chosen. The cost came back
+    silently, the first time anyone pressed this button.
+
+    Fetching the same zip the installer ships is the fix and is no harder. It
+    lands in LOCALAPPDATA, so it still needs no administrator rights.
 
     The nightly channel matters here: when YouTube changes something, the fix
     lands in nightly first and in a stable release weeks later.
@@ -650,22 +831,191 @@ def update_engine(channel: str = "") -> dict:
         return {"ok": False, "message": "Engine not installed."}
 
     channel = (channel or load_settings().get("engine_channel", "stable")).lower()
-    if channel not in ("stable", "nightly"):
+    if channel not in _YTDLP_ZIP:
         channel = "stable"
 
-    try:
-        out = _run([str(exe), "--update-to", channel], timeout=300)
-    except (OSError, subprocess.SubprocessError) as exc:
-        return {"ok": False, "message": str(exc)}
+    # An install from before the folder build has a single file, and yt-dlp
+    # updates one of those perfectly well.
+    if exe.parent.name != "ytdlp":
+        try:
+            out = _run([str(exe), "--update-to", channel], timeout=300)
+        except (OSError, subprocess.SubprocessError) as exc:
+            return {"ok": False, "message": str(exc)}
+        text = ((out.stdout or "") + (out.stderr or "")).strip()
+        latest = "is up to date" in text.lower()
+        updated = "updated" in text.lower() or "installing" in text.lower()
+        return {
+            "ok": latest or updated or out.returncode == 0,
+            "message": text.splitlines()[-1] if text else "Done.",
+            "version": engine_version(),
+        }
 
-    text = ((out.stdout or "") + (out.stderr or "")).strip()
-    latest = "is up to date" in text.lower()
-    updated = "updated" in text.lower() or "installing" in text.lower()
-    return {
-        "ok": latest or updated or out.returncode == 0,
-        "message": text.splitlines()[-1] if text else "Done.",
-        "version": engine_version(),
-    }
+    before = engine_version()
+    unpacked = data_dir() / "engine.tmp"
+    part = data_dir() / "engine.zip.part"
+    deadline = time.monotonic() + _ENGINE_TOTAL_CAP
+    _engine_say(busy=True, percent=0.0, bytes=0, total=0, done=False, ok=None,
+                message="Starting")
+
+    def finish(ok: bool, message: str) -> dict:
+        _engine_say(busy=False, done=True, ok=ok, message=message)
+        return {"ok": ok, "message": message, "version": engine_version()}
+
+    failure = ""
+    for attempt in range(1, _ENGINE_ATTEMPTS + 1):
+        try:
+            _download_engine_zip(_YTDLP_ZIP[channel], part, deadline)
+            failure = ""
+            break
+        except Exception as exc:                 # offline, refused, dropped, slow
+            failure = str(exc)[:200] or "That download did not finish."
+            if attempt >= _ENGINE_ATTEMPTS or time.monotonic() > deadline:
+                break
+            pause = 3 * attempt
+            _engine_say(message=f"Lost the connection - trying again in {pause}s")
+            time.sleep(pause)
+
+    if failure:
+        return finish(False, failure)
+
+    _engine_say(percent=100.0, message="Unpacking")
+    try:
+        shutil.rmtree(unpacked, ignore_errors=True)
+        zipfile.ZipFile(part).extractall(unpacked)
+
+        if not (unpacked / exe.name).exists():
+            part.unlink(missing_ok=True)
+            return finish(False, "That download had no engine in it.")
+        if not _swap_in(unpacked, exe.parent):
+            return finish(False, "Could not replace the engine. Stop any "
+                                 "running download and try again.")
+    except (OSError, ValueError, zipfile.BadZipFile) as exc:
+        # Half a zip resumes; a broken one only wastes the next attempt too.
+        part.unlink(missing_ok=True)
+        return finish(False, str(exc)[:200])
+    finally:
+        shutil.rmtree(unpacked, ignore_errors=True)
+
+    part.unlink(missing_ok=True)
+    after = engine_version()
+    save_settings({"engine_checked": time.time(), "engine_latest": after})
+    return finish(True, "Already on the newest engine." if after == before
+                  else f"Updated to {after}.")
+
+
+# --------------------------------------------------------------------------
+# Start with Windows
+# --------------------------------------------------------------------------
+# HKCU, never HKLM: per-user, no administrator, and gone the moment the toggle
+# goes off. It starts into the tray rather than onto the screen - an app that
+# takes over the display at every login is an app that gets uninstalled.
+
+_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+_RUN_NAME = "Riplox"
+
+
+def _autostart_command() -> str:
+    """The exact line Windows would run. Quoted - the path has spaces in it."""
+    return f'"{Path(sys.executable).resolve()}" --tray'
+
+
+def autostart_on() -> bool:
+    if os.name != "nt":
+        return False
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _RUN_KEY) as key:
+            value, _ = winreg.QueryValueEx(key, _RUN_NAME)
+        return bool(value)
+    except (OSError, ImportError):
+        return False
+
+
+def set_autostart(on: bool) -> dict:
+    """
+    Add or remove the Run entry. Returns what to tell the user.
+
+    Refused outside the installed app on purpose: a development run would write
+    python.exe and a script path into the registry, and that entry would go on
+    firing at every login long after the checkout had moved.
+    """
+    if os.name != "nt":
+        return {"ok": False, "message": "Windows only."}
+    if not getattr(sys, "frozen", False):
+        return {"ok": False, "on": False,
+                "message": "Only the installed Riplox can start with Windows."}
+
+    try:
+        import winreg
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, _RUN_KEY) as key:
+            if on:
+                winreg.SetValueEx(key, _RUN_NAME, 0, winreg.REG_SZ,
+                                  _autostart_command())
+            else:
+                try:
+                    winreg.DeleteValue(key, _RUN_NAME)
+                except FileNotFoundError:
+                    pass                  # already gone is the wanted state
+    except (OSError, ImportError) as exc:
+        return {"ok": False, "on": autostart_on(), "message": str(exc)[:160]}
+
+    return {"ok": True, "on": on,
+            "message": ("Riplox will start with Windows, in the tray."
+                        if on else "Riplox will not start with Windows.")}
+
+
+# Which release is published, asked of the API rather than by starting the
+# 18 MB download. Two repositories, because nightly builds have their own.
+_YTDLP_RELEASE_API = {
+    "stable": "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest",
+    "nightly": ("https://api.github.com/repos/yt-dlp/yt-dlp-nightly-builds/"
+                "releases/latest"),
+}
+
+
+def check_engine_update(force: bool = False) -> dict:
+    """
+    Is there a newer engine? Only ever asks - never downloads by itself.
+
+    Called when the window opens and at most once a day after that, so it is a
+    quiet line in Settings and never a running download nobody asked for. The
+    request is the releases API, a few hundred bytes; the zip is only fetched
+    when the update button is pressed.
+    """
+    state = load_settings()
+    channel = str(state.get("engine_channel", "stable")).lower()
+    if channel not in _YTDLP_RELEASE_API:
+        channel = "stable"
+
+    current = engine_version()
+    last = float(state.get("engine_checked", 0) or 0)
+    known = str(state.get("engine_latest", "") or "")
+
+    def verdict(latest: str, checked: bool, error: str = "") -> dict:
+        newer = (bool(latest) and current not in ("missing", "unknown")
+                 and _version_tuple(latest) > _version_tuple(current))
+        out = {"ok": not error, "checked": checked, "current": current,
+               "latest": latest, "newer": newer, "channel": channel}
+        if error:
+            out["error"] = error
+        return out
+
+    if not force and time.time() - last < _UPDATE_GAP:
+        return verdict(known, False)
+
+    try:
+        request = urllib.request.Request(
+            _YTDLP_RELEASE_API[channel],
+            headers={"Accept": "application/vnd.github+json",
+                     "User-Agent": "Riplox"})
+        with urllib.request.urlopen(request, timeout=15) as response:
+            data = json.loads(response.read().decode("utf-8", "replace"))
+        latest = str(data.get("tag_name") or "").lstrip("vV")
+    except Exception as exc:                     # offline is not an error here
+        return verdict(known, True, str(exc)[:120])
+
+    save_settings({"engine_checked": time.time(), "engine_latest": latest})
+    return verdict(latest, True)
 
 
 QUALITY_LABELS = {
@@ -842,7 +1192,7 @@ def archive_file() -> Path:
 # must never quietly start a listener on a machine nobody paired anything to.
 # The pairing keys are not in settings at all - they live in share.json.
 NEVER_EXPORT = ("cookies_file", "cookies_signin", "_update_checked",
-                "_update_latest", "sharing")
+                "_update_latest", "engine_checked", "engine_latest", "sharing")
 
 
 def export_settings() -> str:
@@ -1180,6 +1530,151 @@ def analyze(url: str, settings: dict) -> dict:
     }
 
 
+# --------------------------------------------------------------------------
+# Reading a page for the links on it
+# --------------------------------------------------------------------------
+
+# Media a browser would play, or a file worth keeping. Anything else on a page
+# - stylesheets, scripts, tracking pixels - is not what anyone is asking for.
+_MEDIA_EXT = (
+    ".mp4", ".m4v", ".webm", ".mkv", ".mov", ".avi", ".flv", ".ts", ".m3u8",
+    ".mpd", ".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg", ".opus", ".wma",
+)
+_SKIP_SCHEME = ("mailto:", "javascript:", "tel:", "data:", "#")
+_GRAB_CAP = 300               # a page with more than this is a listing, not a
+                              # page, and the list stops being useful anyway
+_GRAB_BYTES = 3 * 1024 * 1024
+
+
+class _Links(HTMLParser):
+    """Every address a page points at, with the words that pointed at it."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.found = []           # (url, title)
+        self._anchor = None
+        self._text = []
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == "a" and attrs.get("href"):
+            self._anchor = attrs["href"]
+            self._text = []
+            return
+        # Embedded players and media elements. A page that plays something is
+        # pointing at it just as plainly as a link does.
+        for key in ("src", "data-src", "content"):
+            value = attrs.get(key)
+            if value and tag in ("iframe", "video", "audio", "source", "embed", "meta"):
+                if tag == "meta" and attrs.get("property") not in (
+                        "og:video", "og:video:url", "og:video:secure_url",
+                        "og:audio", "twitter:player"):
+                    continue
+                self.found.append((value, ""))
+
+    def handle_data(self, data):
+        if self._anchor is not None:
+            self._text.append(data)
+
+    def handle_endtag(self, tag):
+        if tag == "a" and self._anchor is not None:
+            self.found.append((self._anchor, " ".join("".join(self._text).split())))
+            self._anchor = None
+            self._text = []
+
+
+def grab(url: str, settings: dict) -> dict:
+    """
+    Read one page and list what on it can be downloaded.
+
+    Deliberately not an extractor and never automatic: the page is fetched
+    once, read for the addresses it points at, and those are handed back for
+    the user to pick from. Nothing is analysed and nothing is queued here - a
+    page with two hundred links must not become two hundred requests to a site
+    that will start asking whether we are a person.
+
+    The result is shaped exactly like a playlist, so the screen that already
+    handles picking, sorting and taking the first N needs no new code.
+    """
+    if not url.lower().startswith(("http://", "https://")):
+        raise RuntimeError("That does not look like a link.")
+
+    request = urllib.request.Request(url, headers={
+        # Some sites hand a stripped page to anything that looks automated,
+        # and a stripped page has no links on it to find.
+        "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                       "AppleWebKit/537.36 (KHTML, like Gecko) "
+                       "Chrome/124.0 Safari/537.36"),
+        "Accept": "text/html,application/xhtml+xml",
+    })
+    try:
+        with urllib.request.urlopen(request, timeout=25) as response:
+            kind = (response.headers.get_content_type() or "").lower()
+            if "html" not in kind and "xml" not in kind:
+                raise RuntimeError("That address is a file, not a page. "
+                                   "Paste it on its own to download it.")
+            charset = response.headers.get_content_charset() or "utf-8"
+            body = response.read(_GRAB_BYTES).decode(charset, "replace")
+            page = response.geturl()
+    except RuntimeError:
+        raise
+    except Exception as exc:
+        raise RuntimeError(f"Could not open that page. {str(exc)[:120]}")
+
+    parser = _Links()
+    try:
+        parser.feed(body)
+    except Exception:
+        pass                      # a half-read page still yields what it had
+
+    entries, seen = [], {page.rstrip("/")}
+    for raw, title in parser.found:
+        raw = (raw or "").strip()
+        if not raw or raw.lower().startswith(_SKIP_SCHEME):
+            continue
+        full = urljoin(page, raw)
+        if not full.lower().startswith(("http://", "https://")):
+            continue
+
+        bare = full.split("#")[0].rstrip("/")
+        if bare in seen:
+            continue
+
+        path = urlsplit(full).path.lower()
+        site = site_of(full)
+        # Worth listing if a site we know serves media from it, or if the
+        # address is plainly a media file. Everything else on a page is
+        # navigation.
+        if not (path.endswith(_MEDIA_EXT) or site in known_sites()):
+            continue
+
+        seen.add(bare)
+        entries.append({
+            "url": full,
+            "title": title[:120] or path.rsplit("/", 1)[-1] or site,
+            "duration": None,
+            "thumbnail": "",
+            "timestamp": None,
+        })
+        if len(entries) >= _GRAB_CAP:
+            break
+
+    if not entries:
+        raise RuntimeError("Nothing downloadable was found on that page.")
+
+    title = re.search(r"<title[^>]*>(.*?)</title>", body,
+                      re.I | re.S)
+    return {
+        "kind": "playlist",
+        "grabbed": True,
+        "title": (title.group(1).strip()[:120] if title else "Links on this page"),
+        "uploader": site_of(page),
+        "count": len(entries),
+        "thumbnail": "",
+        "entries": entries,
+    }
+
+
 def peek(url: str, settings: dict, limit: int = 30) -> dict:
     """
     The first few items of a playlist or channel tab, and nothing else.
@@ -1373,6 +1868,20 @@ def _available_qualities(info: dict, settings: dict = None) -> dict:
     return {"rungs": ["best"] + rungs + ["mp3"], "upscaled": notes}
 
 
+def _signed_in(site: str) -> bool:
+    """
+    Is there a saved session for this site?
+
+    Imported here rather than at the top - cookies.py imports engine, and two
+    modules importing each other at load time is a crash.
+    """
+    try:
+        import cookies
+        return bool(cookies.site_file(site).exists())
+    except Exception:
+        return False
+
+
 def _clean_error(stderr: str) -> str:
     """Turn a yt-dlp stack of ERROR lines into one human sentence."""
     text = (stderr or "").strip()
@@ -1396,10 +1905,20 @@ def _clean_error(stderr: str) -> str:
     # currently unavailable", and both the stable and the nightly engine fail
     # on it identically - so telling the user to update or to open an issue,
     # which is what the raw message says, would send them nowhere.
+    #
+    # Which half of the advice is true depends on whether there is a TikTok
+    # session at all, and that turned out to be the whole story: the session
+    # store held YouTube and Google and no TikTok cookie whatsoever, while the
+    # screen said "signed in". Telling someone to try again later when they
+    # have never signed in wastes their afternoon.
     if "unexpected response from webpage" in low_all:
+        if _signed_in("tiktok"):
+            return ("TikTok served a verification page instead of the video, "
+                    "and the saved TikTok sign-in did not get past it. Sign in "
+                    "again from Settings, or try again in a while.")
         return ("TikTok is asking this computer to verify itself, so it served "
-                "a check page instead of the video. Sign in from Settings, or "
-                "try again in a while.")
+                "a check page instead of the video. There is no TikTok sign-in "
+                "saved yet - Settings, then Sign in, then TikTok.")
 
     if "cookie" in low_all and ("permission" in low_all or "could not copy"
                                 in low_all or "database" in low_all):
@@ -1491,6 +2010,57 @@ _SITE_NAMES = {
     "dailymotion": "Dailymotion", "twitch": "Twitch", "soundcloud": "SoundCloud",
     "pinterest": "Pinterest", "snapchat": "Snapchat", "linkedin": "LinkedIn",
 }
+
+
+# --------------------------------------------------------------------------
+# Downloading only at certain hours
+# --------------------------------------------------------------------------
+
+def _minutes(text: str, fallback: int) -> int:
+    """"HH:MM" as minutes past midnight, or the fallback if it is nonsense."""
+    try:
+        hour, _, minute = str(text or "").partition(":")
+        hour, minute = int(hour), int(minute)
+    except (TypeError, ValueError):
+        return fallback
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        return fallback
+    return hour * 60 + minute
+
+
+def schedule_allows(settings: dict, now=None) -> bool:
+    """
+    May a new download start right now?
+
+    Off by default, and when it is on it is a window rather than a delay: "from
+    01:00 to 08:00" covers the ordinary reason for wanting this, which is to
+    leave the queue filled during the day and have it run when nobody is using
+    the connection. A window that crosses midnight is the normal case, so it
+    is the one that has to work.
+    """
+    settings = settings or {}
+    if not settings.get("schedule_on"):
+        return True
+
+    start = _minutes(settings.get("schedule_from"), 0)
+    end = _minutes(settings.get("schedule_to"), 0)
+    if start == end:
+        return True                # a window of no width is not a schedule
+
+    now = now or datetime.now()
+    minute = now.hour * 60 + now.minute
+    if start < end:
+        return start <= minute < end
+    return minute >= start or minute < end      # runs across midnight
+
+
+def schedule_note(settings: dict, now=None) -> str:
+    """One line for the screen, or empty when nothing is being held."""
+    if schedule_allows(settings, now):
+        return ""
+    start = settings.get("schedule_from") or "00:00"
+    end = settings.get("schedule_to") or "00:00"
+    return f"Waiting - downloads start at {start} and stop at {end}."
 
 
 def site_of(url: str) -> str:
@@ -1880,7 +2450,14 @@ class DownloadManager:
             self._workers.append(t)
 
     def _next_job(self):
-        want = max(1, min(5, int(load_settings().get("max_parallel", 2))))
+        settings = load_settings()
+        # Only the start of a job is held back. Stopping one already running
+        # would throw away what it had, and a half-file at nine in the morning
+        # is a worse thing to wake up to than a download that ran late.
+        if not schedule_allows(settings):
+            return None
+
+        want = max(1, min(5, int(settings.get("max_parallel", 2))))
         with self._lock:
             active = sum(1 for j in self._jobs.values()
                          if j.status in ("downloading", "converting", "starting"))

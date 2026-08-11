@@ -192,7 +192,9 @@
     if (view === "convert") loadConvert();
     if (view === "watch") loadWatch();
     if (view === "sharing") loadSharing();
-    if (view === "settings") { loadEngineVersion(); loadCookies(); loadPot(); }
+    if (view === "settings") {
+      loadEngineVersion(); loadCookies(); loadPot(); checkEngineUpdate(false);
+    }
   }
 
   document.querySelectorAll(".tab").forEach(function (b) {
@@ -218,6 +220,10 @@
   $("urlForm").addEventListener("submit", function (e) {
     e.preventDefault();
     analyze($("urlInput").value.trim());
+  });
+
+  $("grabBtn").addEventListener("click", function () {
+    grabPage($("urlInput").value.trim());
   });
 
   function analyze(url) {
@@ -246,6 +252,35 @@
     });
   }
 
+  /* Read a whole page and list what is on it, for the pages an extractor does
+     not know: a blog post with three embedded videos, a links page, a forum
+     thread. It comes back shaped like a playlist on purpose, so the picking,
+     sorting and first-N screen below needs no second version of itself. */
+  function grabPage(url) {
+    if (!url) { toast("Paste a page link first.", "bad"); return; }
+
+    $("analyzeError").hidden = true;
+    $("preview").hidden = true;
+    $("playlistWrap").hidden = true;
+    setBusy(true);
+
+    api("/api/grab", { url: url }).then(function (res) {
+      setBusy(false);
+      if (!res.ok) {
+        var box = $("analyzeError");
+        box.textContent = res.error || "Could not read that page.";
+        box.hidden = false;
+        return;
+      }
+      current = res.info;
+      renderPreview(res.info);
+      toast(res.info.count + " found on that page", "good");
+    }).catch(function () {
+      setBusy(false);
+      toast("The app lost contact with its engine.", "bad");
+    });
+  }
+
   function renderPreview(info) {
     // A channel is not a video and not a playlist - it is a set of sections.
     // Show those, and let opening one become an ordinary playlist.
@@ -256,7 +291,10 @@
 
     var isList = info.kind === "playlist";
 
-    $("pvKind").textContent = isList ? "PLAYLIST" : "VIDEO";
+    // A page that was read for its links is not a playlist, and saying so
+    // would be the app claiming to know more about it than it does.
+    $("pvKind").textContent = info.grabbed ? "ON THIS PAGE"
+      : (isList ? "PLAYLIST" : "VIDEO");
     $("pvTitle").textContent = info.title || "Untitled";
     var thumb = $("pvThumb");
     // An empty src makes the browser re-request the page itself, so only set
@@ -1034,6 +1072,9 @@
     cancelled: "cancelled", paused: "waiting"
   };
 
+  // What the engine says is holding the queue back, if anything.
+  var holdNote = "";
+
   function renderJobs(jobs) {
     var box = $("jobs");
     var active = jobs.filter(function (j) {
@@ -1056,6 +1097,14 @@
     badge.hidden = active === 0;
 
     $("queueEmpty").hidden = jobs.length > 0;
+
+    // A queue that sits there with nothing starting looks broken. When the
+    // schedule is what is holding it, say so where the waiting is happening.
+    var hold = $("holdBar");
+    if (hold) {
+      hold.hidden = !(holdNote && active > 0);
+      if (!hold.hidden) hold.textContent = holdNote;
+    }
 
     // Rows are patched in place. Rebuilding the list every poll reloaded each
     // thumbnail, which made the whole queue flicker while downloading.
@@ -1307,6 +1356,7 @@
       window._jobs = res.jobs;
       S.hasPotoken = res.hasPotoken;
       S.hasFfmpeg = res.hasFfmpeg;
+      holdNote = res.holdNote || "";
       var active = renderJobs(res.jobs);
 
       if (!analyzing) {
@@ -1616,6 +1666,10 @@
       api("/api/check-update", {}).then(showUpdate);
     }, 4000);
   }
+
+  // The engine is checked whatever that setting says: an engine two months old
+  // is why a site stops working, and this only ever writes a line in Settings.
+  setTimeout(function () { checkEngineUpdate(false); }, 5000);
 
   $("checkUpdateNow").addEventListener("click", function () {
     toast("Checking…");
@@ -2210,11 +2264,51 @@
     });
   });
 
+  /* Listed one per row so a single file can be taken back out. With several
+     of them, "Clear" as the only way out means redoing the whole set. */
+  function renderCookieFiles(list) {
+    var box = $("cookieFileList");
+    if (!box) return;
+    box.innerHTML = "";
+
+    if (!list || !list.length) {
+      var none = document.createElement("code");
+      none.textContent = "None added";
+      box.appendChild(none);
+      return;
+    }
+
+    list.forEach(function (path) {
+      var row = document.createElement("div");
+      row.className = "cookie-file";
+
+      var name = document.createElement("code");
+      name.textContent = path;
+      name.title = path;
+
+      var drop = document.createElement("button");
+      drop.className = "ghost small";
+      drop.type = "button";
+      drop.textContent = "Remove";
+      drop.addEventListener("click", function () {
+        api("/api/cookies/remove-file", { path: path }).then(function (res) {
+          if (!res.ok) { toast("Could not remove that one.", "bad"); return; }
+          renderCookieFiles(res.settings.cookies_files);
+          toast("Removed");
+        });
+      });
+
+      row.appendChild(name);
+      row.appendChild(drop);
+      box.appendChild(row);
+    });
+  }
+
   $("chooseCookies").addEventListener("click", function () {
     api("/api/choose-cookies", {}).then(function (res) {
       if (res.ok) {
-        $("cookieFileLabel").textContent = res.settings.cookies_file;
-        toast("Cookies file set", "good");
+        renderCookieFiles(res.settings.cookies_files);
+        toast("Cookie files added", "good");
       } else if (!res.cancelled) {
         toast(res.error || "Could not open the picker.", "bad");
       }
@@ -2222,9 +2316,9 @@
   });
 
   $("clearCookies").addEventListener("click", function () {
-    saveSetting({ cookies_file: "" }).then(function () {
-      $("cookieFileLabel").textContent = "Not set";
-      toast("Cookies file cleared");
+    saveSetting({ cookies_files: [], cookies_file: "" }).then(function () {
+      renderCookieFiles([]);
+      toast("Cookie files cleared");
     });
   });
 
@@ -2283,6 +2377,21 @@
 
   bindToggle("setCheckUpdates", "check_updates");
 
+  /* Start with Windows is not a setting in settings.json - the registry is the
+     only truthful answer, so the toggle reads back from it and shows what
+     actually happened rather than what was clicked. */
+  $("setAutostart").addEventListener("click", function () {
+    var btn = $("setAutostart");
+    var want = !btn.classList.contains("on");
+    btn.disabled = true;
+    api("/api/autostart", { on: want }).then(function (res) {
+      btn.disabled = false;
+      btn.classList.toggle("on", !!res.on);
+      toast(res.message || (res.ok ? "Saved" : "Could not change that."),
+            res.ok ? "good" : "bad");
+    });
+  });
+
   $("setSpeedLimit").addEventListener("change", function (e) {
     var kb = parseInt(e.target.value, 10) || 0;
     saveSetting({ speed_limit: kb }).then(function () {
@@ -2303,6 +2412,34 @@
   $("setFragments").addEventListener("change", function (e) {
     saveSetting({ fragments: parseInt(e.target.value, 10) })
       .then(function () { toast("Saved"); });
+  });
+
+  /* ------------------------------------------------------------- schedule */
+
+  function saveSchedule(on) {
+    var from = $("setScheduleFrom").value || "01:00";
+    var to = $("setScheduleTo").value || "08:00";
+    return saveSetting({ schedule_on: on, schedule_from: from, schedule_to: to });
+  }
+
+  $("setSchedule").addEventListener("click", function () {
+    var on = !$("setSchedule").classList.contains("on");
+    $("setSchedule").classList.toggle("on", on);
+    saveSchedule(on).then(function () {
+      toast(on ? "Downloads will run " + $("setScheduleFrom").value
+                 + "–" + $("setScheduleTo").value
+               : "Downloads run at any time", "good");
+      pollJobs();          // so the queue says why it is waiting, right away
+    });
+  });
+
+  ["setScheduleFrom", "setScheduleTo"].forEach(function (id) {
+    $(id).addEventListener("change", function () {
+      // Changing the hours while it is off is just setting them up; it should
+      // not quietly switch the thing on.
+      saveSchedule($("setSchedule").classList.contains("on"))
+        .then(function () { toast("Saved"); pollJobs(); });
+    });
   });
 
   /* ------------------------------------------------------- browser sign-in */
@@ -2330,8 +2467,7 @@
       state.textContent = "Not signed in";
     }
 
-    $("signIn").disabled = !!c.busy || !c.browser;
-    $("signIn").textContent = c.haveCookies ? "Sign in again" : "Sign in";
+    renderSites(c);
     $("refreshCookies").hidden = !c.haveCookies;
     $("forgetCookies").hidden = !c.haveCookies;
 
@@ -2350,15 +2486,79 @@
     api("/api/cookies/status").then(function (res) {
       if (res.ok) renderCookies(res.cookies);
     });
+    // The files live in settings rather than in the cookie store, so they are
+    // read from there - and only when this screen is actually opened.
+    api("/api/settings").then(function (res) {
+      if (res.ok) renderCookieFiles(res.settings.cookies_files);
+    });
   }
 
-  $("signIn").addEventListener("click", function () {
-    api("/api/cookies/signin", {}).then(function (res) {
+  /* One row per site, built from what the engine reports rather than from a
+     list kept here as well - a second copy is a second thing to forget. */
+  function renderSites(c) {
+    var box = $("siteSignins");
+    if (!box) return;
+    var sites = c.known || [];
+
+    if (box.childElementCount !== sites.length) {
+      box.innerHTML = "";
+      sites.forEach(function (site) {
+        var row = document.createElement("div");
+        row.className = "site-row";
+        row.dataset.site = site.key;
+
+        var name = document.createElement("span");
+        name.className = "site-name";
+        name.textContent = site.label;
+
+        var mark = document.createElement("span");
+        mark.className = "site-mark";
+
+        var go = document.createElement("button");
+        go.className = "ghost small";
+        go.type = "button";
+        go.addEventListener("click", function () { signIn(site.key, site.label); });
+
+        var out = document.createElement("button");
+        out.className = "ghost small";
+        out.type = "button";
+        out.textContent = "Forget";
+        out.addEventListener("click", function () { forgetSite(site.key, site.label); });
+
+        row.appendChild(name);
+        row.appendChild(mark);
+        row.appendChild(go);
+        row.appendChild(out);
+        box.appendChild(row);
+      });
+    }
+
+    sites.forEach(function (site, i) {
+      var row = box.children[i];
+      if (!row) return;
+      row.classList.toggle("in", !!site.signedIn);
+      row.children[1].textContent = site.signedIn ? "Signed in" : "Not signed in";
+      row.children[2].textContent = site.signedIn ? "Sign in again" : "Sign in";
+      row.children[2].disabled = !!c.busy || !c.browser;
+      row.children[3].hidden = !site.signedIn;
+      row.children[3].disabled = !!c.busy;
+    });
+  }
+
+  function signIn(site, label) {
+    api("/api/cookies/signin", { site: site }).then(function (res) {
       if (!res.ok) { toast(res.error || "Could not open the browser.", "bad"); return; }
-      toast("Sign in, then close that window", "good");
+      toast("Sign in to " + label + ", then close that window", "good");
       loadCookies();
     });
-  });
+  }
+
+  function forgetSite(site, label) {
+    api("/api/cookies/forget", { site: site }).then(function (res) {
+      if (res.ok) renderCookies(res.cookies);
+      toast(label + " signed out");
+    });
+  }
 
   $("refreshCookies").addEventListener("click", function () {
     api("/api/cookies/refresh", {}).then(function (res) {
@@ -2453,6 +2653,7 @@
   function loadEngineVersion() {
     api("/api/settings").then(function (res) {
       var env = res.environment || {};
+      $("setAutostart").classList.toggle("on", !!res.autostart);
       $("engineVersion").textContent = res.engineVersion && res.engineVersion !== "missing"
         ? "Version " + res.engineVersion + " (" + (env.channel || "stable") + ")"
         : "Not installed";
@@ -2467,15 +2668,54 @@
     });
   }
 
+  /* Is a newer engine published? A line of text, nothing else - the zip is
+     only ever fetched by pressing Update. Asked when the window opens and at
+     most once a day after that; the throttle lives on the Python side. */
+  function checkEngineUpdate(force) {
+    var line = $("engineUpdate");
+    if (!line) return;
+    api("/api/check-engine", { force: !!force }).then(function (res) {
+      if (!res || !res.newer) { line.hidden = true; return; }
+      line.textContent = "A newer engine is published (" + res.latest +
+        "). Press Update when you have a moment.";
+      line.hidden = false;
+    });
+  }
+
+  /* The update holds its own request open for as long as the download takes,
+     so the percentage comes from a second endpoint. Two minutes of a silent
+     button is exactly what "stuck" meant. */
+  var enginePoll = null;
+
+  function watchEngineProgress(btn) {
+    clearInterval(enginePoll);
+    enginePoll = setInterval(function () {
+      api("/api/engine-progress").then(function (res) {
+        var p = (res && res.progress) || {};
+        if (!p.busy) return;
+        btn.textContent = p.message || "Downloading…";
+      });
+    }, 700);
+  }
+
   $("updateEngine").addEventListener("click", function () {
     var btn = $("updateEngine");
     btn.disabled = true;
     btn.textContent = "Checking…";
+    watchEngineProgress(btn);
+
     api("/api/update-engine", { channel: $("setChannel").value }).then(function (res) {
+      clearInterval(enginePoll);
       btn.disabled = false;
       btn.textContent = "Update";
       toast(res.message || (res.ok ? "Up to date" : "Update failed"), res.ok ? "good" : "bad");
       loadEngineVersion();
+      checkEngineUpdate(true);
+    }).catch(function () {
+      clearInterval(enginePoll);
+      btn.disabled = false;
+      btn.textContent = "Update";
+      toast("The update could not be started.", "bad");
     });
   });
 

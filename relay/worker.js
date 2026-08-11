@@ -450,10 +450,10 @@ const PAGE = String.raw`<!doctype html>
      pairing the browser left the app with nothing and a second code had to be
      generated for it. -->
 <div class="card" id="chooseCard" style="display:none;margin-top:0">
-  <h2>Pair the app, or this browser?</h2>
-  <p>The app takes a share without opening anything. This browser works too,
-     but sharing opens this page for a moment — and <b>the code works once</b>,
-     so it pairs whichever you pick.</p>
+  <h2 id="chooseHead">Pair the app, or this browser?</h2>
+  <p id="chooseWhy">The app takes a share without opening anything. This browser
+     works too, but sharing opens this page for a moment — and <b>the code works
+     once</b>, so it pairs whichever you pick.</p>
   <a class="btn" id="toApp">Pair the Riplox Send app</a>
   <button class="quiet" id="toBrowser">Pair this browser instead</button>
   <p class="tiny" id="chooseNote">No app yet? The button installs it, then come
@@ -572,7 +572,11 @@ const PAGE = String.raw`<!doctype html>
     if (frag.indexOf("k=") >= 0) {
       var q = new URLSearchParams(frag);
       if (!q.get("k")) return null;
-      return { room: room || currentRoom(), key: q.get("k"), code: q.get("c") || "" };
+      // The PC's address on the local network is read but never used here: an
+      // HTTPS page cannot call a plain-HTTP address on the LAN. It is carried
+      // so the desktop app, which can, gets it when this link is handed over.
+      return { room: room || currentRoom(), key: q.get("k"),
+               code: q.get("c") || "", lan: q.get("l") || "" };
     }
 
     // The typed form: room.key.code, which carries everything, so it works
@@ -878,6 +882,32 @@ const PAGE = String.raw`<!doctype html>
       + "#Intent;scheme=riploxsend;package=com.xniperbuilds.sendtoriplox;"
       + "S.browser_fallback_url=" + encodeURIComponent(apk) + ";end";
 
+    showChoice(invite);
+  }
+
+  /* The same question on Windows, and for the same reason. Riplox Send
+     registers riploxsend:// when it installs, so Windows hands the link to it
+     rather than to this page - and the app is the only side that can reach the
+     PC over the local network, which is the whole reason it exists. */
+  function offerChoiceWindows(invite) {
+    var code = invite.room + "." + invite.key + "." + invite.code;
+    var link = "riploxsend://pair?c=" + encodeURIComponent(code);
+    if (invite.lan) link += "&l=" + encodeURIComponent(invite.lan);
+
+    $("chooseHead").textContent = "Pair the app, or this browser?";
+    $("chooseWhy").innerHTML = "Riplox Send sits in the tray: copy a link in "
+      + "any program and press its shortcut. This browser works too, but "
+      + "<b>the code works once</b>, so it pairs whichever you pick.";
+    $("toApp").textContent = "Pair the Riplox Send app";
+    $("toApp").href = link;
+    $("chooseNote").innerHTML = "Nothing happens? Riplox Send is not installed "
+      + "on this PC - <a href=\"${APP_PAGE}\">get it for Windows</a>, then "
+      + "open this link again.";
+
+    showChoice(invite);
+  }
+
+  function showChoice(invite) {
     $("chooseCard").style.display = "block";
     $("appCard").style.display = "none";
     $("installCard").style.display = "none";
@@ -890,7 +920,11 @@ const PAGE = String.raw`<!doctype html>
 
   show();
   if (fresh) {
-    if (/Android/.test(navigator.userAgent)) offerChoice(fresh);
+    var ua = navigator.userAgent;
+    if (/Android/.test(ua)) offerChoice(fresh);
+    // A phone is not a desktop: iOS has no app of ours to hand this to, so it
+    // keeps pairing the page exactly as it did.
+    else if (/Windows NT/.test(ua) && !/Android|iPhone|iPad/.test(ua)) offerChoiceWindows(fresh);
     else doPair(fresh);
   }
 

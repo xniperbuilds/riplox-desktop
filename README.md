@@ -27,7 +27,10 @@ thousand other sites.
 | Subtitles | Download or embed them, keep chapters, or skip sponsor segments |
 | Convert | Turn anything already on the disk into MP3, M4A, OPUS, FLAC or WAV — remuxed rather than re-encoded when the codec already fits |
 | Watch | Follow a channel or playlist and be told what is new. It never downloads on its own |
-| Send to Riplox | Share a link from your phone and this PC downloads it — see below |
+| Find on a page | Point it at a page and it lists every media link on it, in the same screen playlists use |
+| Schedule | Hold new downloads outside chosen hours. A download already running is never cut off |
+| Send to Riplox | Share a link from your phone or another PC and this one downloads it — see below |
+| Start with Windows | Optional, and it starts into the tray rather than onto your screen |
 | Tray | Closing the window keeps downloads running, with progress on the taskbar button and a notification when each file lands |
 | Sign-in | Sign in through your own browser for private, members-only and age-gated videos |
 | Library | Every finished file, with search, sort, a filter per site, play and show-in-folder |
@@ -63,6 +66,19 @@ version is there and, if it is newer, offers it. The download is checked
 against the published SHA-256 as it arrives and thrown away if it does not
 match; Android's own dialog does the installing.
 
+There is a Windows sender too — [`send-windows/`](send-windows/), released
+beside Riplox itself. Windows has no share sheet, so it earns its place on the
+keyboard instead: copy a link in any program, press <kbd>Ctrl+Shift+S</kbd>, and
+it is on its way. Nothing opens; the answer arrives as a notification. It is
+also the only sender that can reach the downloading PC directly over the local
+network — a web page cannot, because an HTTPS page is not allowed to call a
+plain-HTTP address on the LAN.
+
+Opening a pairing link on Windows hands it to that app rather than to the
+browser: it registers `riploxsend://` when it installs, and the pairing page
+asks which one the code is for. The code works once, so pairing the browser
+would spend it and leave the app needing a second one.
+
 ### Watching a channel
 
 Add a channel or a playlist and Riplox checks it on a timer and lists what it
@@ -94,8 +110,9 @@ supported interface. Your normal browser profile is never opened or copied.
 
 What is captured is stored encrypted with DPAPI, is written out in the clear
 only into a temp file for the length of one download, and is only ever handed to
-the site it came from. Firefox still works directly, and an exported
-`cookies.txt` can be used instead.
+the site it came from. There is one encrypted file per site, so signing out of
+one site deletes that file and touches nothing else. Firefox still works
+directly, and an exported `cookies.txt` can be used instead.
 
 Signing in is optional — public videos do not need it. Downloading heavily
 while signed in can get that account limited by the site, so a spare account is
@@ -166,6 +183,18 @@ python src\app.py --dev
 
 This serves the UI at `http://127.0.0.1:5010` in a normal browser instead of
 the app window.
+
+### The Windows sender
+
+```
+cd send-windows
+pyinstaller build\riploxsend.spec --noconfirm
+```
+
+Then compile `send-windows\build\installer.iss`. It is a separate program with
+no dependency on Riplox itself — it seals the same AES-GCM envelope the phone
+app does and leaves it for the PC. Its installer registers `riploxsend://` under
+`HKCU`, per-user, and removes it again on uninstall.
 
 ## How it works
 

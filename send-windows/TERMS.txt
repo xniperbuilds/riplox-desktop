@@ -1,0 +1,55 @@
+Riplox Send - Terms and Conditions
+
+1. What this is
+
+Riplox Send is a free companion to Riplox Desktop. It sends a web address to
+one PC you have paired it with, and that PC decides what to do with it. It is
+not a downloader itself and never downloads anything.
+
+
+2. What travels, and what does not
+
+Only the address you send travels. No file on this machine is read, opened or
+uploaded. There is no history, no queue and no account.
+
+Messages are encrypted with a key made on this machine during pairing. Where a
+relay is used it carries that encrypted message without being able to read it.
+When the PC is on the same network, the message goes straight there and does
+not leave the building at all.
+
+
+3. Your responsibility
+
+You are responsible for what you send and for what is done with it. Only send
+links to content you have the right to download. This software gives you no
+right to any content, and it removes no protection from any content.
+
+
+4. Pairing
+
+Anything paired with a PC can send links to it. Keep pairing codes private,
+and remove a machine from Riplox on the PC when it should no longer send.
+
+
+5. Updating itself
+
+The app may check whether a newer version exists and offer it. It never
+installs anything without asking, and Windows always asks as well.
+
+
+6. No warranty
+
+This software is provided as is, without warranty of any kind. It may stop
+working when a website, a network or Windows changes.
+
+
+7. Liability
+
+To the extent the law allows, XniperBuilds is not liable for any loss or
+damage arising from the use of this software.
+
+
+8. Removing it
+
+Uninstall it from Settings, or from the entry it created in the Start menu.
+Its pairing is stored under your own user profile and is removed with it.

@@ -31,7 +31,7 @@ import sharing
 import watch
 
 APP_TITLE = "Riplox"
-VERSION = "1.1.2"
+VERSION = "1.2.0"
 
 
 def resource_dir() -> Path:
@@ -49,6 +49,8 @@ app.config["JSON_SORT_KEYS"] = False
 manager = engine.DownloadManager()
 _window = None
 tray_app = None
+# On the way out on purpose, rather than the window being closed to the tray.
+_quitting = False
 
 # The UI talks to a real HTTP server on localhost. Anything else running on
 # this machine - including a web page open in the user's browser - can reach
@@ -124,6 +126,27 @@ def api_analyze():
     return jsonify({"ok": True, "info": info})
 
 
+@app.post("/api/grab")
+def api_grab():
+    """
+    Read a page and list what can be downloaded from it.
+
+    Its own endpoint, and only ever reached by pressing the button: a page is
+    fetched here rather than handed to the engine, so nothing about how a
+    normal link is analysed or downloaded changes.
+    """
+    url = ((request.json or {}).get("url") or "").strip()
+    if not url:
+        return jsonify({"ok": False, "error": "Paste a page link first."}), 400
+
+    try:
+        info = engine.grab(url, engine.load_settings())
+    except RuntimeError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+    return jsonify({"ok": True, "info": info})
+
+
 @app.post("/api/command")
 def api_command():
     """
@@ -151,9 +174,10 @@ def api_command():
 
     cookie_path = None
     if not opts.get("no_cookies"):
-        chosen = settings.get("cookies_file", "")
-        if chosen:
-            cookie_path = chosen
+        # Named rather than shown: what actually goes to yt-dlp is a temp file
+        # holding only this site's lines, and its name is a random one.
+        if engine.cookie_files(settings):
+            cookie_path = "<this site's cookies, from your files>"
         elif settings.get("cookies_signin", True):
             cookie_path = "<this site's saved session>"
 
@@ -240,6 +264,9 @@ def api_jobs():
         "hasFfmpeg": engine.has_ffmpeg(),
         # Decides whether a failed job is offered a "Fix this" button.
         "hasPotoken": potoken.installed(),
+        # A queue that sits still with nothing said about it reads as a broken
+        # app. If the schedule is what is holding it, the screen says so.
+        "holdNote": engine.schedule_note(engine.load_settings()),
     })
 
 
@@ -461,7 +488,15 @@ def api_get_settings():
     return jsonify({"ok": True, "settings": engine.load_settings(),
                     "engineVersion": engine.engine_version(),
                     "environment": engine.environment(),
+                    # Kept in the registry rather than settings.json: Windows
+                    # owns that list, and a copy here could disagree with it.
+                    "autostart": engine.autostart_on(),
                     "hasFfmpeg": engine.has_ffmpeg()})
+
+
+@app.post("/api/autostart")
+def api_autostart():
+    return jsonify(engine.set_autostart(bool((request.json or {}).get("on"))))
 
 
 # --------------------------------------------------------------------------
@@ -475,10 +510,11 @@ def api_cookies_status():
 
 @app.post("/api/cookies/signin")
 def api_cookies_signin():
-    url = (request.json or {}).get("url") or "https://www.youtube.com/"
-    if not str(url).lower().startswith("https://"):
-        return jsonify({"ok": False, "error": "Blocked."}), 400
-    return jsonify(cookies.start_login(url))
+    # A site by name, never a URL from the page: the login address comes from
+    # the table in cookies.py, so nothing that reaches this endpoint can send
+    # the browser somewhere of its own choosing.
+    site = ((request.json or {}).get("site") or "youtube").strip().lower()
+    return jsonify(cookies.start_login(site))
 
 
 @app.post("/api/cookies/refresh")
@@ -488,7 +524,8 @@ def api_cookies_refresh():
 
 @app.post("/api/cookies/forget")
 def api_cookies_forget():
-    cookies.forget()
+    # No site named means all of them, which is what the old button did.
+    cookies.forget(((request.json or {}).get("site") or "").strip().lower())
     return jsonify({"ok": True, "cookies": cookies.status()})
 
 
@@ -722,21 +759,42 @@ def _inside_downloads(path: Path) -> bool:
 
 @app.post("/api/choose-cookies")
 def api_choose_cookies():
-    """Pick an exported cookies.txt. Works for browsers we cannot read."""
+    """
+    Add exported cookies.txt files. Works for browsers we cannot read.
+
+    Several at once, and added rather than replaced: one export per site is
+    easier to keep straight than one file that has to hold every site, and
+    only the lines belonging to the site being downloaded are ever sent.
+    """
     if _window is None:
         return jsonify({"ok": False, "error": "File picker needs the app window."}), 400
 
     import webview
     result = _window.create_file_dialog(
         webview.OPEN_DIALOG,
-        allow_multiple=False,
+        allow_multiple=True,
         file_types=("Cookie files (*.txt)", "All files (*.*)"),
     )
     if not result:
         return jsonify({"ok": False, "cancelled": True})
 
-    chosen = result[0] if isinstance(result, (list, tuple)) else result
-    saved = engine.save_settings({"cookies_file": str(chosen)})
+    picked = list(result) if isinstance(result, (list, tuple)) else [result]
+    have = engine.cookie_files(engine.load_settings())
+    for path in picked:
+        if str(path) not in have:
+            have.append(str(path))
+
+    # The old single-path setting is emptied as it is folded in, so the same
+    # file cannot end up counted from two places.
+    saved = engine.save_settings({"cookies_files": have, "cookies_file": ""})
+    return jsonify({"ok": True, "settings": saved})
+
+
+@app.post("/api/cookies/remove-file")
+def api_cookies_remove_file():
+    drop = ((request.json or {}).get("path") or "").strip()
+    kept = [p for p in engine.cookie_files(engine.load_settings()) if p != drop]
+    saved = engine.save_settings({"cookies_files": kept, "cookies_file": ""})
     return jsonify({"ok": True, "settings": saved})
 
 
@@ -795,6 +853,25 @@ def api_open():
 def api_update_engine():
     channel = (request.json or {}).get("channel", "")
     return jsonify(engine.update_engine(channel))
+
+
+@app.get("/api/engine-progress")
+def api_engine_progress():
+    """
+    How far the engine download has got.
+
+    Its own endpoint because the update itself holds its request open for as
+    long as the download takes; silence for two minutes is exactly what "stuck"
+    looked like, and this is what the button reads to stop being silent.
+    """
+    return jsonify({"ok": True, "progress": engine.engine_progress()})
+
+
+@app.post("/api/check-engine")
+def api_check_engine():
+    """Ask whether a newer engine is published. Never downloads anything."""
+    force = bool((request.json or {}).get("force"))
+    return jsonify(engine.check_engine_update(force))
 
 
 @app.get("/api/history")
@@ -1182,6 +1259,11 @@ def start_tray(window) -> None:
         show_window()
 
     def quit_app():
+        # Set before destroy(): destroying the window raises the same closing
+        # event the X button does, and that handler hides the window and says
+        # "Riplox is still running" - which arrived, wrongly, on every Quit.
+        global _quitting
+        _quitting = True
         shutdown_children()
         try:
             window.destroy()
@@ -1259,6 +1341,10 @@ def main() -> None:
         threading.Event().wait()
         return
 
+    # Started by Windows at login rather than by the user: the tray icon and
+    # the downloads are what is wanted, not a window across the desktop.
+    quiet = "--tray" in sys.argv
+
     _window = webview.create_window(
         APP_TITLE,
         f"http://127.0.0.1:{port}",
@@ -1267,11 +1353,16 @@ def main() -> None:
         min_size=(940, 620),
         background_color="#0A101B",
         text_select=False,
+        hidden=quiet,
     )
 
     # Closing the window hides it instead of ending the app, so downloads and
     # the global shortcut keep working. Quit lives in the tray menu.
     def on_closing():
+        # Quit destroys the window, which arrives here as an ordinary close.
+        # Without this the app announced it was still running on its way out.
+        if _quitting:
+            return True
         if tray_app is not None and tray_app.icon is not None:
             _window.hide()
             tray_app.notify("Riplox is still running",
