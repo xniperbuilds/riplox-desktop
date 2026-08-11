@@ -221,19 +221,25 @@ function refresh() {
     $("why").textContent = s.why;
     $("ver").textContent = "Riplox Send " + s.version;
 
-    // Pairing is usually a once thing, so it is off screen unless it is needed
-    // or asked for. Asked-for wins: hiding it under the user is how the
-    // "there is no way to pair a different PC" complaint happened.
-    var showPair = !s.paired || wantPair;
-    $("pairCard").className = showPair ? "card" : "card hidden";
-    $("sendCard").className = s.paired ? "card" : "card hidden";
-    $("check").textContent = s.paired ? "Check my PC" : "Check again";
-    $("pairTitle").textContent = s.paired ? "Pair a different PC" : "Add this PC";
-    $("pairCancel").className = s.paired && wantPair ? "ghost" : "ghost hidden";
-    $("repair").className = s.paired && !wantPair ? "" : "hidden";
-    $("footSep").className = s.paired && !wantPair ? "" : "hidden";
+    // Removed by the PC is not "paired" in any useful sense: there is a room
+    // and a key on disk, but every send from here is refused. So the pairing
+    // screen opens on its own and the sending form goes - having to find a
+    // link before you can pair again is the same complaint twice over.
+    var dead = s.status === "gone";
 
-    $("tip").innerHTML = s.paired && window.HOTKEY
+    // Otherwise pairing is a once thing, off screen unless needed or asked for.
+    var showPair = !s.paired || dead || wantPair;
+    $("pairCard").className = showPair ? "card" : "card hidden";
+    $("sendCard").className = s.paired && !dead ? "card" : "card hidden";
+    $("check").textContent = s.paired && !dead ? "Check my PC" : "Check again";
+    $("pairTitle").textContent = dead ? "Pair again"
+      : (s.paired ? "Pair a different PC" : "Add this PC");
+    // Cancel would have nothing to go back to while the pairing is dead.
+    $("pairCancel").className = s.paired && !dead && wantPair ? "ghost" : "ghost hidden";
+    $("repair").className = s.paired && !dead && !wantPair ? "" : "hidden";
+    $("footSep").className = s.paired && !dead && !wantPair ? "" : "hidden";
+
+    $("tip").innerHTML = s.paired && !dead && window.HOTKEY
       ? "Copy a link in any program and press <kbd>" + window.HOTKEY + "</kbd>. "
         + "It goes without this window opening."
       : "";
