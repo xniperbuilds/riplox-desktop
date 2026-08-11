@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Riplox Send</string>
+    <string name="share_label">Riplox Send</string>
+    <string name="tagline">Your PC does the downloading</string>
+
+    <!-- home -->
+    <string name="send_a_link">Send a link</string>
+    <string name="send_a_link_why">Paste one here, or share it from any app.</string>
+    <string name="link_hint">https://…</string>
+    <string name="send_now">Send to my PC</string>
+    <string name="or_share">Wherever you are — YouTube, TikTok, a browser — use <b>Share → Riplox Send</b>. Nothing opens; the link is on its way.</string>
+    <string name="pairing_screen">Pairing and setup</string>
+    <string name="privacy">Only the link travels — never a video, and never anything else on this phone.</string>
+
+    <!-- status -->
+    <string name="checking">Checking…</string>
+    <string name="pc_on">Ready</string>
+    <string name="pc_on_why">Your PC is on and this phone is allowed.</string>
+    <string name="pc_paused">Paused</string>
+    <string name="pc_paused_why">Your PC has this phone paused. Resume it there.</string>
+    <string name="pc_revoked">Removed</string>
+    <string name="pc_revoked_why">Your PC removed this phone. Pair it again with a new code.</string>
+    <string name="pc_quiet">PC not answering</string>
+    <string name="pc_quiet_why">It is switched off, or Riplox is not running on it. Links you send still wait for it.</string>
+    <string name="pc_unpaired">Not paired</string>
+    <string name="pc_unpaired_why">Pair this phone with your PC to start sending.</string>
+    <string name="pc_offline">No connection</string>
+    <string name="pc_offline_why">This phone cannot reach the internet.</string>
+
+    <!-- pairing -->
+    <string name="pairing_title">Pairing</string>
+    <string name="on_your_pc">On your PC</string>
+    <string name="pc_steps">1.  Open Riplox\n2.  Sharing → Show code\n3.  Copy code, and paste it below</string>
+    <string name="code_hint">room.key.code</string>
+    <string name="code_note">The code works once and lasts two minutes. After that it opens nothing, so an old code left in a chat is harmless.</string>
+    <string name="pair">Pair with my PC</string>
+    <string name="repair">Use this code</string>
+    <string name="forget">Unpair this phone</string>
+    <string name="check">Check my PC</string>
+
+    <string name="is_paired">Paired. Share a link from any app and it goes straight to your PC.</string>
+    <string name="not_paired_yet">Not paired yet.</string>
+    <!-- This screen knows only that a key is saved here; whether the PC still
+         accepts it is Home's answer, and saying "Paired" over a phone the PC
+         had removed was simply wrong. -->
+    <string name="has_pairing">A pairing is saved on this phone. Home shows whether your PC still accepts it.</string>
+    <string name="pairing">Pairing…</string>
+    <string name="forgotten">Unpaired.</string>
+
+    <string name="bad_code">That code does not look right. Copy it again from Riplox.</string>
+    <string name="code_used">That code has already been used. Make a new one in Riplox.</string>
+    <string name="code_expired">That code has expired. Make a new one in Riplox.</string>
+    <string name="pair_failed">Your PC would not accept that code.</string>
+    <string name="no_answer">No answer from your PC. Open Riplox, turn Sharing on, and use a fresh code.</string>
+    <string name="no_reach">Could not reach the relay. Check your connection.</string>
+
+    <!-- updating -->
+    <string name="update_title">Update available</string>
+    <string name="update_why">Version %1$s · %2$d KB. Installs over this one — your pairing stays.</string>
+    <string name="update_now">Update</string>
+    <string name="updating">Downloading… %1$d%%</string>
+    <string name="update_handing_over">Installing…</string>
+    <string name="updated">Riplox Send updated</string>
+    <string name="update_failed">Update failed: %1$s</string>
+    <string name="update_allow">Turn on “Allow from this source”, then tap Update again.</string>
+    <string name="version_line">Riplox Send %1$s</string>
+
+    <!-- sending -->
+    <string name="sending">Sending to your PC…</string>
+    <string name="left_for_pc">Left for your PC. It starts as soon as Riplox is running.</string>
+    <string name="no_link">There was no link in that.</string>
+    <string name="not_paired">Pair this phone with your PC first.</string>
+</resources>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The same palette as Riplox Desktop, value for value, so the two read as one
+  product rather than two things by the same person.
+-->
+<resources>
+    <color name="bg">#070C15</color>
+    <color name="panel">#0B1220</color>
+    <color name="well">#0D1421</color>
+    <color name="line">#1C2635</color>
+
+    <color name="ink">#E9EFF8</color>
+    <color name="ink_dim">#93A2B8</color>
+    <color name="ink_faint">#7E8DA6</color>
+
+    <color name="cyan">#2BE9E0</color>
+    <color name="cyan_deep">#04222B</color>
+    <color name="violet">#7C5CFF</color>
+
+    <color name="good">#2BE9E0</color>
+    <color name="warn">#FFC14D</color>
+    <color name="bad">#FF6B8A</color>
+    <color name="idle">#5E6D84</color>
+
+    <color name="danger_wash">#2A1119</color>
+    <color name="danger_ink">#FFC5D4</color>
+</resources>

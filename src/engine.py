@@ -1868,20 +1868,6 @@ def _available_qualities(info: dict, settings: dict = None) -> dict:
     return {"rungs": ["best"] + rungs + ["mp3"], "upscaled": notes}
 
 
-def _signed_in(site: str) -> bool:
-    """
-    Is there a saved session for this site?
-
-    Imported here rather than at the top - cookies.py imports engine, and two
-    modules importing each other at load time is a crash.
-    """
-    try:
-        import cookies
-        return bool(cookies.site_file(site).exists())
-    except Exception:
-        return False
-
-
 def _clean_error(stderr: str) -> str:
     """Turn a yt-dlp stack of ERROR lines into one human sentence."""
     text = (stderr or "").strip()
@@ -1900,25 +1886,23 @@ def _clean_error(stderr: str) -> str:
         return ("Chrome-based browsers will not let another program read their "
                 "cookies. Use 'Sign in with your browser' in Settings instead.")
 
-    # TikTok's own words for "prove you are a person". Measured on a link that
-    # failed here: the page it serves carries a captcha and the line "Video
-    # currently unavailable", and both the stable and the nightly engine fail
-    # on it identically - so telling the user to update or to open an issue,
-    # which is what the raw message says, would send them nowhere.
+    # TikTok answers this machine with a bot wall rather than the video: the
+    # page that comes back is a 1.4 KB shell whose only job is to run
+    # JavaScript and decide whether you are a browser. It carries no video data
+    # at all, which is what the engine is reporting.
     #
-    # Which half of the advice is true depends on whether there is a TikTok
-    # session at all, and that turned out to be the whole story: the session
-    # store held YouTube and Google and no TikTok cookie whatsoever, while the
-    # screen said "signed in". Telling someone to try again later when they
-    # have never signed in wastes their afternoon.
+    # Everything that could be tried was tried and measured on 11 Aug 2026:
+    # plain, five different browser impersonations, a desktop user-agent, both
+    # of the engine's alternate TikTok API hosts, and finally the cookies taken
+    # from a real Chrome that HAD got through the wall. Every one of them came
+    # back with this same message. So "sign in and try again" would be a lie -
+    # the wall is not about having an account, and saying otherwise sends
+    # someone off to sign in for nothing.
     if "unexpected response from webpage" in low_all:
-        if _signed_in("tiktok"):
-            return ("TikTok served a verification page instead of the video, "
-                    "and the saved TikTok sign-in did not get past it. Sign in "
-                    "again from Settings, or try again in a while.")
-        return ("TikTok is asking this computer to verify itself, so it served "
-                "a check page instead of the video. There is no TikTok sign-in "
-                "saved yet - Settings, then Sign in, then TikTok.")
+        return ("TikTok is refusing this computer rather than the video: it "
+                "answers with a bot check instead of the page. Signing in does "
+                "not get past it - measured, not guessed. A different "
+                "connection is the only thing that has helped.")
 
     if "cookie" in low_all and ("permission" in low_all or "could not copy"
                                 in low_all or "database" in low_all):

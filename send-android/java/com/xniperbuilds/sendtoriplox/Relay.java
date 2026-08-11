@@ -1,0 +1,191 @@
+package com.xniperbuilds.sendtoriplox;
+
+import android.util.Base64;
+
+import org.json.JSONObject;
+
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.security.SecureRandom;
+
+import javax.crypto.Cipher;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+
+/**
+ * Talking to the Riplox relay.
+ *
+ * The relay is a postbox: it carries a sealed envelope from this phone to one
+ * PC and cannot read what it carries. Everything that matters happens here and
+ * on the PC - the key never leaves the two of them.
+ *
+ * AES-GCM with a 12-byte nonce and a 128-bit tag, which is exactly what the
+ * desktop's Python side produces, and base64url without padding, which is what
+ * it expects to receive. Both halves were matched deliberately rather than
+ * hopefully: a mismatch here fails as "unknown device", which looks like a
+ * pairing problem and is not one.
+ */
+final class Relay {
+
+    static final String BASE = "https://relay.xniperbuilds.com";
+
+    private static final int B64 = Base64.URL_SAFE | Base64.NO_PADDING | Base64.NO_WRAP;
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    private Relay() {
+    }
+
+    // -- encoding ---------------------------------------------------------
+
+    static String b64(byte[] raw) {
+        return Base64.encodeToString(raw, B64);
+    }
+
+    static byte[] unb64(String text) {
+        return Base64.decode(text, B64);
+    }
+
+    static byte[] randomBytes(int n) {
+        byte[] out = new byte[n];
+        RANDOM.nextBytes(out);
+        return out;
+    }
+
+    // -- the envelope -----------------------------------------------------
+
+    /** {n, c} for a message only the paired PC can open. */
+    static JSONObject seal(byte[] key, String plain) throws Exception {
+        byte[] nonce = randomBytes(12);
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"),
+                new GCMParameterSpec(128, nonce));
+        byte[] sealed = cipher.doFinal(plain.getBytes("UTF-8"));
+
+        JSONObject out = new JSONObject();
+        out.put("n", b64(nonce));
+        out.put("c", b64(sealed));
+        return out;
+    }
+
+    /** The PC's reply, or null if it was not for us. */
+    static JSONObject open(byte[] key, String nonce64, String cipher64) {
+        try {
+            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+            cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, "AES"),
+                    new GCMParameterSpec(128, unb64(nonce64)));
+            return new JSONObject(new String(cipher.doFinal(unb64(cipher64)), "UTF-8"));
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    // -- http -------------------------------------------------------------
+
+    private static String read(HttpURLConnection conn) throws Exception {
+        InputStream in = conn.getResponseCode() >= 400
+                ? conn.getErrorStream() : conn.getInputStream();
+        if (in == null) {
+            return "";
+        }
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        byte[] chunk = new byte[4096];
+        int read;
+        while ((read = in.read(chunk)) > 0) {
+            buffer.write(chunk, 0, read);
+        }
+        in.close();
+        return buffer.toString("UTF-8");
+    }
+
+    static String post(String path, String body, int timeoutMs) throws Exception {
+        HttpURLConnection conn = (HttpURLConnection) new URL(BASE + path).openConnection();
+        try {
+            conn.setRequestMethod("POST");
+            conn.setDoOutput(true);
+            conn.setConnectTimeout(timeoutMs);
+            conn.setReadTimeout(timeoutMs);
+            conn.setRequestProperty("Content-Type", "application/json");
+            conn.setRequestProperty("Accept", "application/json");
+            OutputStream out = conn.getOutputStream();
+            out.write(body.getBytes("UTF-8"));
+            out.close();
+            return read(conn);
+        } finally {
+            conn.disconnect();
+        }
+    }
+
+    static String get(String path, int timeoutMs) throws Exception {
+        HttpURLConnection conn = (HttpURLConnection) new URL(BASE + path).openConnection();
+        try {
+            conn.setConnectTimeout(timeoutMs);
+            conn.setReadTimeout(timeoutMs);
+            conn.setRequestProperty("Accept", "application/json");
+            return read(conn);
+        } finally {
+            conn.disconnect();
+        }
+    }
+
+    // -- what the app actually does ---------------------------------------
+
+    /**
+     * Leave a sealed message and wait for the PC's own verdict.
+     *
+     * The relay can only ever say "left for your PC", because it cannot read
+     * the message. The PC seals its answer under the same key and leaves it
+     * on the way back, so a toast can say "downloading" or "that phone is
+     * paused" instead of a hopeful "sent".
+     *
+     * Returns the PC's word, or "" when nothing came back in time - which is
+     * not a failure, only silence.
+     */
+    static String deliver(String room, byte[] key, JSONObject body) throws Exception {
+        String rid = b64(randomBytes(12));
+        body.put("r", rid);
+        body.put("ts", System.currentTimeMillis() / 1000.0);
+
+        JSONObject envelope = seal(key, body.toString());
+        String answer = post("/send/" + room, envelope.toString(), 15000);
+        if (!new JSONObject(answer).optBoolean("ok", false)) {
+            throw new Exception("the relay would not take it");
+        }
+
+        try {
+            JSONObject ack = new JSONObject(get("/ack/" + room + "?r=" + rid + "&hold=12", 20000));
+            if (ack.optBoolean("ok", false) && ack.has("ack")) {
+                JSONObject sealed = ack.getJSONObject("ack");
+                JSONObject said = open(key, sealed.optString("n"), sealed.optString("c"));
+                if (said != null) {
+                    return said.optString("why", "");
+                }
+            }
+        } catch (Exception ignored) {
+            // No answer is not an error. The message is in the postbox either
+            // way, and the PC picks it up whenever it is next running.
+        }
+        return "";
+    }
+
+    /** Plain English for what the PC said. */
+    static String words(String why) {
+        if ("queued".equals(why)) return "Downloading on your PC";
+        if ("held".equals(why)) return "Sent - waiting for your approval on the PC";
+        if ("paired".equals(why)) return "Paired";
+        if ("paused".equals(why)) return "This phone is paused on the PC";
+        if ("site".equals(why)) return "This phone is not allowed to send that site";
+        if ("day-limit".equals(why)) return "Today's downloads are used up";
+        if ("total-limit".equals(why)) return "This phone's allowance is used up";
+        if ("replay".equals(why)) return "That one was already sent";
+        if ("stale".equals(why)) return "Your phone's clock is too far ahead";
+        if ("expired".equals(why)) return "That pairing code has expired";
+        if ("used".equals(why)) return "That pairing code was already used";
+        if ("revoked".equals(why)) return "Your PC removed this phone - open Riplox Send for a new code";
+        if ("unknown".equals(why)) return "Your PC did not recognise this phone";
+        if ("bad-link".equals(why)) return "That link was refused";
+        return "";
+    }
+}

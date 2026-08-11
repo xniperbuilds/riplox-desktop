@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The status light. Tinted from code, so one shape covers all four states
+     and none of them can drift apart from the others. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="@color/idle" />
+    <size android:width="10dp" android:height="10dp" />
+</shape>

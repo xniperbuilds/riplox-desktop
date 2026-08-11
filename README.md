@@ -58,8 +58,8 @@ outright. A removed phone is told it was removed rather than left guessing.
 
 Two ways in on the phone: a web page that needs nothing installed, or
 **Riplox Send**, a small Android app that takes a share without opening
-anything at all. Both are offered from the pairing link. The relay is in
-[`relay/`](relay/).
+anything at all — source in [`send-android/`](send-android/). Both are offered
+from the pairing link. The relay is in [`relay/`](relay/).
 
 Riplox Send keeps itself up to date without a store: it asks the relay what
 version is there and, if it is newer, offers it. The download is checked
@@ -184,17 +184,33 @@ python src\app.py --dev
 This serves the UI at `http://127.0.0.1:5010` in a normal browser instead of
 the app window.
 
-### The Windows sender
+### The senders
+
+Both are separate programs with no dependency on Riplox itself. Each seals the
+same AES-GCM envelope and leaves it for the PC to collect; neither downloads
+anything.
 
 ```
 cd send-windows
 pyinstaller build\riploxsend.spec --noconfirm
 ```
 
-Then compile `send-windows\build\installer.iss`. It is a separate program with
-no dependency on Riplox itself — it seals the same AES-GCM envelope the phone
-app does and leaves it for the PC. Its installer registers `riploxsend://` under
-`HKCU`, per-user, and removes it again on uninstall.
+Then compile `send-windows\build\installer.iss`. Its installer registers
+`riploxsend://` under `HKCU`, per-user, and removes it again on uninstall.
+
+```
+cd send-android
+powershell -File build.ps1
+```
+
+The Android app is built straight through the SDK tools — aapt2, javac, d8,
+zipalign, apksigner — because it is a dozen classes with no libraries at all,
+and the Gradle plugin would pull several hundred megabytes of Maven to produce
+the same APK. It needs `JAVA_HOME` and an Android SDK (`ANDROID_SDK_ROOT`, or
+the default location); set `RIPLOXSEND_KEYSTORE` and `RIPLOXSEND_KEYSTORE_PASS`
+to sign a release build, or it falls back to the Android debug key.
+`build\pack_for_relay.py` then puts the APK inside the relay, which is where
+the pairing page hands it out from.
 
 ## How it works
 

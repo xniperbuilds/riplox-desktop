@@ -11,10 +11,13 @@ build/_work/
 build/riplox/
 *.spec.bak
 
-# The same, for the companion sender that lives beside it.
+# The same, for the companion senders that live beside it.
 send-windows/dist/
 send-windows/dist_installer/
 send-windows/build/riploxsend/
+send-android/dist/
+send-android/build/_work/
+send-android/build/gen/
 
 # The phone app, base64 for the relay to serve. A build output that changes
 # with every Android build, and this repository has already had to have its

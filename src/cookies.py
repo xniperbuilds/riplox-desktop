@@ -590,6 +590,7 @@ class _Flow:
         self.busy = False
         self.step = ""
         self.error = ""
+        self.site = ""
         self.proc = None
         self._lock = threading.Lock()
 
@@ -608,6 +609,7 @@ class _Flow:
             self.busy = True
             self.step = "opening"
             self.error = ""
+            self.site = site.lower()
 
         # Signing in deliberately undoes a previous Forget for this site.
         data = _load_cookies()
@@ -615,11 +617,11 @@ class _Flow:
         if dropped != (data.get("dropped") or []):
             _save_cookies(data.get("cookies") or [], dropped)
 
-        threading.Thread(target=self._run, args=(found[1], entry[1]),
+        threading.Thread(target=self._run, args=(found[1], entry[1], site.lower()),
                          daemon=True).start()
         return {"ok": True, "browser": found[0], "site": entry[0]}
 
-    def _run(self, exe: Path, url: str) -> None:
+    def _run(self, exe: Path, url: str, site: str) -> None:
         try:
             profile_dir().mkdir(parents=True, exist_ok=True)
             self.step = "waiting"
@@ -631,6 +633,22 @@ class _Flow:
             found = _read_cookies(exe)
             if not found:
                 raise OSError("No cookies were found - was the sign-in completed?")
+
+            # Getting cookies back is not the same as getting THIS site's
+            # cookies. The profile already holds every other site ever signed
+            # in through it, so a TikTok sign-in that never completed still
+            # came back with a healthy pile of YouTube cookies - and the screen
+            # said "Signed in" while the site in question had none at all.
+            # That is exactly how someone ends up signing in twice and still
+            # being told to sign in.
+            wanted = set(SITES[site][2]) if site in SITES else set()
+            if wanted and not any(_root_domain(c.get("domain", "")) in wanted
+                                  for c in found):
+                raise OSError(
+                    f"No {SITES[site][0]} session was captured. Sign in fully "
+                    f"in the window that opened, then close that window - "
+                    f"Riplox reads the session once the window is closed.")
+
             _save_cookies(found)
             self.step = "done"
         except Exception as exc:

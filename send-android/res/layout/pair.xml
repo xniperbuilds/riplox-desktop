@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Pairing, on its own screen because it happens once.
+
+  The code box is here whether or not the phone is already paired: when a PC
+  revokes a phone the fix is a new code, and that must never mean reinstalling
+  the app.
+-->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg"
+    android:fillViewport="true"
+    android:clipToPadding="false"
+    android:fitsSystemWindows="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="22dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/pairing_title"
+            android:textColor="@color/ink"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/pairState"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="@color/ink_dim"
+            android:textSize="13.5sp"
+            android:lineSpacingExtra="3dp" />
+
+        <!-- the three steps, spelled out -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/card"
+            android:padding="18dp"
+            android:layout_marginTop="20dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/on_your_pc"
+                android:textColor="@color/ink"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/pc_steps"
+                android:textColor="@color/ink_dim"
+                android:textSize="13sp"
+                android:lineSpacingExtra="4dp" />
+
+            <EditText
+                android:id="@+id/code"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:hint="@string/code_hint"
+                android:textColor="@color/ink"
+                android:textColorHint="@color/idle"
+                android:textSize="13sp"
+                android:fontFamily="monospace"
+                android:inputType="textNoSuggestions|textVisiblePassword"
+                android:maxLines="3"
+                android:padding="14dp"
+                android:background="@drawable/field" />
+
+            <Button
+                android:id="@+id/pair"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:layout_marginTop="12dp"
+                android:text="@string/pair"
+                android:textColor="@color/cyan_deep"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textAllCaps="false"
+                android:background="@drawable/btn_primary"
+                android:stateListAnimator="@null" />
+
+            <TextView
+                android:id="@+id/pairMsg"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:textColor="@color/cyan"
+                android:textSize="13sp"
+                android:lineSpacingExtra="3dp"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:text="@string/code_note"
+            android:textColor="@color/ink_faint"
+            android:textSize="12sp"
+            android:lineSpacingExtra="3dp" />
+
+        <Button
+            android:id="@+id/forget"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="24dp"
+            android:text="@string/forget"
+            android:textColor="@color/danger_ink"
+            android:textSize="13.5sp"
+            android:textAllCaps="false"
+            android:background="@drawable/btn_danger"
+            android:stateListAnimator="@null"
+            android:visibility="gone" />
+    </LinearLayout>
+</ScrollView>

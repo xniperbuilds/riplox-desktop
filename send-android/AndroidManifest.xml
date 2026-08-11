@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Send to Riplox - a share-sheet target and nothing else.
+
+  The whole reason this exists: a web share target always opens the page it
+  belongs to, because that is how the web platform works. Only a native app
+  can take a share and act on it with no window at all - which is what
+  ShareActivity below does, with Theme.NoDisplay and finish() in onCreate.
+
+  INTERNET is the only permission. It cannot read the clipboard, storage,
+  contacts or anything else, because it never needs to.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.xniperbuilds.sendtoriplox"
+    android:versionCode="2"
+    android:versionName="1.0.1">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- So a shared link goes out the moment it is shared, rather than
+         whenever the system next feels like running a background job. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Updating itself. There is no store behind this app, so without this
+         a fix would mean telling every user to go and fetch a file. It only
+         ever installs this same package, and the user still confirms it on
+         Android's own screen. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <application
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar"
+        android:allowBackup="false"
+        android:supportsRtl="true">
+
+        <activity
+            android:name=".HomeActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Setup, which happens once. Kept off Home for that reason. -->
+        <activity
+            android:name=".PairActivity"
+            android:exported="true"
+            android:label="@string/pairing_title"
+            android:parentActivityName=".HomeActivity"
+            android:windowSoftInputMode="adjustResize">
+
+            <!--
+              The pairing page hands the code straight here rather than
+              pairing itself. Opening the link in a browser used to pair the
+              *browser* - and since a code works once, the app was then left
+              with nothing and needed a second code generated for it.
+
+              The code never reaches a server: it lives in the URL fragment on
+              the page, and this link is built and followed on the phone.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="riploxsend" android:host="pair" />
+            </intent-filter>
+        </activity>
+
+        <!--
+          No layout, no window, no transition. The share sheet closes and the
+          link is on its way; the only thing the user sees is a toast saying
+          what happened.
+        -->
+        <activity
+            android:name=".ShareActivity"
+            android:exported="true"
+            android:label="@string/share_label"
+            android:theme="@android:style/Theme.NoDisplay"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity="">
+            <!--
+              text/* rather than text/plain alone: some apps share a link as
+              text/html or another text type, and the app would simply not
+              appear in their share sheet. Anything without a link in it is
+              refused with one line rather than silently sent.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/*" />
+            </intent-filter>
+        </activity>
+
+        <!--
+          Sending, right now. A thread started by an activity that has already
+          finished does not keep the process alive - Android freezes it
+          mid-flight, and that is what lost shared links. A job fixed the
+          losing but not the waiting: the system chooses when to run one, and
+          on the skins this app is used on that can mean "when you next open
+          the app". A share is a user action, so a foreground service is
+          allowed here and is not postponed.
+        -->
+        <service
+            android:name=".SendService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Behind it: the retry path for anything that had no network. -->
+        <service
+            android:name=".SendJob"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <!--
+          Where an install reports back. Not exported: the only thing that
+          ever reaches it is this app's own PendingIntent, handed to the
+          package installer and returned by it.
+        -->
+        <receiver
+            android:name=".InstallReceiver"
+            android:exported="false" />
+    </application>
+</manifest>
