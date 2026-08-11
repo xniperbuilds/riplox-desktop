@@ -31,7 +31,7 @@ import sharing
 import watch
 
 APP_TITLE = "Riplox"
-VERSION = "1.2.0"
+VERSION = "1.2.1"
 
 
 def resource_dir() -> Path:
