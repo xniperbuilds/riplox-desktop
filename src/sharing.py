@@ -35,12 +35,14 @@ import os
 import re
 import secrets
 import socket
+import ssl
 import threading
 import time
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import engine
 
@@ -69,6 +71,12 @@ MAX_SEEN = 4000
 
 MAX_BODY = 4096                  # an envelope is a few hundred bytes
 POLL_SECONDS = 25                # how long the relay holds our request open
+
+# How long the socket may sit quiet before saying hello again. It is not a
+# keep-alive for the connection - Cloudflare's own pings do that - it is a
+# check that the line is still real, because a socket that has silently died
+# looks exactly like a socket with nothing to say.
+SOCKET_IDLE = 240
 
 # What a per-device rule is allowed to name. Both lists come from the engine,
 # so a quality or a site added there cannot quietly become one no rule can
@@ -1020,22 +1028,219 @@ def pending() -> dict:
     }
 
 
+# --------------------------------------------------------------------------
+# A very small WebSocket client, and why it is worth the code
+# --------------------------------------------------------------------------
+# The long-poll below works, and for a long time the argument for it was that
+# a WebSocket needs a library. It does not - this is about eighty lines of
+# stdlib - and the argument was costing real money.
+#
+# A held /wait is, to Cloudflare, "a request still being processed", and a
+# Durable Object is billed for wall-clock time whenever it cannot hibernate.
+# This account's own analytics for one PC on one day: 6,578 GB-s, 51% of the
+# free daily allowance, from a single machine. Two people sharing would have
+# stopped the relay outright, with no warning and no bill to explain it.
+#
+# A hibernating WebSocket does not hold the object awake: the client stays
+# connected while the object sleeps, and duration is billed only for the
+# moments it is handling something.
+
+class _Wire:
+    """One WebSocket connection, text frames only. TLS when the URL says so."""
+
+    def __init__(self, url: str, timeout: float = 30.0):
+        parts = urlsplit(url)
+        secure = parts.scheme in ("wss", "https")
+        port = parts.port or (443 if secure else 80)
+        raw = socket.create_connection((parts.hostname, port), timeout=timeout)
+        if secure:
+            context = ssl.create_default_context()
+            raw = context.wrap_socket(raw, server_hostname=parts.hostname)
+        self.sock = raw
+        self.sock.settimeout(timeout)
+
+        key = base64.b64encode(os.urandom(16)).decode()
+        path = (parts.path or "/") + (f"?{parts.query}" if parts.query else "")
+        self.sock.sendall((
+            f"GET {path} HTTP/1.1\r\n"
+            f"Host: {parts.hostname}\r\n"
+            "Upgrade: websocket\r\nConnection: Upgrade\r\n"
+            f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n"
+            f"User-Agent: {RELAY_HEADERS.get('User-Agent', 'Riplox')}\r\n\r\n"
+        ).encode())
+
+        header = b""
+        while b"\r\n\r\n" not in header:
+            chunk = self.sock.recv(1)
+            if not chunk:
+                raise OSError("the relay closed the connection")
+            header += chunk
+            if len(header) > 8192:
+                raise OSError("the relay sent a header that made no sense")
+        status_line = header.split(b"\r\n")[0].decode("ascii", "replace")
+        if " 101 " not in status_line:
+            # Named, because "the socket did not open" with no reason is how a
+            # relay that has not been redeployed yet looks like a broken app.
+            raise OSError(f"the relay refused the socket: {status_line[:60]}")
+
+    def _read(self, n: int) -> bytes:
+        out = b""
+        while len(out) < n:
+            chunk = self.sock.recv(n - len(out))
+            if not chunk:
+                raise OSError("the relay connection ended")
+            out += chunk
+        return out
+
+    def send(self, text: str) -> None:
+        payload = text.encode("utf-8")
+        header = bytearray([0x81])              # FIN + text
+        length = len(payload)
+        if length < 126:
+            header.append(0x80 | length)        # a client frame must be masked
+        elif length < 1 << 16:
+            header.append(0x80 | 126)
+            header += length.to_bytes(2, "big")
+        else:
+            header.append(0x80 | 127)
+            header += length.to_bytes(8, "big")
+        mask = os.urandom(4)
+        header += mask
+        self.sock.sendall(bytes(header)
+                          + bytes(b ^ mask[i % 4] for i, b in enumerate(payload)))
+
+    def recv(self) -> str:
+        """One message. Answers pings itself, or the relay hangs up."""
+        message = b""
+        while True:
+            first, second = self._read(2)
+            fin, opcode = first & 0x80, first & 0x0F
+            length = second & 0x7F
+            if length == 126:
+                length = int.from_bytes(self._read(2), "big")
+            elif length == 127:
+                length = int.from_bytes(self._read(8), "big")
+            payload = self._read(length) if length else b""
+
+            if opcode == 0x8:
+                raise OSError("the relay closed the socket")
+            if opcode == 0x9:                   # ping
+                self.sock.sendall(b"\x8a\x80" + os.urandom(4))
+                continue
+            if opcode == 0xA:                   # pong
+                continue
+
+            message += payload
+            if fin:
+                return message.decode("utf-8", "replace")
+
+    def close(self) -> None:
+        try:
+            self.sock.close()
+        except OSError:
+            pass
+
+
+def _socket_url(room: str) -> str:
+    base = relay_base()
+    scheme = "wss" if base.startswith("https") else "ws"
+    return f"{scheme}://{base.split('://', 1)[-1]}/ws/{room}"
+
+
+def _run_socket(room: str) -> bool:
+    """
+    Hold one socket and deal with whatever arrives. Returns True if it worked
+    at all, so the caller can tell "the relay has no /ws yet" from "it dropped".
+    """
+    wire = _Wire(_socket_url(room), timeout=SOCKET_IDLE + 15)
+    proven = False
+    try:
+        wire.send(json.dumps({"hello": 1}))
+        _status["relay"] = "connected"
+        _status["error"] = ""
+
+        while not _stop.is_set():
+            try:
+                raw = wire.recv()
+            except socket.timeout:
+                # Nothing for a while. Say hello again rather than sitting
+                # here: it costs one small message and proves the line is up.
+                wire.send(json.dumps({"hello": 1}))
+                continue
+
+            proven = True
+            try:
+                data = json.loads(raw)
+            except ValueError:
+                continue
+
+            settled = deliver(data.get("msgs") or [])
+            if settled:
+                wire.send(json.dumps({"done": settled}))
+            elif data.get("msgs"):
+                # Held rather than dealt with - same rule as the poll loop:
+                # pause instead of asking again in a tight circle.
+                _stop.wait(min(POLL_SECONDS, 20))
+                wire.send(json.dumps({"hello": 1}))
+    finally:
+        wire.close()
+    return proven
+
+
 def _poll_relay() -> None:
     """
-    One long request at a time, re-opened the moment it returns.
+    Listen for links, by socket if the relay has one and by long-poll if not.
 
-    A WebSocket would do the same job; this needs no extra library and has
-    the same two properties that matter - the PC opens nothing, and a message
-    is handed over the instant it arrives rather than on the next tick.
+    The socket is tried first and is what a current relay answers. The poll is
+    kept because it is what an older deployment understands, and because a
+    network that blocks WebSocket upgrades is a real thing - falling back
+    means such a machine keeps working rather than silently receiving nothing.
     """
     backoff = 2
     proven = False
+    # Set once the relay proves it has no socket route, so a machine talking to
+    # an older deployment does not pay for a failed upgrade every time round.
+    no_socket = False
 
     while not _stop.is_set():
         if engine.load_settings().get("share_lan_only"):
             _status["relay"] = "off (home network only)"
             _stop.wait(5)
             continue
+
+        room = load()["room"]
+
+        if not no_socket:
+            _status["relay"] = "connecting"
+            try:
+                worked = _run_socket(room)
+                # It ran and then ended - a dropped connection, not a refusal.
+                proven = proven or worked
+                backoff = 2 if worked else min(backoff * 2, 60)
+                _stop.wait(1 if worked else backoff)
+                continue
+            except OSError as exc:
+                text = str(exc)
+                refused = ("refused the socket" in text
+                           or "426" in text or "404" in text or "400" in text)
+                if refused:
+                    # An older relay, or something in the way that will not
+                    # pass an upgrade. Fall through to the poll and stay there.
+                    no_socket = True
+                    _status["error"] = ""
+                else:
+                    _status["relay"] = "not connected"
+                    _status["error"] = text[:120]
+                    proven = False
+                    _stop.wait(backoff)
+                    backoff = min(backoff * 2, 60)
+                    continue
+            except Exception as exc:                       # noqa: BLE001
+                _status["relay"] = "not connected"
+                _status["error"] = str(exc)[:120]
+                _stop.wait(backoff)
+                backoff = min(backoff * 2, 60)
+                continue
 
         # The first request is deliberately short. A held request answers
         # nothing for 25 seconds, so without this the screen would read "not
@@ -1045,7 +1250,6 @@ def _poll_relay() -> None:
         if not proven:
             _status["relay"] = "connecting"
 
-        room = load()["room"]
         # No cursor on purpose - see the note in the Worker. The relay hands
         # over whatever is waiting; a repeat is refused here by nonce.
         #

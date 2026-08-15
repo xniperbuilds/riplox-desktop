@@ -154,6 +154,25 @@ export default {
       return stub.fetch("https://room/send", { method: "POST", body: raw });
     }
 
+    /* The socket the PC holds open instead of re-asking every 25 seconds.
+     *
+     * Why this exists, measured rather than assumed: a held /wait is a request
+     * still being processed, and Cloudflare bills a Durable Object for
+     * wall-clock time whenever it cannot hibernate. This account's own figures
+     * for one PC on one day: 6,578 GB-s, which is 51% of the free daily
+     * allowance - from a single machine. Two people would stop the relay.
+     *
+     * The whole request is forwarded rather than a rebuilt address, because
+     * the Upgrade header is what makes this a WebSocket at all and a rebuilt
+     * address would drop it - exactly how ack=1 was lost on an earlier
+     * deploy. */
+    if (parts[0] === "ws") {
+      if (request.headers.get("Upgrade") !== "websocket") {
+        return json({ ok: false, error: "expected a websocket" }, 426);
+      }
+      return stub.fetch(new Request("https://room/ws", request));
+    }
+
     if (parts[0] === "wait" && request.method === "GET") {
       const hold = url.searchParams.get("hold") || "25";
       // ack has to travel too. This router rebuilds the address rather than
@@ -245,8 +264,105 @@ export class Room {
     }
   }
 
+  /* ------------------------------------------------------------------ *
+   * The socket, and why it hibernates
+   *
+   * state.acceptWebSocket() rather than server.accept(). The difference is
+   * the entire point: with accept(), this object stays in memory for as long
+   * as the socket is open and is billed for every second of it. With the
+   * hibernation API the client stays connected while the object sleeps, and
+   * duration is only billed for the moments it is awake handling something.
+   *
+   * In-memory state does not survive hibernation, so nothing here may rely on
+   * it. queue and flight are read back from storage in the constructor, which
+   * runs again each time the object wakes.
+   * ------------------------------------------------------------------ */
+
+  /**
+   * Hand whatever is outstanding to every connected socket.
+   *
+   * Outstanding means the queue AND anything still in flight. A message that
+   * was handed over and never confirmed has to go out again on the next
+   * connection - a PC whose socket dropped mid-handling would otherwise lose
+   * the link silently, which is the exact failure ack=1 exists to prevent and
+   * which this route reintroduced when it only looked at the queue.
+   * Caught by a test that closed the socket without confirming.
+   */
+  async pushToSockets() {
+    const sockets = this.state.getWebSockets();
+    if (!sockets.length) return false;
+
+    if (this.queue.length) {
+      this.flight = this.flight.concat(this.queue);
+      this.queue = [];
+      await this.keep();
+    }
+    if (!this.flight.length) return false;
+
+    const payload = JSON.stringify({
+      msgs: this.flight.map((m) => ({ n: m.n, c: m.c })),
+      held: this.flight.length,
+    });
+    for (const ws of sockets) {
+      try {
+        ws.send(payload);
+      } catch {
+        // A socket that has gone away is not an error worth failing over;
+        // the message stays in flight and is handed over on the next
+        // connection, which is the same promise /wait makes.
+      }
+    }
+    return true;
+  }
+
+  async webSocketMessage(ws, raw) {
+    let msg;
+    try {
+      msg = JSON.parse(typeof raw === "string" ? raw : "");
+    } catch {
+      return;                       // not ours to interpret
+    }
+
+    // "I am here, send me anything waiting." Sent on connect, and after the
+    // PC has finished dealing with a batch.
+    if (msg.hello) {
+      await this.pushToSockets();
+      return;
+    }
+
+    // The same promise /done makes over HTTP: named, so a half-handled batch
+    // keeps the half it could not deal with.
+    if (Array.isArray(msg.done)) {
+      const named = new Set(msg.done.map(String).slice(0, MAX_QUEUE));
+      const before = this.flight.length;
+      this.flight = this.flight.filter((m) => !named.has(m.n));
+      if (this.flight.length !== before) await this.keep();
+      await this.pushToSockets();
+    }
+  }
+
+  async webSocketClose() {
+    // Nothing to undo. Anything in flight stays in flight and goes out again
+    // when a socket returns - a link is never dropped because a PC went away.
+  }
+
+  async webSocketError() {
+    // Same.
+  }
+
   async fetch(request) {
     const url = new URL(request.url);
+
+    if (url.pathname === "/ws") {
+      const pair = new WebSocketPair();
+      const [client, server] = Object.values(pair);
+      this.state.acceptWebSocket(server);
+      this.sweep();
+      // Deliberately not awaited: the 101 has to be returned promptly, and
+      // anything waiting will also go out when the PC says hello.
+      this.pushToSockets();
+      return new Response(null, { status: 101, webSocket: client });
+    }
 
     if (url.pathname === "/send") {
       let body;
@@ -267,9 +383,13 @@ export class Room {
       this.queue.push({ n, c, at: Date.now() });
       await this.keep();
 
+      // Whichever way the PC is listening. A held /wait is woken by its
+      // resolver; a hibernating socket is woken by this send, and both are
+      // tried because a room can have an old copy and a new one at once.
       const waiting = this.waiters;
       this.waiters = [];
       waiting.forEach((resolve) => resolve());
+      await this.pushToSockets();
 
       return json({ ok: true, queued: this.queue.length });
     }
