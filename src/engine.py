@@ -2066,6 +2066,25 @@ def _clean_error(stderr: str) -> str:
                 "used, so no setting or retry reaches it. Signing in with an "
                 "account that can see it is the only thing that will.")
 
+    # Too many requests in a short time. Named plainly because the useful
+    # response is to stop, not to retry: Instagram answers this way after a
+    # burst, and continuing to ask is what turns a pause into a locked
+    # account. Measured on this machine after roughly twenty extraction
+    # attempts inside a few minutes.
+    if "429" in low_all and ("instagram" in low_all or "too many" in low_all):
+        return ("Instagram is asking this computer to slow down - too many "
+                "requests in a short time. Stop for a while rather than "
+                "retrying: carrying on is what gets an account limited. It "
+                "clears on its own.")
+
+    # A post the API answers with nothing at all. Not the same as a refusal,
+    # and not something the user can act on by signing in - so it says what is
+    # actually known instead of guessing at a cause.
+    if "empty media response" in low_all:
+        return ("Instagram answered without the video. That happens on posts "
+                "it will not serve to the account being used - most often "
+                "age-restricted ones. Riplox's own route was tried too.")
+
     # A session that is being turned down, rather than one that is missing.
     # Worth separating: the fix is to sign in again, not to change anything
     # about the download.
