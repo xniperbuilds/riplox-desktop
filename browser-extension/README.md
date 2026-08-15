@@ -22,7 +22,7 @@ one.
 | Quality | Chosen in the popup, remembered for next time |
 | Sites | Optionally limit it to sites you pick. Empty means every site |
 | Badge | How many downloads Riplox has running. Blank when Riplox is closed |
-| In-page button | Off by default. See below — this is the one that asks for access |
+| In-page button | Off by default, and draggable. See below — this is the one that asks for access |
 
 ## How the handoff works
 
@@ -54,6 +54,14 @@ to run on pages, which the extension does **not** hold when you install it:
 - unticking it hands the access back;
 - and if the browser refuses, the tick returns to off — a switch that is on
   while its work cannot happen is a lie.
+
+**It can be dragged.** It starts in the bottom-right corner, which on YouTube
+is directly over the suggestion list. Drag it anywhere; where you put it is
+remembered and it comes back there on the next page. The position is stored as
+a fraction of the window rather than in pixels, so moving to a smaller screen
+does not leave it off the edge — and a window that shrinks pulls it back inside.
+A short press is still a click: only a real drag moves it, and finishing a drag
+does not send the page.
 
 Everything else in the extension works without it.
 
