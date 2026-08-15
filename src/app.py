@@ -21,6 +21,7 @@ import urllib.request
 import webbrowser
 from ctypes import wintypes
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 from flask import Flask, jsonify, render_template, request
 
@@ -31,7 +32,7 @@ import sharing
 import watch
 
 APP_TITLE = "Riplox"
-VERSION = "1.2.1"
+VERSION = "1.3.0"
 
 
 def resource_dir() -> Path:
@@ -56,6 +57,47 @@ _quitting = False
 # this machine - including a web page open in the user's browser - can reach
 # that port too, so every /api call must prove it came from our own page.
 TOKEN = secrets.token_urlsafe(24)
+
+# The browser extension's way in. Windows owns the scheme; everything after it
+# is Riplox's to read, and this is the only place that reads it.
+SCHEME = "riplox://"
+
+# How long a link may sit in the inbox before it is picked up.
+INBOX_POLL = 1.5
+_inbox_lock = threading.Lock()
+
+
+def _http_link(url: str) -> bool:
+    """Something a downloader could actually be given."""
+    if not url or len(url) > 2000:
+        return False
+    # Both slashes on purpose: "https:evil" satisfies a looser check and is not
+    # an address anything here could fetch.
+    return url.lower().startswith(("http://", "https://"))
+
+
+def launch_link(argv) -> tuple:
+    """
+    The (url, quality) a riplox://add argument carries, or ("", "").
+
+    Windows hands the whole scheme URL over as one argument. Anything that is
+    not a plain http(s) address is dropped here rather than being carried
+    further in to fail as something less obvious.
+    """
+    for arg in argv[1:]:
+        if not arg.lower().startswith(SCHEME):
+            continue
+        parts = urlsplit(arg)
+        # riplox://add?... - the host is the verb. Only one exists so far, and
+        # an unknown one is ignored rather than guessed at.
+        if (parts.netloc or parts.path.strip("/")).lower() != "add":
+            continue
+        fields = parse_qs(parts.query)
+        url = (fields.get("url") or [""])[0].strip()
+        quality = (fields.get("q") or [""])[0].strip()
+        if _http_link(url):
+            return url, quality
+    return "", ""
 
 
 @app.before_request
@@ -178,7 +220,7 @@ def api_command():
         # holding only this site's lines, and its name is a random one.
         if engine.cookie_files(settings):
             cookie_path = "<this site's cookies, from your files>"
-        elif settings.get("cookies_signin", True):
+        elif settings.get("cookies_signin", True) and not cookies.paused_for(url):
             cookie_path = "<this site's saved session>"
 
     try:
@@ -222,26 +264,42 @@ def api_add():
         opts.pop("format_id", None)
         opts.pop("outtmpl", None)
 
+    # More than one output from one press: the video AND the mp3, rather than
+    # downloading the same link twice by hand. Only qualities the engine
+    # actually offers are accepted, and the first one stays the main choice -
+    # the extras hang off it.
+    wanted = [quality]
+    for extra in (body.get("also") or [])[:4]:
+        extra = str(extra)[:12]
+        if extra in engine.QUALITY_LABELS and extra not in wanted:
+            wanted.append(extra)
+
     added = set()
     for item in items[:200]:
         url = (item.get("url") or "").strip()
         if not url:
             continue
-        job = manager.add(
-            url=url,
-            title=item.get("title", ""),
-            thumbnail=item.get("thumbnail", ""),
-            uploader=item.get("uploader", ""),
-            quality=quality,
-            batch=batch,
-            start=start,
-            end=end,
-            exact=exact,
-            opts=opts,
-        )
-        # add() returns the running job for a duplicate, so a set keeps the
-        # count honest instead of claiming we queued the same thing twice.
-        added.add(job.id)
+        for index, want in enumerate(wanted):
+            # A picked format id describes one specific stream of one video,
+            # so it belongs to the main choice only. Carrying it onto the mp3
+            # would ask for a video stream and quietly produce the wrong file.
+            this_opts = opts if index == 0 else {
+                k: v for k, v in opts.items() if k != "format_id"}
+            job = manager.add(
+                url=url,
+                title=item.get("title", ""),
+                thumbnail=item.get("thumbnail", ""),
+                uploader=item.get("uploader", ""),
+                quality=want,
+                batch=batch,
+                start=start,
+                end=end,
+                exact=exact,
+                opts=this_opts,
+            )
+            # add() returns the running job for a duplicate, so a set keeps the
+            # count honest instead of claiming we queued the same thing twice.
+            added.add(job.id)
 
     if not added:
         return jsonify({"ok": False, "error": "No usable links found."}), 400
@@ -470,6 +528,66 @@ def api_resume_all():
     return jsonify({"ok": True, "resumed": manager.resume_all()})
 
 
+@app.get("/api/diagnostics")
+def api_diagnostics():
+    """One block of text to paste when reporting a problem."""
+    return jsonify({"ok": True, "report": engine.diagnostics(VERSION)})
+
+
+@app.get("/api/accounts")
+def api_accounts():
+    """Who this machine downloads from, counted out of its own history."""
+    return jsonify({"ok": True, "accounts": engine.accounts()})
+
+
+@app.get("/api/health")
+def api_health():
+    """
+    How each site behaved on this machine recently.
+
+    Not a service-status feed: nothing is asked of anyone and nothing is
+    reported anywhere. It is this copy's own results, which is the only
+    honest thing an offline app can show - and enough to answer the question
+    people actually have, which is whether it is them or the site.
+    """
+    return jsonify({"ok": True, "sites": engine.health()})
+
+
+@app.get("/api/sites")
+def api_sites():
+    """
+    What Riplox can download, in two different senses.
+
+    `pickable` is the short list of names a rule can be written against -
+    the same words site_of() produces, so a filter naming one of them can
+    actually match a link. `all` is every extractor the installed engine
+    carries, which is the honest answer to "which sites does this work with"
+    but is not something to filter on: nothing would ever equal "youtube:tab".
+    Keeping the two apart is what stops a picker offering a choice that could
+    never take effect.
+    """
+    everything = engine.extractor_names()
+    return jsonify({
+        "ok": True,
+        "pickable": list(engine.known_sites()),
+        "all": everything,
+        "count": len(everything),
+        "engine": engine.engine_version(),
+    })
+
+
+@app.post("/api/pause-all")
+def api_pause_all():
+    """Stop the whole queue at once, keeping every part-file."""
+    return jsonify({"ok": True, "paused": manager.pause_all()})
+
+
+@app.post("/api/retry-all")
+def api_retry_all():
+    """Every failed download back into the queue in one press."""
+    return jsonify({"ok": True, "retried": manager.retry_all()})
+
+
 @app.post("/api/job-log")
 def api_job_log():
     """The raw engine output for one job - for reporting a problem."""
@@ -485,13 +603,19 @@ def api_clear_finished():
 
 @app.get("/api/settings")
 def api_get_settings():
-    return jsonify({"ok": True, "settings": engine.load_settings(),
+    settings = engine.load_settings()
+    return jsonify({"ok": True, "settings": settings,
                     "engineVersion": engine.engine_version(),
                     "environment": engine.environment(),
                     # Kept in the registry rather than settings.json: Windows
                     # owns that list, and a copy here could disagree with it.
                     "autostart": engine.autostart_on(),
-                    "hasFfmpeg": engine.has_ffmpeg()})
+                    "hasFfmpeg": engine.has_ffmpeg(),
+                    # Switched on, and not being applied. Worked out by the
+                    # engine rather than by the screen, so the list can never
+                    # disagree with what the command actually leaves out.
+                    "dropped": engine.needs_ffmpeg(
+                        settings, settings.get("default_quality", "best"))})
 
 
 @app.post("/api/autostart")
@@ -520,6 +644,15 @@ def api_cookies_signin():
 @app.post("/api/cookies/refresh")
 def api_cookies_refresh():
     return jsonify(cookies.refresh())
+
+
+@app.post("/api/cookies/pause")
+def api_cookies_pause():
+    # Set a session aside instead of deleting it. Same guard as sign-in: a
+    # site by name, checked against the table in cookies.py.
+    body = request.json or {}
+    return jsonify(cookies.set_paused((body.get("site") or "").strip().lower(),
+                                      bool(body.get("on"))))
 
 
 @app.post("/api/cookies/forget")
@@ -624,16 +757,140 @@ def api_watch_check():
 # Send to Riplox
 # --------------------------------------------------------------------------
 
+def _name_shared_job(job) -> None:
+    """
+    Put a title and a thumbnail on a link that arrived from a phone.
+
+    A link pasted into the app is read first, so its row shows a title and a
+    picture straight away. A link sent from a phone skipped that step and went
+    into the queue as a bare URL - which is why some rows had a thumbnail and
+    some showed nothing but the address, with no pattern anyone could see.
+
+    Done on a thread, after the job is already queued: the phone is waiting on
+    the answer to its share, and it should not wait for this.
+    """
+    try:
+        info = engine.analyze(job.url, engine.load_settings())
+    except Exception:                       # noqa: BLE001
+        return                              # a nameless row still downloads
+    if not isinstance(info, dict):
+        return
+
+    # A playlist has no single thumbnail of its own; its first entry does.
+    first = (info.get("entries") or [None])[0] if info.get("entries") else info
+    first = first if isinstance(first, dict) else info
+
+    # Only ever filling gaps: by the time this lands the download may have
+    # started and set a better title from the file it is writing.
+    if job.title in (job.url, "") and (info.get("title") or first.get("title")):
+        job.title = info.get("title") or first.get("title")
+    if not job.thumbnail:
+        job.thumbnail = first.get("thumbnail") or info.get("thumbnail") or ""
+    if not job.uploader:
+        job.uploader = first.get("uploader") or info.get("uploader") or ""
+
+
 def _share_sink(url: str, quality: str, who: str, opts=None, device="") -> None:
     """A link that arrived from a paired device. Queued like any other."""
     job = manager.add(url=url, title=url, quality=quality, opts=opts or {},
                       origin=device)
+    threading.Thread(target=_name_shared_job, args=(job,), daemon=True).start()
     if tray_app is not None:
-        tray_app.notify("Sent from " + (who or "your phone"), "Download started.")
+        tray_app.notify("Sent from " + (who or "your phone"),
+                        "Download started.", "sent")
     return job
 
 
 sharing.set_sink(_share_sink)
+
+
+def queue_from_browser(url: str, quality: str = "") -> None:
+    """
+    A link the browser extension sent, queued like any other.
+
+    The quality the extension asked for is a request, not an instruction: an
+    empty or unknown one falls back to the same default the window uses, so a
+    stale extension cannot queue something at a setting Riplox has dropped.
+    """
+    settings = engine.load_settings()
+    if quality not in engine.QUALITY_LABELS:
+        quality = settings.get("default_quality", "best")
+
+    manager.add(url=url, title=url, quality=quality, origin="browser")
+    if tray_app is not None:
+        tray_app.notify("Sent from your browser", "Added to the queue.", "sent")
+
+
+def inbox_file() -> Path:
+    return engine.data_dir() / "inbox.json"
+
+
+def inbox_put(url: str, quality: str) -> None:
+    """
+    Leave a link for whichever copy of Riplox ends up running.
+
+    A file rather than a request on purpose. A port has to be found, and
+    anything that has to be found can be found wrong - a stale port file is
+    silent, and a link that vanishes without a word is the worst thing this
+    could do. A file is read by the running copy within a second or two, and if
+    no copy is running it is still there at the next start.
+
+    Nothing that reaches this machine over the network can write here, which is
+    the same guard the old token was there for.
+    """
+    with _inbox_lock:
+        try:
+            waiting = json.loads(inbox_file().read_text(encoding="utf-8"))
+            if not isinstance(waiting, list):
+                waiting = []
+        except (OSError, ValueError):
+            waiting = []
+
+        waiting.append({"url": url, "quality": quality, "at": time.time()})
+        # A cap so a stuck sender cannot grow this without end.
+        waiting = waiting[-200:]
+
+        path = inbox_file()
+        tmp = path.with_name(f"inbox.{os.getpid()}.tmp")
+        try:
+            tmp.write_text(json.dumps(waiting), encoding="utf-8")
+            os.replace(tmp, path)
+        except OSError:
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+
+
+def inbox_take() -> list:
+    """Everything waiting, removed in one move so it cannot be queued twice."""
+    with _inbox_lock:
+        path = inbox_file()
+        try:
+            waiting = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return []
+        if not isinstance(waiting, list) or not waiting:
+            return []
+        try:
+            path.unlink()
+        except OSError:
+            # Could not clear it, so do not act on it either - queueing the
+            # same links on every poll would be worse than a late delivery.
+            return []
+        return waiting
+
+
+def _inbox_loop() -> None:
+    while True:
+        time.sleep(INBOX_POLL)
+        try:
+            for item in inbox_take():
+                url = (item.get("url") or "").strip()
+                if _http_link(url):
+                    queue_from_browser(url, (item.get("quality") or "").strip())
+        except Exception:
+            pass          # a watcher must never take the app down
 
 
 @app.post("/api/share/state")
@@ -679,6 +936,12 @@ def api_share_rename():
     body = request.json or {}
     done = sharing.rename(str(body.get("id", ""))[:24], body.get("name", ""))
     return jsonify({"ok": done, "state": sharing.state()})
+
+
+@app.get("/api/share/pending")
+def api_share_pending():
+    """Anything sent from a phone that this PC never dealt with."""
+    return jsonify(sharing.pending())
 
 
 @app.post("/api/share/limits")
@@ -1040,7 +1303,12 @@ class ClipboardWatcher:
         if not URL_RE.match(text) or text in self._handled:
             return
 
-        if settings.get("auto_download"):
+        # Instant download is the one setting that acts without being asked,
+        # so it is also the one that should be easiest to aim. An empty list
+        # means everywhere, exactly as it behaved before the filter existed.
+        allowed = settings.get("clipboard_sites") or []
+        if settings.get("auto_download") and (
+                not allowed or engine.site_of(text) in allowed):
             self._queue(text, settings)
         else:
             self.pending = text
@@ -1104,9 +1372,9 @@ class ClipboardWatcher:
         self._queue(text)
         self._announce("Riplox", "Download started.")
 
-    def _announce(self, title, message):
+    def _announce(self, title, message, kind="sent"):
         if tray_app is not None:
-            tray_app.notify(title, message)
+            tray_app.notify(title, message, kind)
 
 
 watcher = ClipboardWatcher(manager)
@@ -1141,10 +1409,11 @@ def show_window() -> None:
         pass
 
 
-def claim_single_instance() -> bool:
+def claim_single_instance(raise_window: bool = True) -> bool:
     """
-    True when this is the only copy. Otherwise the copy already running is
-    asked to show itself and this one should quit.
+    True when this is the only copy. Otherwise this one should quit - after
+    raising the copy already running, unless this start was a link, which the
+    inbox already holds and which should not throw a window across the screen.
     """
     global _mutex
     if os.name != "nt":
@@ -1161,7 +1430,8 @@ def claim_single_instance() -> bool:
     if kernel32.GetLastError() != ERROR_ALREADY_EXISTS:
         return True
 
-    _wake_running_copy()
+    if raise_window:
+        _wake_running_copy()
     return False
 
 
@@ -1308,8 +1578,21 @@ def main() -> None:
     global _window
     dev = "--dev" in sys.argv or os.environ.get("RIPLOX_DEV") == "1"
 
-    if not dev and not claim_single_instance():
-        return          # the copy already running has been raised instead
+    # A riplox:// click in the browser starts a copy of Riplox with the link as
+    # its argument. Usually one is already running and this copy exists only to
+    # carry the link across.
+    link, link_quality = launch_link(sys.argv)
+
+    # Written down before anything else can go wrong with this start. Whether a
+    # copy is already running, whether it is reachable, whether this one lives
+    # for another second - the link is on disk either way, and the copy that
+    # ends up running picks it up. Losing it silently is the one outcome the
+    # inbox exists to make impossible.
+    if link:
+        inbox_put(link, link_quality)
+
+    if not dev and not claim_single_instance(raise_window=not link):
+        return          # left in the inbox for the copy already running
 
     # A crash can leave a decrypted cookie file or a helper server behind.
     cookies.sweep_temp()
@@ -1332,6 +1615,9 @@ def main() -> None:
 
     threading.Thread(target=serve, args=(port,), daemon=True).start()
     publish_port(port)
+    # Picks up anything a riplox:// click left behind, including links that
+    # arrived while Riplox was closed.
+    threading.Thread(target=_inbox_loop, daemon=True).start()
     watcher.start()
 
     try:

@@ -12,6 +12,7 @@ import ctypes
 import io
 import json
 import os
+import platform
 import re
 import shutil
 import subprocess
@@ -388,6 +389,10 @@ DEFAULT_SETTINGS = {
     # already per-site, so a YouTube login never travels to another site.
     "cookies_signin": True,
     "engine_channel": "stable",      # stable | nightly
+    # On: when the engine is refused, let Riplox try its own way in. It only
+    # ever runs on a link that has already failed, so the cost of leaving it on
+    # is nothing, and the day the engine is walled it is the whole difference.
+    "second_door": True,
     "potoken": False,                # opt-in: fetch the proof-of-origin helper
     # On: pacing costs a second or two and is the difference between YouTube
     # answering and YouTube asking to confirm you are not a bot.
@@ -420,8 +425,33 @@ DEFAULT_SETTINGS = {
     # On: a YouTube folder and a TikTok folder beats two hundred files in one
     # Downloads folder by the second week. Nothing is moved retrospectively.
     "subfolder_per_site": True,
+    # Notifications. One master switch and one per kind, because "tell me when
+    # a download fails" and "tell me every time my phone sends a link" are
+    # different appetites - and being unable to turn off only the noisy one is
+    # how people end up turning all of them off and missing the failures.
+    "notify": True,                  # master: off means silence, whatever else says
+    "notify_sent": True,             # a link arrived from a phone or browser
+    "notify_done": True,             # a download finished
+    "notify_failed": True,           # a download failed
+    "notify_watch": True,            # a watched channel has something new
+    # Off: the settings screen opens as a short list, and the rows most people
+    # never need stay one tick away rather than in the way. A search still
+    # finds them while hidden, so nothing becomes unreachable.
+    "show_advanced": False,
     "auto_paste": True,              # watch clipboard for links
     "auto_download": False,          # queue a copied link without asking
+    # Which sites instant download is allowed to act on. Empty means all of
+    # them, which is what it did before this existed - and that is the one
+    # setting combination worth being careful about: with both switches on,
+    # every link copied anywhere gets downloaded, including one being copied
+    # to send to somebody. Named in the same words site_of() produces, so a
+    # rule here can actually match a link.
+    "clipboard_sites": [],
+    # The few "More options" choices that mean the same thing on the next
+    # link - audio language, subtitle language, player client, cookies off.
+    # Never a format id or a file name: those belong to one video, and
+    # reusing them silently picks something nobody asked for.
+    "last_opts": {},
     "hotkey": True,                  # Ctrl+Shift+D from anywhere
     "write_thumbnail": False,
     "theme": "auto",                 # auto | light | dark
@@ -762,51 +792,116 @@ def _engine_say(**fields) -> None:
         _engine_dl.update(fields)
 
 
-def _download_engine_zip(url: str, part: Path, deadline: float) -> int:
+def _resume_key(url: str) -> str:
     """
-    One attempt at the zip, continuing a .part file if one is already there.
+    What has to match for a half-finished .part to be worth continuing.
 
-    Raises OSError with a message meant to be read by a person. The .part is
-    left behind on purpose - the next attempt sends a Range header and carries
-    on from that byte rather than starting again.
+    Host and path, never the query. A signed CDN address carries its signature
+    and expiry as query parameters, so including them would mean no download
+    ever resumed; leaving out the path would mean a different encode resumed
+    over the last one. The path is what names the file at the other end.
+    """
+    parts = urlsplit(url or "")
+    return f"{parts.hostname or ''}{parts.path or ''}"
+
+
+def pull_to_file(url: str, part: Path, headers: dict, deadline: float,
+                 on_progress=None, timed_out: str = "") -> int:
+    """
+    Fetch a URL into a .part file, continuing one that is already there.
+
+    Shared by the engine update and by the direct extractors in doors.py: both
+    want the same three things - chunks so a percentage can be shown, a Range
+    header so a dropped connection does not start the file over, and a message
+    a person can read when it gives up. `on_progress(done, total)` is called
+    per chunk. Raises OSError with that readable message.
+
+    The .part is left behind on purpose; the next attempt continues from it -
+    but only when the next attempt is the same file. See _resume_key.
     """
     have = part.stat().st_size if part.exists() else 0
-    headers = {"User-Agent": "Riplox"}
+    headers = dict(headers or {})
+    headers.setdefault("User-Agent", "Riplox")
+
+    # A .part only belongs to the address that wrote it. TikTok signs a fresh
+    # address every time it is asked and can offer its encodes in a different
+    # order, so a retry is not guaranteed to be the same file - and appending
+    # the second file to half of the first produces something of exactly the
+    # right length that plays as far as the join and then falls apart, with
+    # nothing anywhere saying so. Measured: two 200,000-byte encodes spliced
+    # into a 200,000-byte file that matched neither.
+    stamp = part.with_suffix(part.suffix + ".from")
+    key = _resume_key(url)
+    if have:
+        try:
+            if stamp.read_text("utf-8").strip() != key:
+                part.unlink(missing_ok=True)
+                have = 0
+        except OSError:
+            # No record of what wrote it - the safe reading is "not ours".
+            part.unlink(missing_ok=True)
+            have = 0
+    if not have:
+        try:
+            stamp.write_text(key, encoding="utf-8")
+        except OSError:
+            pass                            # resuming is a nicety, not the job
+
     if have:
         headers["Range"] = f"bytes={have}-"
 
     request = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(request, timeout=_ENGINE_READ_TIMEOUT) as response:
         # A server that ignores Range answers 200 with the whole file. Appending
-        # to what is already there would quietly corrupt the zip, so start over.
+        # to what is already there would quietly corrupt the file, so start over.
         if have and getattr(response, "status", 200) != 206:
             have = 0
             part.unlink(missing_ok=True)
 
         length = int(response.headers.get("Content-Length") or 0)
         total = have + length if length else 0
-        _engine_say(total=total)
+        if on_progress:
+            on_progress(have, total)
 
         with open(part, "ab" if have else "wb") as out:
             while True:
                 if time.monotonic() > deadline:
-                    raise OSError(
-                        "Gave up after ten minutes - the connection is too slow "
-                        "or keeps dropping. What arrived is kept, so pressing "
-                        "update again carries on from there.")
+                    raise OSError(timed_out or
+                                  "Gave up waiting - the connection is too slow "
+                                  "or keeps dropping. What arrived is kept, so "
+                                  "trying again carries on from there.")
                 chunk = response.read(_ENGINE_CHUNK)
                 if not chunk:
                     break
                 out.write(chunk)
                 have += len(chunk)
-                percent = (have / total * 100.0) if total else 0.0
-                _engine_say(bytes=have, percent=round(percent, 1),
-                            message=(f"Downloading {percent:.0f}%" if total
-                                     else f"Downloading {human_bytes(have)}"))
+                if on_progress:
+                    on_progress(have, total)
 
     if total and have < total:
         raise OSError("The connection dropped part-way through.")
+
+    # Finished, so there is nothing left to resume and no note to keep.
+    try:
+        stamp.unlink(missing_ok=True)
+    except OSError:
+        pass
     return have
+
+
+def _download_engine_zip(url: str, part: Path, deadline: float) -> int:
+    """One attempt at the engine zip, reporting into the update button."""
+    def say(done, total):
+        percent = (done / total * 100.0) if total else 0.0
+        _engine_say(total=total, bytes=done, percent=round(percent, 1),
+                    message=(f"Downloading {percent:.0f}%" if total
+                             else f"Downloading {human_bytes(done)}"))
+
+    return pull_to_file(
+        url, part, {"User-Agent": "Riplox"}, deadline, on_progress=say,
+        timed_out="Gave up after ten minutes - the connection is too slow or "
+                  "keeps dropping. What arrived is kept, so pressing update "
+                  "again carries on from there.")
 
 
 def update_engine(channel: str = "") -> dict:
@@ -1049,7 +1144,10 @@ NO_UPSCALE = "[format_id!*=-sr]"
 PLAYER_CLIENTS = ("", "tv_simply", "web_safari", "mweb", "android_vr", "ios", "web")
 
 _OPT_KEYS = ("format_id", "audio_lang", "sub_langs", "outtmpl", "dest_dir",
-             "player_client", "no_cookies", "max_mb")
+             "player_client", "no_cookies", "max_mb",
+             # One download's shape, not a setting: wanting only the subtitles
+             # of this video says nothing about the next one.
+             "subs_only", "live_from_start", "thumb_all")
 
 
 def clean_opts(opts) -> dict:
@@ -1066,7 +1164,10 @@ def clean_opts(opts) -> dict:
     out = {}
     for key in _OPT_KEYS:
         value = opts.get(key)
-        if value in (None, "", False):
+        # Anything empty means "not set", whatever shape it arrives in. The
+        # narrower check this replaces let an empty list through, and a
+        # yes/no option built from one came out as yes.
+        if not value:
             continue
 
         if key == "format_id":
@@ -1091,7 +1192,7 @@ def clean_opts(opts) -> dict:
             path = Path(str(value)).expanduser()
             if path.is_dir():
                 out[key] = str(path)
-        elif key == "no_cookies":
+        elif key in ("no_cookies", "subs_only", "live_from_start", "thumb_all"):
             out[key] = True
         elif key == "max_mb":
             # A size ceiling for one download. yt-dlp checks this before it
@@ -1378,10 +1479,44 @@ def section_arg(start: str, end: str, exact: bool = False) -> list:
     return args
 
 
+def needs_ffmpeg(settings: dict, quality: str) -> list:
+    """
+    Which switched-on options cannot be honoured without ffmpeg.
+
+    Every one of these is a post-processing step: yt-dlp accepts the flag,
+    downloads the video, and then quietly skips the step it cannot run. The
+    result is a file that is missing exactly the thing the user turned on,
+    with nothing anywhere saying so - which is this app's worst failure mode,
+    not a cosmetic one. Naming them is what lets the UI say it out loud.
+    """
+    if has_ffmpeg():
+        return []
+
+    audio_only = quality == "mp3"
+    wanted = []
+    if settings.get("write_subs") and not audio_only:
+        # The subtitle file itself still arrives; converting and embedding it
+        # is what needs ffmpeg, so only those are claimed as lost.
+        if settings.get("embed_subs"):
+            wanted.append("subtitles inside the video")
+    if settings.get("embed_chapters") and not audio_only:
+        wanted.append("chapter marks")
+    if settings.get("sponsorblock"):
+        wanted.append("skipping sponsor segments")
+    return wanted
+
+
 def extra_args(settings: dict, quality: str, trimmed: bool = False) -> list:
-    """Everything optional the user has switched on."""
+    """
+    Everything optional the user has switched on.
+
+    Options that need ffmpeg are left out entirely when it is missing, rather
+    than sent and silently ignored. Sending them costs nothing visible and is
+    worse than useless: it makes the command look like it did what was asked.
+    """
     args = []
     audio_only = quality == "mp3"
+    have_ff = has_ffmpeg()
 
     fragments = settings.get("fragments", 4)
     try:
@@ -1402,14 +1537,19 @@ def extra_args(settings: dict, quality: str, trimmed: bool = False) -> list:
     if settings.get("write_subs") and not audio_only:
         langs = (settings.get("sub_langs") or "en").strip() or "en"
         args += ["--write-subs", "--write-auto-subs", "--sub-langs", langs,
-                 "--sub-format", "srt/vtt/best", "--convert-subs", "srt"]
-        if settings.get("embed_subs"):
-            args.append("--embed-subs")
+                 "--sub-format", "srt/vtt/best"]
+        # Converting to srt and embedding are both ffmpeg's work. Without it
+        # the subtitle file still lands next to the video in its original
+        # format, which is the useful half and arrives either way.
+        if have_ff:
+            args += ["--convert-subs", "srt"]
+            if settings.get("embed_subs"):
+                args.append("--embed-subs")
 
-    if settings.get("embed_chapters") and not audio_only:
+    if settings.get("embed_chapters") and not audio_only and have_ff:
         args.append("--embed-chapters")
 
-    if settings.get("sponsorblock"):
+    if settings.get("sponsorblock") and have_ff:
         args += ["--sponsorblock-remove", "sponsor,selfpromo,interaction"]
 
     # The archive remembers video ids, not files. A clip of a video you have
@@ -1522,6 +1662,11 @@ def analyze(url: str, settings: dict) -> dict:
         "extractor": (info.get("extractor_key") or info.get("extractor") or "").lower(),
         "qualities": rungs["rungs"],
         "upscaled": rungs["upscaled"],
+        # Live now, as opposed to a finished stream. Only a live one can be
+        # joined from the beginning, so this is what decides whether that
+        # choice is offered at all - a checkbox on every ordinary video is
+        # clutter on the one screen that has to stay simple.
+        "is_live": bool(info.get("is_live")),
         # Everything below feeds "More options". The closed screen never shows
         # any of it, so it costs nothing to carry.
         "formats": _format_rows(info),
@@ -1891,18 +2036,43 @@ def _clean_error(stderr: str) -> str:
     # JavaScript and decide whether you are a browser. It carries no video data
     # at all, which is what the engine is reporting.
     #
-    # Everything that could be tried was tried and measured on 11 Aug 2026:
-    # plain, five different browser impersonations, a desktop user-agent, both
-    # of the engine's alternate TikTok API hosts, and finally the cookies taken
-    # from a real Chrome that HAD got through the wall. Every one of them came
-    # back with this same message. So "sign in and try again" would be a lie -
-    # the wall is not about having an account, and saying otherwise sends
-    # someone off to sign in for nothing.
+    # Everything that could be tried through the engine was tried and measured
+    # on 11 Aug 2026: plain, five different browser impersonations, a desktop
+    # user-agent, both of the engine's alternate TikTok API hosts, and finally
+    # the cookies taken from a real Chrome that HAD got through the wall. Every
+    # one came back with this same message, and a different connection did not
+    # help either - so neither "sign in" nor "try a VPN" is worth saying.
+    #
+    # What did work was going around the engine entirely: doors.py asks the
+    # site the way the site expects to be asked, keeping the cookie it hands
+    # back. Reaching this message therefore means that route was refused too,
+    # or was switched off in Settings.
     if "unexpected response from webpage" in low_all:
-        return ("TikTok is refusing this computer rather than the video: it "
-                "answers with a bot check instead of the page. Signing in does "
-                "not get past it - measured, not guessed. A different "
-                "connection is the only thing that has helped.")
+        return ("TikTok answered with a bot check instead of the video, and "
+                "Riplox's own direct route could not get the post either. "
+                "Signing in and changing connection have both been measured "
+                "and neither gets past it. Press retry - this one often "
+                "clears on its own.")
+
+    # Instagram's own ruling, not a failure to fetch. Measured on a real link:
+    # signed out it says this, signed in with a rejected session it says 400,
+    # and Riplox's own route gets the page with no video in it. Three
+    # different answers, one meaning - the account being used is not one this
+    # post is shown to. No technique gets past that, so the message says so
+    # instead of implying another attempt might work.
+    if "certain audiences" in low_all or "isn't available to everyone" in low_all:
+        return ("Instagram limits who can see this one. It is not a download "
+                "problem - the same post is hidden from the account being "
+                "used, so no setting or retry reaches it. Signing in with an "
+                "account that can see it is the only thing that will.")
+
+    # A session that is being turned down, rather than one that is missing.
+    # Worth separating: the fix is to sign in again, not to change anything
+    # about the download.
+    if "400" in low_all and "instagram" in low_all:
+        return ("Instagram turned down the saved sign-in. Sign in again in "
+                "Settings - or pause Instagram there, which keeps the session "
+                "and downloads public posts signed out.")
 
     if "cookie" in low_all and ("permission" in low_all or "could not copy"
                                 in low_all or "database" in low_all):
@@ -2069,6 +2239,363 @@ def known_sites() -> tuple:
     return tuple(sorted(set(_SITE_NAMES.values())))
 
 
+# --------------------------------------------------------------------------
+# Everything the engine can reach
+# --------------------------------------------------------------------------
+# "Which sites does this work with?" is the first question anyone asks, and
+# until now the honest answer lived nowhere in the app. The engine knows - it
+# will list every extractor it carries - so the list is read from it rather
+# than written out here and left to rot one release later.
+
+_EXTRACTORS = {"stamp": "", "names": []}
+_EXTRACTORS_LOCK = threading.Lock()
+
+
+def _extractors_file() -> Path:
+    return data_dir() / "extractors.json"
+
+
+def extractor_names(refresh: bool = False) -> list:
+    """
+    Every site the installed engine has an extractor for.
+
+    Cached against the engine's own version: listing them takes seconds, and
+    the answer only changes when the engine does. The cache is a plain list of
+    names, so a corrupt or missing file costs one relisting and nothing else.
+    """
+    stamp = engine_version()
+
+    with _EXTRACTORS_LOCK:
+        if not refresh and _EXTRACTORS["stamp"] == stamp and _EXTRACTORS["names"]:
+            return list(_EXTRACTORS["names"])
+
+    if not refresh:
+        try:
+            saved = json.loads(_extractors_file().read_text("utf-8"))
+            if isinstance(saved, dict) and saved.get("stamp") == stamp:
+                names = [str(n) for n in saved.get("names") or []]
+                if names:
+                    with _EXTRACTORS_LOCK:
+                        _EXTRACTORS.update({"stamp": stamp, "names": names})
+                    return list(names)
+        except (OSError, ValueError):
+            pass
+
+    exe = ytdlp_path()
+    if exe is None:
+        return []
+    try:
+        out = _run([str(exe), "--list-extractors"], timeout=120)
+    except (OSError, subprocess.SubprocessError):
+        return []
+
+    names = []
+    for line in (out.stdout or "").splitlines():
+        name = line.strip()
+        # The generic fallbacks are not sites anyone would look for, and
+        # listing them as though they were is worse than leaving them out.
+        if not name or name.lower() in ("generic", "default"):
+            continue
+        names.append(name)
+
+    names = sorted(set(names), key=str.lower)
+    with _EXTRACTORS_LOCK:
+        _EXTRACTORS.update({"stamp": stamp, "names": names})
+    try:
+        _extractors_file().write_text(
+            json.dumps({"stamp": stamp, "names": names}), encoding="utf-8")
+    except OSError:
+        pass
+    return list(names)
+
+
+# --------------------------------------------------------------------------
+# Is it me, or is it the site?
+# --------------------------------------------------------------------------
+# The most-voted complaint on every downloader is a variant of "can't download
+# from X", and the most-voted feature request is a status indicator - because
+# what people actually want to know first is whether the thing is broken for
+# everyone or only for them. Riplox can answer that better than most: it has
+# two ways in, so it can say not just "working" but "working the hard way",
+# which is the early warning that the usual route has gone.
+#
+# Recorded from this machine's own results only. No service is asked, nothing
+# is reported anywhere, and one bad link does not condemn a site - it is what
+# happened here, last time, per site.
+
+HEALTH_OK = "ok"            # the engine handled it
+HEALTH_DOOR = "door"        # the engine failed, Riplox's own route worked
+HEALTH_DOWN = "down"        # neither got it
+
+_health = {}
+_health_lock = threading.Lock()
+# Windows' clock only moves in ~16ms steps, so two sites recorded in the same
+# instant get identical timestamps and "newest first" becomes whatever order
+# the dict happens to be in. A counter alongside the time keeps the order
+# meaning what it says. Found by a test that failed two runs in six.
+_health_seq = 0
+
+
+def _health_file() -> Path:
+    return data_dir() / "health.json"
+
+
+def _load_health() -> dict:
+    global _health, _health_seq
+    with _health_lock:
+        if _health:
+            return dict(_health)
+    try:
+        data = json.loads(_health_file().read_text("utf-8"))
+    except (OSError, ValueError):
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    with _health_lock:
+        _health = data
+        # Carry on from where the saved file left off, so an app restart does
+        # not reset the ordering of rows that are already on disk.
+        _health_seq = max([int(e.get("seq") or 0) for e in data.values()
+                           if isinstance(e, dict)] or [0])
+    return dict(data)
+
+
+def note_health(url: str, state: str, why: str = "") -> None:
+    """Record how a site behaved just now."""
+    site = site_of(url)
+    if not site or site == "Other" or state not in (HEALTH_OK, HEALTH_DOOR,
+                                                    HEALTH_DOWN):
+        return
+    global _health_seq
+    _load_health()
+    with _health_lock:
+        _health_seq += 1
+        _health[site] = {"state": state, "when": time.time(),
+                         "seq": _health_seq, "why": str(why or "")[:160]}
+        snapshot = dict(_health)
+    try:
+        _health_file().write_text(json.dumps(snapshot), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def health() -> list:
+    """
+    One row per site tried recently, newest first.
+
+    Deliberately not a claim about the site in general - only about what
+    happened here. A row older than a week says nothing useful about today,
+    so it is dropped rather than shown as if it were current.
+    """
+    week = time.time() - 7 * 24 * 3600
+    rows = []
+    for site, entry in _load_health().items():
+        when = float(entry.get("when") or 0)
+        if when < week:
+            continue
+        rows.append({"site": site, "state": entry.get("state", HEALTH_OK),
+                     "when": when, "seq": int(entry.get("seq") or 0),
+                     "why": entry.get("why", ""), "ago": _ago(when)})
+    # The counter breaks ties the clock cannot: same instant, later entry wins.
+    return sorted(rows, key=lambda r: (r["when"], r["seq"]), reverse=True)
+
+
+def accounts() -> list:
+    """
+    Who you actually download from, counted out of your own history.
+
+    Nothing is fetched to build this - the uploader is already recorded with
+    every finished download, so this is reading what is there rather than
+    asking any site for a list. Newest activity first, because the useful
+    question is "what have I been saving lately", not "who is biggest".
+    """
+    found = {}
+    for row in load_history():
+        name = str(row.get("uploader") or "").strip()
+        if not name:
+            continue
+        entry = found.setdefault(name, {"name": name, "count": 0,
+                                        "site": row.get("site", ""), "last": ""})
+        entry["count"] += 1
+        when = str(row.get("when") or "")
+        if when > entry["last"]:
+            entry["last"] = when
+            # The site of the most recent one, so a name that moved platforms
+            # is filed where it is now rather than where it started.
+            entry["site"] = row.get("site", "") or entry["site"]
+
+    return sorted(found.values(), key=lambda e: (e["last"], e["count"]),
+                  reverse=True)
+
+
+def _redacted(path) -> str:
+    """A path with the account name taken out of it."""
+    text = str(path or "")
+    home = os.path.expanduser("~")
+    if home and home in text:
+        text = text.replace(home, "%USERPROFILE%")
+    user = os.environ.get("USERNAME", "")
+    if user and len(user) > 2:
+        text = text.replace(user, "<user>")
+    return text
+
+
+def diagnostics(version: str = "") -> str:
+    """
+    One block of text describing this install, for reporting a problem.
+
+    Written to be pasted somewhere, so it holds what actually decides whether
+    a download works and nothing that identifies anybody: no cookies, no
+    tokens, no pairing keys, no links, and paths with the account name taken
+    out. What is left is the version, the tools, the space, and the last
+    result per site - which is the set of questions any answer starts with.
+    """
+    env = environment()
+    settings = load_settings()
+    room = free_space(settings.get("download_dir", ""))
+
+    lines = [
+        "Riplox diagnostics",
+        f"app            {version or 'unknown'}",
+        f"engine         {engine_version()} ({settings.get('engine_channel', 'stable')})",
+        f"media tools    {'yes' if env.get('ffmpeg') else 'MISSING'}",
+        f"js runtime     {'yes' if env.get('js') else 'missing'}",
+        f"youtube helper {'installed' if env.get('potoken') else 'off'}",
+        f"windows        {platform.platform()}",
+        f"free space     {human_bytes(room) if room >= 0 else 'unknown'}",
+        f"download to    {_redacted(settings.get('download_dir'))}",
+        "",
+        "settings that change downloads",
+        f"  prefer h264        {settings.get('prefer_h264')}",
+        f"  polite pacing      {settings.get('polite_mode')}",
+        f"  use saved sign-in  {settings.get('cookies_signin')}",
+        f"  second door        {settings.get('second_door')}",
+        f"  own cookie files   {len(cookie_files(settings))}",
+        f"  parallel downloads {settings.get('max_parallel')}",
+        f"  schedule           {'on' if settings.get('schedule_on') else 'off'}",
+        "",
+        "sign-ins saved (names only, never the session)",
+    ]
+
+    try:
+        import cookies as cookie_store
+        status = cookie_store.status()
+        for row in status.get("known", []):
+            if row.get("signedIn") or row.get("paused"):
+                state = "paused" if row.get("paused") else "signed in"
+                lines.append(f"  {row['label']:<14} {state}")
+        if not any(r.get("signedIn") for r in status.get("known", [])):
+            lines.append("  none")
+    except Exception:                       # noqa: BLE001
+        lines.append("  could not be read")
+
+    lines += ["", "last result per site (this machine only)"]
+    rows = health()
+    if not rows:
+        lines.append("  nothing recorded yet")
+    for row in rows:
+        lines.append(f"  {row['site']:<14} {row['state']:<5} {row['ago']}"
+                     + (f" - {row['why'][:60]}" if row.get("why") else ""))
+
+    return "\n".join(lines) + "\n"
+
+
+USERNAMES_FILE = "usernames.txt"
+
+
+def write_usernames(settings: dict = None) -> str:
+    """
+    One plain-text file in the download folder listing everyone, grouped by
+    platform. Returns the path written, or "".
+
+    One file rather than one per platform, deliberately: the question this
+    answers is "whose stuff have I got", and an answer split across seven
+    files is not an answer. Plain text because it wants to open in Notepad on
+    any machine, be searchable, and be pasted somewhere - none of which a
+    JSON or CSV does better here.
+
+    Rewritten from history each time rather than appended to, so a cleared
+    history leaves a file that agrees with it.
+    """
+    settings = settings or load_settings()
+    folder = Path(settings.get("download_dir") or default_download_dir())
+    rows = accounts()
+
+    lines = ["Riplox - who you download from",
+             "Updated " + datetime.now().strftime("%Y-%m-%d %H:%M"),
+             ""]
+
+    if not rows:
+        lines += ["Nothing recorded yet.",
+                  "",
+                  "This fills in as you download. Anything downloaded before",
+                  "this file existed has no uploader saved, so it cannot",
+                  "appear here - only new downloads will."]
+    else:
+        by_site = {}
+        for row in rows:
+            by_site.setdefault(row.get("site") or "Other", []).append(row)
+
+        lines.append(f"{len(rows)} names across {len(by_site)} platforms")
+        lines.append("")
+        for site in sorted(by_site):
+            lines.append(site)
+            lines.append("-" * len(site))
+            for row in sorted(by_site[site], key=lambda r: -r["count"]):
+                when = (row.get("last") or "")[:10]
+                count = row["count"]
+                lines.append("  {:<34} {:>4}  {}".format(
+                    row["name"][:34], count, when))
+            lines.append("")
+
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        target = folder / USERNAMES_FILE
+        target.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return str(target)
+    except OSError:
+        return ""
+
+
+def _ago(when: float) -> str:
+    gap = max(0, time.time() - when)
+    if gap < 90:
+        return "just now"
+    if gap < 3600:
+        return f"{int(gap // 60)} min ago"
+    if gap < 86400:
+        return f"{int(gap // 3600)} h ago"
+    return f"{int(gap // 86400)} d ago"
+
+
+_BAD_IN_NAMES = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
+
+def _safe_name(text: str) -> str:
+    """
+    A title Windows will accept as a file name.
+
+    yt-dlp does this itself for the names it writes; a direct download has to
+    do it here, and getting it wrong means an exception at the very end of a
+    download that otherwise worked.
+    """
+    cleaned = _BAD_IN_NAMES.sub("", str(text or "")).strip(" .")
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    # CON, PRN, NUL and friends are still reserved, whatever the extension.
+    if cleaned.upper().split(".")[0] in (
+            "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4",
+            "LPT1", "LPT2", "LPT3"):
+        cleaned = "_" + cleaned
+    return cleaned or "video"
+
+
+def _url_tail(url: str) -> str:
+    """The last meaningful part of a URL, for when nothing supplied an id."""
+    path = urlsplit(url or "").path.rstrip("/")
+    tail = path.rsplit("/", 1)[-1] if path else ""
+    return _safe_name(tail)[:40] or "link"
+
+
 def _is_youtube(url: str) -> bool:
     low = (url or "").lower()
     return "youtube.com" in low or "youtu.be" in low
@@ -2144,7 +2671,7 @@ class Job:
                  "speed", "eta", "size", "filepath", "error", "created", "proc",
                  "cancelled", "uploader", "batch", "log", "attempt",
                  "start", "end", "exact", "stage", "paused", "kind", "conv",
-                 "opts", "origin", "streams")
+                 "opts", "origin", "streams", "sent_cookies")
 
     def __init__(self, url, title="", thumbnail="", quality="best", uploader="",
                  batch=False, start="", end="", exact=False, opts=None,
@@ -2180,6 +2707,11 @@ class Job:
         # Stopping to carry on later is not the same as giving up, and the
         # half-written file has to survive the difference.
         self.paused = False
+        # Whether the last attempt actually carried a saved session. Recorded
+        # rather than worked out again, because "would cookies be sent for
+        # this URL" is a question with several answers and only one of them
+        # is what happened.
+        self.sent_cookies = False
         # Converting shares the queue with downloading: same progress, same
         # Cancel, same notifications, nothing new to invent.
         self.kind = "download"
@@ -2302,6 +2834,35 @@ class DownloadManager:
         self._save()
         self._wake.set()
         return len(waiting)
+
+    def pause_all(self) -> int:
+        """
+        Stop everything that is running or waiting, keeping the part-files.
+
+        The ids are taken under the lock and then paused outside it: pausing
+        kills a process, which is not something to do while holding the lock
+        every other worker needs.
+        """
+        with self._lock:
+            ids = [i for i in self._order
+                   if i in self._jobs and self._jobs[i].status in self.ACTIVE]
+        stopped = sum(1 for i in ids if self.pause(i))
+        self._save()
+        return stopped
+
+    def retry_all(self) -> int:
+        """
+        Put every failed download back in the queue.
+
+        Deliberately not the paused ones, even though retry() would take them:
+        those were stopped on purpose and Resume all is the button for them.
+        A Retry all that also restarted them would be a surprise.
+        """
+        with self._lock:
+            ids = [i for i in self._order
+                   if i in self._jobs
+                   and self._jobs[i].status in ("error", "cancelled")]
+        return sum(1 for i in ids if self.retry(i))
 
     def add(self, url, title="", thumbnail="", quality="best", uploader="",
             batch=False, start="", end="", exact=False, opts=None,
@@ -2529,16 +3090,45 @@ class DownloadManager:
                          f"free. Free some up, then press retry.")
             return
 
+        if self._run_engine(job, settings) or job.cancelled:
+            if job.status == "done":
+                note_health(job.url, HEALTH_OK)
+            return
+
+        # A refusal aimed at the session rather than at the video: worth one
+        # more go with the session left out, before anything more elaborate.
+        if self._signed_out_retry(job, settings) or job.cancelled:
+            if job.status == "done":
+                note_health(job.url, HEALTH_OK, "after signing out")
+            return
+
+        # yt-dlp has had every attempt it is going to get and the link is
+        # still not downloaded. Before the user is told no, try Riplox's own
+        # way in - which exists precisely for the days yt-dlp is refused.
+        self._second_door(job, settings)
+
+        # Whichever way that went is the useful thing to remember: the engine
+        # failing while the direct route works is exactly the early warning a
+        # status line exists to give.
+        if job.status == "done":
+            # No reason given: the state already says the engine was refused,
+            # and repeating it beside itself reads as two separate facts.
+            note_health(job.url, HEALTH_DOOR)
+        elif not job.cancelled:
+            note_health(job.url, HEALTH_DOWN, job.error)
+
+    def _run_engine(self, job: Job, settings: dict) -> bool:
+        """yt-dlp's attempts. True when the file is on disk."""
         plans = _RETRY_CLIENTS if _is_youtube(job.url) else _PLAIN_RETRIES
 
         for index, client in enumerate(plans):
             job.attempt = index + 1
             if self._attempt(job, settings, client) or job.cancelled:
-                return
+                return job.status == "done"
 
             last = index + 1 >= len(plans)
             if last or not _is_transient(job.log):
-                return
+                return False
 
             # Held in a non-queued state so no other worker takes it as well.
             job.status = "starting"
@@ -2552,8 +3142,182 @@ class DownloadManager:
             while time.monotonic() < deadline:
                 if job.cancelled:
                     job.status = "paused" if job.paused else "cancelled"
-                    return
+                    return False
                 time.sleep(0.2)
+
+        return False
+
+    # A site turning a request down flat, rather than the download going wrong.
+    _AUTH_REFUSED = ("http error 400", "http error 401", "http error 403",
+                     "login required", "login_required", "checkpoint",
+                     "requested content is not available")
+
+    def _signed_out_retry(self, job: Job, settings: dict) -> bool:
+        """
+        One more attempt with the saved session deliberately left out.
+
+        A stale login is not a neutral thing to send. The site rejects the
+        request outright and the engine stops there, instead of falling back
+        to the signed-out route it would have taken had there been no session
+        at all - so an expired login takes public videos down with it. That is
+        not a guess: forgetting the Instagram session here made two reels that
+        had failed repeatedly download on the next press.
+
+        Pausing that site in Settings is the deliberate version of this. This
+        is the automatic one, for the case where nobody knew to.
+        """
+        if job.cancelled or not job.sent_cookies:
+            return False
+        low = (job.error or "").lower() + "\n" + (job.log or "").lower()
+        if not any(mark in low for mark in self._AUTH_REFUSED):
+            return False
+
+        refused = job.error
+        job.status = "starting"
+        job.error = ""
+        job.percent = 0.0
+        if self._attempt(job, settings, "", with_cookies=False):
+            if job.status == "done":
+                job.log += ("\n\nThe saved sign-in was refused, so this was "
+                            "downloaded signed out instead. If that keeps "
+                            "happening, sign in again or pause that site in "
+                            "Settings.")
+                return True
+
+        # Signed out did not help either, so the first refusal is the one worth
+        # showing - it is the one that says a session was rejected.
+        if job.status != "done" and refused:
+            job.error = refused
+        return job.status == "done"
+
+    # ----------------------------------------------------------------------
+    # The second door
+    # ----------------------------------------------------------------------
+
+    # Long enough for a slow line on a short video, short enough that a stalled
+    # fallback does not hold a queue slot all afternoon.
+    _DOOR_CAP = 8 * 60
+
+    def _door_path(self, settings: dict, job: Job, info: dict) -> Path:
+        """Where a direct download lands, named the way yt-dlp's would be."""
+        opts = getattr(job, "opts", None) or {}
+        if opts.get("dest_dir"):
+            root = Path(opts["dest_dir"])
+        else:
+            root = Path(settings["download_dir"])
+            if settings.get("subfolder_per_site"):
+                root = root / (site_of(job.url) or info.get("site") or "Riplox")
+
+        # Same shape as _outtmpl, minus the height: there is one stream on
+        # offer here, so there is nothing for a height to tell two files apart.
+        stem = _safe_name(info.get("title") or job.title or "video")[:100]
+        name = f"{stem} [{info.get('id') or _url_tail(job.url)}]"
+        root.mkdir(parents=True, exist_ok=True)
+        return root / f"{name}.{info.get('ext') or 'mp4'}"
+
+    def _second_door(self, job: Job, settings: dict) -> None:
+        """
+        Riplox's own way in, once yt-dlp has given up.
+
+        Kept strictly as a fallback. A door that ran first would quietly take
+        over sites yt-dlp handles better, and the day it broke nobody would
+        know why - so it only ever runs on a link that has already failed.
+        """
+        import doors
+
+        if not doors.handles(job.url) or not settings.get("second_door", True):
+            return
+
+        engine_error = job.error                # kept: it may be the truer one
+        job.status = "downloading"
+        job.error = ""
+        job.stage = "direct"
+        job.percent = 0.0
+
+        try:
+            info = doors.resolve(job.url)
+        except doors.DoorError as exc:
+            # The door knows something worth saying - a removed post, an
+            # age-gate - so its answer beats yt-dlp's stack trace.
+            job.status = "error"
+            job.stage = ""
+            job.error = str(exc)
+            return
+        except Exception:                       # noqa: BLE001
+            # It simply did not work. The user keeps the error they can act
+            # on rather than one about a route they never asked for.
+            job.status = "error"
+            job.stage = ""
+            job.error = engine_error
+            return
+
+        target = self._door_path(settings, job, info)
+        part = target.with_suffix(target.suffix + ".part")
+        started = time.monotonic()
+
+        def progress(done, total):
+            job.percent = round(done / total * 100.0, 1) if total else 0.0
+            job.size = human_bytes(done)
+            elapsed = max(time.monotonic() - started, 0.001)
+            job.speed = human_bytes(done / elapsed) + "/s"
+
+        try:
+            if job.cancelled:
+                job.status = "paused" if job.paused else "cancelled"
+                return
+            pull_to_file(info["url"], part, info.get("headers") or {},
+                         time.monotonic() + self._DOOR_CAP, on_progress=progress,
+                         timed_out="The direct download kept dropping. What "
+                                   "arrived is kept, so retry carries on.")
+        except Exception as exc:                # noqa: BLE001
+            job.status = "error"
+            job.stage = ""
+            job.error = f"Riplox's own route reached {info['site']} but the "\
+                        f"download failed: {exc}"
+            return
+
+        if job.cancelled:
+            job.status = "paused" if job.paused else "cancelled"
+            return
+
+        try:
+            part.replace(target)
+        except OSError as exc:
+            job.status = "error"
+            job.stage = ""
+            job.error = f"Could not save the file: {exc}"
+            return
+
+        written = target.stat().st_size
+        job.status = "done"
+        job.percent = 100.0
+        job.speed = job.eta = ""
+        job.stage = "direct"
+        job.filepath = str(target)
+        job.size = human_bytes(written)
+        if info.get("title"):
+            job.title = info["title"]
+        if info.get("thumbnail"):
+            job.thumbnail = info["thumbnail"]
+        if info.get("uploader"):
+            job.uploader = info["uploader"]
+        job.log = (f"{job.log}\n\nyt-dlp could not fetch this link, so Riplox "
+                   f"used its own route to {info['site']} instead.\n"
+                   f"saved    {target}")
+        add_history({
+            "title": job.title,
+            "url": job.url,
+            "filepath": job.filepath,
+            "quality": job.quality,
+            "thumbnail": job.thumbnail,
+            "uploader": job.uploader,
+            "size": job.size,
+            "bytes": written,
+            "from": job.origin,
+            "site": site_of(job.url),
+            "when": datetime.now().isoformat(timespec="seconds"),
+        })
+        write_usernames(settings)
 
     def _convert(self, job: Job) -> None:
         # Imported here rather than at the top: convert.py needs engine, and
@@ -2591,8 +3355,11 @@ class DownloadManager:
             "when": datetime.now().isoformat(timespec="seconds"),
         })
 
-    def _attempt(self, job: Job, settings: dict, client: str) -> bool:
-        cookie_path, temp_cookie = open_cookies(settings, job.url)
+    def _attempt(self, job: Job, settings: dict, client: str,
+                 with_cookies: bool = True) -> bool:
+        cookie_path, temp_cookie = (open_cookies(settings, job.url)
+                                    if with_cookies else (None, False))
+        job.sent_cookies = bool(cookie_path)
         try:
             return self._spawn(job, settings, client, cookie_path)
         finally:
@@ -2655,8 +3422,30 @@ class DownloadManager:
             "--no-simulate",
         ]
 
-        if settings.get("write_thumbnail"):
+        # Thumbnails. The engine has no "give me the third one" flag - what it
+        # has is one (the default) or all of them. So "choose the thumbnail"
+        # means saving the set and letting a person pick, which is what the
+        # request actually wanted: sites often serve a poor default.
+        if opts.get("thumb_all"):
+            args.append("--write-all-thumbnails")
+        elif settings.get("write_thumbnail"):
             args.append("--write-thumbnail")
+
+        # A live stream is normally joined wherever it happens to be. Starting
+        # at the beginning is what people mean by "download the stream", and
+        # it is the one thing that cannot be added afterwards.
+        if opts.get("live_from_start"):
+            args.append("--live-from-start")
+
+        # Subtitles without the video. Placed last so it overrides the format
+        # selection above rather than fighting it: --skip-download makes every
+        # -f argument moot, which is exactly the intent.
+        if opts.get("subs_only"):
+            langs = opts.get("sub_langs") or settings.get("sub_langs") or "en"
+            args += ["--skip-download", "--write-subs", "--write-auto-subs",
+                     "--sub-langs", langs, "--sub-format", "srt/vtt/best"]
+            if has_ffmpeg():
+                args += ["--convert-subs", "srt"]
 
         args.append(job.url)
         return args
@@ -2785,6 +3574,10 @@ class DownloadManager:
                 "filepath": job.filepath,
                 "quality": job.quality,
                 "thumbnail": job.thumbnail,
+                # Who made it. The job has carried this since it was read, and
+                # it was being dropped here - so the Accounts list was reading
+                # a field nothing ever wrote and stayed empty forever.
+                "uploader": job.uploader,
                 "size": job.size,
                 # The same size as a number. "12.4 MB" reads better; an
                 # allowance cannot be added up out of it.
@@ -2799,6 +3592,7 @@ class DownloadManager:
                 "site": site_of(job.url),
                 "when": datetime.now().isoformat(timespec="seconds"),
             })
+            write_usernames(settings)
             return True
 
         job.status = "error"

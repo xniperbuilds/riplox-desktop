@@ -346,11 +346,21 @@
     resetTrim();
     $("channelWrap").hidden = true;
 
-    // Closed again for every new link, on purpose: it is not a mode, and
-    // nothing set for the last video should carry into this one.
+    // Closed and cleared for every new link, on purpose: it is not a mode,
+    // and nothing chosen FOR THE LAST VIDEO should carry into this one - a
+    // format id or a file name means something different here.
+    //
+    // A preference is not the same thing. Picking the same audio language or
+    // player client before every single download is what people are asking to
+    // stop doing, so those - and only those - come back afterwards.
     $("moreBox").open = false;
     resetMore();
+    // Cleared for every new link: wanting the audio of one video says nothing
+    // about wanting the audio of the next.
+    $("alsoAudio").checked = false;
+    syncAlsoAudio();
     fillFormats(info);
+    restoreOpts();
     // A playlist has no single format table, and a name for one file makes no
     // sense across forty of them.
     $("fmtSec").hidden = isList;
@@ -678,6 +688,17 @@
     updateSelectionUi();
   });
 
+  /* Offering to also make an MP3 of an MP3 is nonsense, and without the media
+     tool there is no MP3 to make at all - so the choice is hidden rather than
+     shown as something that would quietly do nothing. */
+  function syncAlsoAudio() {
+    var wrap = $("alsoAudioWrap");
+    if (!wrap) return;
+    var possible = quality !== "mp3" && S.hasFfmpeg;
+    wrap.hidden = !possible;
+    if (!possible) $("alsoAudio").checked = false;
+  }
+
   $("qualityChips").addEventListener("click", function (e) {
     var chip = e.target.closest(".chip");
     if (!chip) return;
@@ -685,6 +706,7 @@
     document.querySelectorAll("#qualityChips .chip").forEach(function (c) {
       c.classList.toggle("is-on", c === chip);
     });
+    syncAlsoAudio();
     refreshCommand();
   });
 
@@ -888,6 +910,13 @@
     $("optClient").value = "";
     $("optAudioLang").value = "";
     $("optSubLang").value = "";
+    $("optSubsOnly").checked = false;
+    $("optThumbAll").checked = false;
+    $("optLiveFromStart").checked = false;
+    // Only a stream that is live right now can be joined from its beginning.
+    // Hidden otherwise rather than shown and ignored.
+    $("optLiveWrap").hidden = !(current && current.is_live);
+    syncSubsOnly();
     $("fmtPick").textContent = "Using the quality above.";
     document.querySelectorAll("#fmtTable tr.is-on").forEach(function (tr) {
       tr.classList.remove("is-on");
@@ -906,7 +935,72 @@
     if (onceDir) o.dest_dir = onceDir;
     if ($("optClient").value) o.player_client = $("optClient").value;
     if ($("optCookies").value === "off") o.no_cookies = true;
+    if ($("optSubsOnly").checked) o.subs_only = true;
+    if ($("optThumbAll").checked) o.thumb_all = true;
+    if ($("optLiveFromStart").checked) o.live_from_start = true;
     return o;
+  }
+
+  /* Asking for subtitles only and then picking a quality is a contradiction -
+     one of the two has to be ignored, and saying which beats silently
+     dropping the other. */
+  function syncSubsOnly() {
+    var only = $("optSubsOnly").checked;
+    var note = $("subsOnlyNote");
+    if (note) {
+      note.hidden = !only;
+      note.textContent = "No video will be downloaded, so the quality above "
+                       + "does not apply. The subtitle language is the one in "
+                       + "Settings unless you set it here.";
+    }
+    var thumb = $("optThumbAll");
+    if (thumb) thumb.closest(".more-check").classList.toggle("is-inert", only);
+    if (only && thumb) thumb.checked = false;
+  }
+
+  $("optSubsOnly").addEventListener("change", function () {
+    syncSubsOnly();
+    refreshCommand();
+  });
+  ["optThumbAll", "optLiveFromStart"].forEach(function (id) {
+    $(id).addEventListener("change", refreshCommand);
+  });
+
+  /* Setting the same three things before every download is the complaint
+     behind "remember the last selected download options". Only the choices
+     that mean the same thing on the next link are kept:
+
+       audio language, subtitle language, player client, cookies off
+
+     A format id is deliberately NOT remembered - id 137 is a different thing
+     on a different video, and silently reusing it would pick something nobody
+     asked for. Nor is the file name, which is per-file by definition. */
+
+  var REMEMBERED = ["audio_lang", "sub_langs", "player_client", "no_cookies"];
+
+  function rememberOpts(opts) {
+    var keep = {};
+    REMEMBERED.forEach(function (key) {
+      if (opts && opts[key]) keep[key] = opts[key];
+    });
+    // Written even when empty: clearing the boxes has to stick too, or the
+    // old values come back on the next link and look like a bug.
+    saveSetting({ last_opts: keep });
+  }
+
+  function restoreOpts() {
+    var last = settings.last_opts || {};
+    if (!Object.keys(last).length) return;
+
+    if (last.audio_lang) $("optAudioLang").value = last.audio_lang;
+    if (last.sub_langs) $("optSubLang").value = last.sub_langs;
+    if (last.player_client) $("optClient").value = last.player_client;
+    $("optCookies").value = last.no_cookies ? "off" : "on";
+
+    // Opened, because a remembered choice that is not visible is a setting
+    // acting on the download while hidden - which is the thing this app is
+    // trying not to do anywhere.
+    $("moreBox").open = true;
   }
 
   function fillFormats(info) {
@@ -1041,6 +1135,9 @@
     if (!items.length) { toast("Nothing selected.", "bad"); return; }
 
     var body = { items: items, quality: quality, opts: moreOpts() };
+    // The extras ride along with the main choice rather than replacing it,
+    // so the video is still what the row says it is.
+    if (quality !== "mp3" && $("alsoAudio").checked) body.also = ["mp3"];
     if (current.kind !== "playlist" && $("trimOn").checked) {
       var range = readTrim();
       if (range === null) return;             // readTrim already complained
@@ -1051,6 +1148,7 @@
 
     api("/api/add", body).then(function (res) {
       if (!res.ok) { toast(res.error || "Could not queue that.", "bad"); return; }
+      rememberOpts(body.opts);
       // A low-space warning matters more than the confirmation it replaces.
       toast(res.warning || (res.added > 1 ? res.added + " videos queued" : "Queued"),
             res.warning ? "warn" : "good");
@@ -1074,6 +1172,39 @@
 
   // What the engine says is holding the queue back, if anything.
   var holdNote = "";
+
+  /* Searching the queue. Rows are hidden rather than removed: they are still
+     downloading, and their progress has to keep arriving whether or not the
+     current search happens to match them. */
+
+  var QUEUE_FIND_FROM = 6;          // below this, a search box is just clutter
+
+  function applyQueueFilter(jobs) {
+    var wrap = $("queueFind");
+    if (!wrap) return;
+
+    var term = $("queueSearch").value.trim().toLowerCase();
+    wrap.hidden = jobs.length < QUEUE_FIND_FROM && !term;
+    if (wrap.hidden) { $("queueSearch").value = ""; term = ""; }
+
+    var hits = 0;
+    jobs.forEach(function (j) {
+      var row = rows[j.id];
+      if (!row) return;
+      // The address counts as well as the title: a row that has not been read
+      // yet is still only a URL, and that is exactly when it is hard to find.
+      var hay = ((j.title || "") + " " + (j.url || "") + " " +
+                 (j.uploader || "") + " " + (j.status || "")).toLowerCase();
+      var show = !term || hay.indexOf(term) >= 0;
+      row.el.hidden = !show;
+      if (show) hits++;
+    });
+
+    $("queueFound").textContent = term
+      ? (hits ? hits + " of " + jobs.length : "Nothing matches — " +
+         jobs.length + " still here")
+      : "";
+  }
 
   function renderJobs(jobs) {
     var box = $("jobs");
@@ -1105,6 +1236,8 @@
       hold.hidden = !(holdNote && active > 0);
       if (!hold.hidden) hold.textContent = holdNote;
     }
+
+    applyQueueFilter(jobs);
 
     // Rows are patched in place. Rebuilding the list every poll reloaded each
     // thumbnail, which made the whole queue flicker while downloading.
@@ -1350,6 +1483,53 @@
     api("/api/clear-finished", {}).then(function () { pollJobs(); });
   });
 
+  $("queueSearch").addEventListener("input", function () {
+    applyQueueFilter(window._jobs || []);
+  });
+
+  /* Whole-queue buttons. Each carries its own count and hides when that count
+     is zero, so the row says what pressing it would actually do. */
+  var BULK = {
+    pauseAll: { path: "/api/pause-all", label: "Pause all", key: "paused",
+                done: "Paused ", none: "Nothing to pause" },
+    resumeAllTop: { path: "/api/resume-all", label: "Resume all", key: "resumed",
+                    done: "Resumed ", none: "Nothing to resume" },
+    retryAll: { path: "/api/retry-all", label: "Retry all", key: "retried",
+                done: "Queued ", none: "Nothing to retry" }
+  };
+
+  Object.keys(BULK).forEach(function (id) {
+    var spec = BULK[id];
+    $(id).addEventListener("click", function () {
+      var btn = $(id);
+      btn.disabled = true;                 // a second press mid-flight is a mess
+      api(spec.path, {}).then(function (res) {
+        var n = (res && res[spec.key]) || 0;
+        toast(n ? spec.done + n : spec.none, n ? "good" : "");
+        pollJobs();
+      }).catch(function () {
+        toast("That did not go through.", "bad");
+      }).then(function () { btn.disabled = false; });
+    });
+  });
+
+  var RUNNING = ["queued", "starting", "downloading", "converting"];
+
+  function renderBulkButtons(jobs) {
+    var counts = { pauseAll: 0, resumeAllTop: 0, retryAll: 0 };
+    (jobs || []).forEach(function (job) {
+      if (RUNNING.indexOf(job.status) >= 0) counts.pauseAll++;
+      else if (job.status === "paused") counts.resumeAllTop++;
+      else if (job.status === "error" || job.status === "cancelled") counts.retryAll++;
+    });
+    Object.keys(BULK).forEach(function (id) {
+      var btn = $(id);
+      if (!btn) return;
+      btn.hidden = !counts[id];
+      btn.textContent = BULK[id].label + (counts[id] ? " (" + counts[id] + ")" : "");
+    });
+  }
+
   function pollJobs() {
     return api("/api/jobs").then(function (res) {
       if (!res.ok) return 0;
@@ -1358,6 +1538,7 @@
       S.hasFfmpeg = res.hasFfmpeg;
       holdNote = res.holdNote || "";
       var active = renderJobs(res.jobs);
+      renderBulkButtons(res.jobs);
 
       if (!analyzing) {
         $("engineStatus").className = "status" + (active ? " busy" : "");
@@ -1450,7 +1631,13 @@
 
     var shown = libraryItems.filter(function (h) {
       if (libSource !== "all" && h._source !== libSource) return false;
-      return !term || (h.title || "").toLowerCase().indexOf(term) !== -1;
+      if (!term) return true;
+      // The uploader counts as well as the title. Without it, searching for
+      // a name found nothing even though every file was by that person -
+      // and the Accounts chips, which put a name in this box, would have
+      // been a button that quietly did nothing.
+      return ((h.title || "") + " " + (h.uploader || ""))
+        .toLowerCase().indexOf(term) !== -1;
     });
 
     shown.sort(function (a, b) {
@@ -2002,6 +2189,16 @@
       "</div></div>";
   }
 
+  // Why a link is being held. The rule's own name means nothing to whoever is
+  // looking at the screen; what they need is the sentence that tells them
+  // whether pressing Approve is the right thing to do.
+  var WHY = {
+    "day-limit": "past this device's daily limit",
+    "total-limit": "past this device's total allowance",
+    "paused": "this device is paused",
+    "site": "this site is not on this device's list"
+  };
+
   function renderSharing(s) {
     shareState = s;
     $("setSharing").classList.toggle("on", s.on);
@@ -2044,9 +2241,13 @@
     $("incomingEmpty").hidden = log.length > 0;
     $("incomingList").innerHTML = log.map(function (e) {
       var waiting = e.state === "waiting";
+      // A link a rule stopped is waiting too, and it gets the same buttons -
+      // but "waiting" on its own would look like Riplox simply had not got to
+      // it. The reason is what turns the Approve button into a choice.
+      var why = waiting && e.why ? " · " + esc(WHY[e.why] || e.why) : "";
       return '<div class="in-row' + (waiting ? " waiting" : "") + '">' +
         '<div class="what"><b>' + esc(e.from || "A device") + " · " +
-        esc(e.quality || "default") + "</b><span>" + esc(e.url) + "</span></div>" +
+        esc(e.quality || "default") + why + "</b><span>" + esc(e.url) + "</span></div>" +
         (waiting
           ? '<button class="primary small" data-ok="' + esc(e.id) + '">Approve</button>' +
             '<button class="ghost small" data-no="' + esc(e.id) + '">No</button>'
@@ -2322,12 +2523,18 @@
     });
   });
 
+  // Switching one of these on when the media tool is missing has to say so
+  // immediately - the whole point is that it is never a silent no.
+  var NEEDS_TOOLS = ["embed_subs", "embed_chapters", "sponsorblock"];
+
   function bindToggle(id, key) {
     $(id).addEventListener("click", function () {
       var on = !$(id).classList.contains("on");
       $(id).classList.toggle("on", on);
       var patch = {}; patch[key] = on;
-      saveSetting(patch);
+      saveSetting(patch).then(function () {
+        if (NEEDS_TOOLS.indexOf(key) >= 0) loadEngineVersion();
+      });
       if (key === "auto_paste" && !on) $("clipHint").hidden = true;
       if (key === "hotkey") toast("Restart Riplox for this to take effect");
     });
@@ -2346,6 +2553,32 @@
   bindToggle("setChapters", "embed_chapters");
   bindToggle("setSkipExisting", "skip_existing");
   bindToggle("setShareApprove", "share_approve");
+  bindToggle("setNotify", "notify");
+  bindToggle("setNotifySent", "notify_sent");
+  bindToggle("setNotifyDone", "notify_done");
+  bindToggle("setNotifyFailed", "notify_failed");
+  bindToggle("setNotifyWatch", "notify_watch");
+
+  /* With the master off, the four below decide nothing. Left switchable but
+     visibly inert, so turning the master back on restores exactly what was
+     chosen before rather than resetting it. */
+  var NOTIFY_KINDS = ["setNotifySent", "setNotifyDone",
+                      "setNotifyFailed", "setNotifyWatch"];
+
+  function syncNotifyGroup() {
+    var on = $("setNotify").classList.contains("on");
+    NOTIFY_KINDS.forEach(function (id) {
+      var row = $(id).closest(".field");
+      if (row) row.classList.toggle("is-inert", !on);
+      $(id).disabled = !on;
+    });
+  }
+
+  $("setNotify").addEventListener("click", function () {
+    // After bindToggle's own handler has flipped the class.
+    setTimeout(syncNotifyGroup, 0);
+  });
+  syncNotifyGroup();
 
   $("setRelay").addEventListener("change", function (e) {
     var value = (e.target.value || "").trim();
@@ -2519,6 +2752,15 @@
         go.type = "button";
         go.addEventListener("click", function () { signIn(site.key, site.label); });
 
+        /* Read from the row rather than from `site`, which is the snapshot
+           this row was built with and goes stale on the next poll. */
+        var hold = document.createElement("button");
+        hold.className = "ghost small";
+        hold.type = "button";
+        hold.addEventListener("click", function () {
+          pauseSite(site.key, site.label, row.dataset.paused !== "1");
+        });
+
         var out = document.createElement("button");
         out.className = "ghost small";
         out.type = "button";
@@ -2528,6 +2770,7 @@
         row.appendChild(name);
         row.appendChild(mark);
         row.appendChild(go);
+        row.appendChild(hold);
         row.appendChild(out);
         box.appendChild(row);
       });
@@ -2536,12 +2779,21 @@
     sites.forEach(function (site, i) {
       var row = box.children[i];
       if (!row) return;
-      row.classList.toggle("in", !!site.signedIn);
-      row.children[1].textContent = site.signedIn ? "Signed in" : "Not signed in";
+      var held = !!site.paused;
+      row.dataset.paused = held ? "1" : "";
+      /* Paused is its own state, not a shade of signed in: the session is
+         still there, it is just not being sent. */
+      row.classList.toggle("in", !!site.signedIn && !held);
+      row.classList.toggle("held", held);
+      row.children[1].textContent = held ? "Paused"
+        : (site.signedIn ? "Signed in" : "Not signed in");
       row.children[2].textContent = site.signedIn ? "Sign in again" : "Sign in";
       row.children[2].disabled = !!c.busy || !c.browser;
       row.children[3].hidden = !site.signedIn;
+      row.children[3].textContent = held ? "Use again" : "Pause";
       row.children[3].disabled = !!c.busy;
+      row.children[4].hidden = !site.signedIn;
+      row.children[4].disabled = !!c.busy;
     });
   }
 
@@ -2550,6 +2802,15 @@
       if (!res.ok) { toast(res.error || "Could not open the browser.", "bad"); return; }
       toast("Sign in to " + label + ", then close that window", "good");
       loadCookies();
+    });
+  }
+
+  function pauseSite(site, label, on) {
+    api("/api/cookies/pause", { site: site, on: on }).then(function (res) {
+      if (!res.ok) { toast(res.error || "Could not change that.", "bad"); return; }
+      renderCookies(res.cookies);
+      toast(on ? label + " paused — downloads will run signed out"
+               : label + " session is back on", on ? "" : "good");
     });
   }
 
@@ -2573,6 +2834,544 @@
       toast("Sign-in deleted");
     });
   });
+
+  /* --------------------------------------------------------- stuck check */
+
+  /* "Did anything I sent get lost?" - asked of the relay rather than of the
+     phone, because a PC cannot reliably wake a phone and the relay already
+     keeps undelivered links for a week. Counts only: the relay cannot read
+     them and is not asked to hand them over. */
+
+  $("checkStuck").addEventListener("click", function () {
+    var btn = $("checkStuck");
+    var note = $("stuckNote");
+    btn.disabled = true;
+    note.textContent = "Asking…";
+
+    api("/api/share/pending").then(function (res) {
+      if (!res.ok) {
+        note.textContent = res.error
+          ? "Could not ask: " + res.error
+          : "Could not reach the relay.";
+        return;
+      }
+      if (!res.stuck) {
+        note.textContent = "Nothing waiting — everything sent has arrived.";
+        return;
+      }
+      // Two different things, and the difference is what to do next.
+      var bits = [];
+      if (res.waiting) bits.push(res.waiting + " never delivered");
+      if (res.held) bits.push(res.held + " delivered but not finished here");
+      note.textContent = bits.join(" · ")
+        + (res.since ? " · oldest " + res.since : "")
+        + ". They arrive on their own while Sharing is on.";
+      pollJobs();
+    }).catch(function () {
+      note.textContent = "Could not reach the relay.";
+    }).then(function () { btn.disabled = false; });
+  });
+
+  /* ---------------------------------------------------------- accounts */
+
+  /* Who you download from, out of your own history. No new request anywhere:
+     the uploader has been recorded with every finished download for a while,
+     so this is reading what is already there. Clicking a name puts it in the
+     library search rather than making a second kind of filter. */
+
+  var accountsShown = false;
+
+  $("showAccounts").addEventListener("click", function () {
+    accountsShown = !accountsShown;
+    var box = $("accountsBox");
+    box.hidden = !accountsShown;
+    $("showAccounts").classList.toggle("on", accountsShown);
+    if (!accountsShown) return;
+
+    api("/api/accounts").then(function (res) {
+      box.innerHTML = "";
+      var list = (res.ok && res.accounts) || [];
+      if (!list.length) {
+        var none = document.createElement("p");
+        none.className = "accounts-none";
+        none.textContent = "No uploader has been recorded yet. This fills in "
+                         + "as you download.";
+        box.appendChild(none);
+        return;
+      }
+      list.forEach(function (row) {
+        var chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "chip account-chip";
+        chip.title = row.count + (row.count === 1 ? " download" : " downloads")
+                   + (row.site ? " · " + row.site : "");
+        chip.textContent = row.name;
+
+        var tally = document.createElement("em");
+        tally.textContent = row.count;
+        chip.appendChild(tally);
+
+        chip.addEventListener("click", function () {
+          $("libSearch").value = row.name;
+          $("libSearch").dispatchEvent(new Event("input"));
+        });
+        box.appendChild(chip);
+      });
+    });
+  });
+
+  /* ------------------------------------------------------- how sites are */
+
+  /* "Is it broken, or is it me" is the first question anybody has, and until
+     now nothing in the app answered it. Three states, because Riplox has two
+     ways in and the middle one is the interesting one: the usual route has
+     gone and the download only happened because of the fallback. That is the
+     early warning, and it is worth more than the green tick either side. */
+
+  var HEALTH = {
+    ok:   { mark: "●", word: "Working" },
+    door: { mark: "◐", word: "Working — the usual route was refused" },
+    down: { mark: "○", word: "Failed here" }
+  };
+
+  function renderHealth(rows) {
+    var box = $("healthList");
+    if (!box) return;
+    box.innerHTML = "";
+
+    if (!rows || !rows.length) {
+      var none = document.createElement("p");
+      none.className = "health-none";
+      none.textContent = "Nothing downloaded yet, so there is nothing to "
+                       + "report. This fills in as you use it.";
+      box.appendChild(none);
+      return;
+    }
+
+    rows.forEach(function (row) {
+      var spec = HEALTH[row.state] || HEALTH.ok;
+      var line = document.createElement("div");
+      line.className = "health-row is-" + row.state;
+
+      // Shape as well as colour: the three states have to be tellable apart
+      // without relying on being able to see the difference between them.
+      var dot = document.createElement("span");
+      dot.className = "health-dot";
+      dot.textContent = spec.mark;
+
+      var name = document.createElement("span");
+      name.className = "health-site";
+      name.textContent = row.site;
+
+      var what = document.createElement("span");
+      what.className = "health-what";
+      what.textContent = spec.word + (row.why ? " · " + row.why : "");
+
+      var when = document.createElement("span");
+      when.className = "health-when";
+      when.textContent = row.ago;
+
+      line.appendChild(dot);
+      line.appendChild(name);
+      line.appendChild(what);
+      line.appendChild(when);
+      box.appendChild(line);
+    });
+  }
+
+  function loadHealth() {
+    api("/api/health").then(function (res) {
+      if (res.ok) renderHealth(res.sites);
+    });
+  }
+
+  /* A report worth pasting. Shown as well as copied: a button that claims to
+     have copied something invisible is asking to be trusted for no reason,
+     and this way the contents can be read before they go anywhere. */
+  $("copyDiag").addEventListener("click", function () {
+    api("/api/diagnostics").then(function (res) {
+      if (!res.ok) { toast("Could not build the report.", "bad"); return; }
+      var box = $("diagBox");
+      box.textContent = res.report;
+      box.hidden = false;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(res.report).then(function () {
+          toast("Report copied", "good");
+        }, function () {
+          toast("Shown below — select it and copy");
+        });
+      } else {
+        toast("Shown below — select it and copy");
+      }
+    });
+  });
+
+  /* ------------------------------------------- options that are not applying */
+
+  /* The worst thing this app can do is drop something quietly. Without the
+     media tool, "put subtitles inside the video", "chapter marks" and
+     "skip sponsor segments" are accepted, switched on, shown as on - and
+     never happen. The engine now leaves those flags out rather than sending
+     them to be ignored, and says which ones, so the screen can say it where
+     the switch is instead of leaving the user to find out from a file. */
+
+  var DROP_ROWS = {
+    "subtitles inside the video": "setEmbedSubs",
+    "chapter marks": "setChapters",
+    "skipping sponsor segments": "setSponsor"
+  };
+
+  function markDropped(names) {
+    Object.keys(DROP_ROWS).forEach(function (label) {
+      var toggle = document.getElementById(DROP_ROWS[label]);
+      if (!toggle) return;
+      var text = toggle.closest(".field") &&
+                 toggle.closest(".field").querySelector(".field-text");
+      if (!text) return;
+
+      var note = text.querySelector(".drop-note");
+      var lost = (names || []).indexOf(label) >= 0;
+      if (!lost) { if (note) note.remove(); return; }
+      if (!note) {
+        note = document.createElement("span");
+        note.className = "note drop-note";
+        text.appendChild(note);
+      }
+      note.textContent = "Switched on, but not happening: this needs the "
+                       + "media tool, which is missing from this install. "
+                       + "Reinstall Riplox to get it back.";
+    });
+  }
+
+  /* ------------------------------------------------------ settings groups */
+
+  /* The screen opens as its own table of contents.
+
+     Someone seeing Settings for the first time is not hunting a particular
+     switch - they are working out what the app can do at all. Thirty rows
+     answers that by burying it, and the honest result is one scroll and a
+     shrug. So every group starts closed with a line saying what is inside,
+     and the whole screen is eight readable rows. Downloads opens because it
+     is the one anybody actually came for.
+
+     A search box was tried here first and thrown away: it only helps someone
+     who already knows the name of the thing, which is exactly the person who
+     did not need help. */
+
+  var SETTINGS_OPEN_BY_DEFAULT = "Downloads";
+
+  function buildSettingGroups() {
+    var heads = document.querySelectorAll("#view-settings .group-head");
+    Array.prototype.forEach.call(heads, function (head) {
+      var panel = head.nextElementSibling;
+      if (!panel || panel.className.indexOf("panel") < 0) return;
+
+      var name = head.textContent.trim();
+      var what = head.dataset.what || "";
+      var count = panel.querySelectorAll(".field").length;
+
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "group-toggle";
+
+      var title = document.createElement("span");
+      title.className = "group-name";
+      title.textContent = name;
+
+      var note = document.createElement("span");
+      note.className = "group-what";
+      note.textContent = what;
+
+      var tally = document.createElement("span");
+      tally.className = "group-count";
+      // A section of prose has no settings to count, and saying "0 settings"
+      // about the roadmap would be a strange thing to read.
+      tally.textContent = count ? count : "";
+
+      btn.appendChild(title);
+      if (what) btn.appendChild(note);
+      btn.appendChild(tally);
+
+      head.textContent = "";
+      head.appendChild(btn);
+      head.classList.add("is-group");
+
+      var open = name === SETTINGS_OPEN_BY_DEFAULT;
+      setGroupOpen(head, panel, open);
+
+      btn.addEventListener("click", function () {
+        setGroupOpen(head, panel, panel.hidden);
+      });
+    });
+  }
+
+  function setGroupOpen(head, panel, open) {
+    panel.hidden = !open;
+    head.classList.toggle("is-open", open);
+    head.querySelector(".group-toggle").setAttribute("aria-expanded", open);
+  }
+
+  buildSettingGroups();
+
+  /* ------------------------------------------------- searching settings */
+
+  /* The rows most people never need. Not hidden because they are dangerous -
+     hidden because a first-time reader counting thirty switches stops reading.
+     Every one of them stays one tick away, and a search finds them even while
+     they are hidden, so nothing becomes unreachable. */
+  var ADVANCED = ["setSpeedLimit", "setParallel", "setFragments", "setPotoken",
+                  "setSkipExisting", "setChannel", "setCheckUpdates",
+                  "setUpscale", "chooseCookies", "setCookies",
+                  "settingsExport", "settingsImport"];
+
+  function fieldOf(id) {
+    var el = document.getElementById(id);
+    return el ? el.closest(".field") : null;
+  }
+
+  ADVANCED.forEach(function (id) {
+    var field = fieldOf(id);
+    if (field) field.dataset.adv = "1";
+  });
+
+  function settingRows() {
+    return Array.prototype.slice.call(
+      document.querySelectorAll("#view-settings .panel .field"));
+  }
+
+  function applySettingsFilter() {
+    var term = ($("setSearch").value || "").trim().toLowerCase();
+    var advanced = $("setShowAdvanced").checked;
+    var hits = 0;
+
+    settingRows().forEach(function (row) {
+      // Name AND description AND the group it sits in - so a word like
+      // "cookie" finds rows that never use it in their label.
+      var head = row.closest(".panel").previousElementSibling;
+      var hay = (row.textContent + " " +
+                 (head ? head.textContent + " " + (head.dataset.what || "") : ""))
+                .toLowerCase();
+      var matches = !term || hay.indexOf(term) >= 0;
+      // While searching, an advanced row still shows: hiding a thing someone
+      // just typed the name of would be the app arguing with them.
+      var allowed = advanced || term || !row.dataset.adv;
+      row.hidden = !(matches && allowed);
+      if (matches && allowed) hits++;
+    });
+
+    // A group with nothing left to show is noise; one with a hit opens itself.
+    document.querySelectorAll("#view-settings .group-head.is-group")
+      .forEach(function (head) {
+        var panel = head.nextElementSibling;
+        if (!panel) return;
+        var live = panel.querySelectorAll(".field:not([hidden])").length;
+        var prose = panel.querySelectorAll(".field").length === 0;
+        head.hidden = !!term && !live && !prose;
+        panel.hidden = head.hidden || (term ? !live : panel.hidden);
+        if (term && live) setGroupOpen(head, panel, true);
+      });
+
+    $("setFound").textContent = term
+      ? (hits ? hits + (hits === 1 ? " setting" : " settings") + " match"
+              : "Nothing matches that")
+      : "";
+  }
+
+  $("setSearch").addEventListener("input", applySettingsFilter);
+  $("setShowAdvanced").addEventListener("change", function () {
+    applySettingsFilter();
+    saveSetting({ show_advanced: $("setShowAdvanced").checked });
+  });
+
+  $("setShowAdvanced").checked = !!settings.show_advanced;
+  applySettingsFilter();
+
+  /* ---------------------------------------------------------- site picker */
+
+  /* Two jobs, one component: choosing the sites a rule applies to, and
+     answering "what does this actually work with". Deliberately two lists -
+     rules can only be written against the names site_of() produces, so
+     offering the engine's 1,750 extractor names as choices would let someone
+     pick one that can never match anything and never be told. */
+
+  var siteData = null;                    // fetched once, then kept
+  var pickerState = { open: false, mode: "pick", picked: [], onSave: null };
+  // Long lists are capped rather than rendered whole; the cap is stated in
+  // the header, never applied silently.
+  var SITE_ROW_CAP = 250;
+
+  function loadSites() {
+    if (siteData) return Promise.resolve(siteData);
+    return api("/api/sites").then(function (res) {
+      siteData = res && res.ok ? res : { pickable: [], all: [], count: 0 };
+      return siteData;
+    });
+  }
+
+  function renderPickable() {
+    var box = $("sitePickList");
+    box.innerHTML = "";
+    if (pickerState.mode !== "pick") return;
+
+    var term = $("siteSearch").value.trim().toLowerCase();
+    (siteData.pickable || []).forEach(function (name) {
+      if (term && name.toLowerCase().indexOf(term) < 0) return;
+      var chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "chip" + (pickerState.picked.indexOf(name) >= 0 ? " is-on" : "");
+      chip.textContent = name;
+      chip.setAttribute("aria-pressed", pickerState.picked.indexOf(name) >= 0);
+      chip.addEventListener("click", function () {
+        var at = pickerState.picked.indexOf(name);
+        if (at >= 0) pickerState.picked.splice(at, 1);
+        else pickerState.picked.push(name);
+        renderPickable();
+      });
+      box.appendChild(chip);
+    });
+  }
+
+  function renderAll() {
+    var head = $("siteAllHead"), list = $("siteAllList");
+    var term = $("siteSearch").value.trim().toLowerCase();
+    var names = siteData.all || [];
+    var hits = term
+      ? names.filter(function (n) { return n.toLowerCase().indexOf(term) >= 0; })
+      : names;
+
+    list.innerHTML = "";
+    if (!hits.length) {
+      head.textContent = term ? "" : "The engine listed nothing.";
+      var none = document.createElement("div");
+      none.className = "site-all-none";
+      none.textContent = term
+        ? "Nothing matches “" + term + "”. It may still work — try the link."
+        : "Could not read the list from the engine.";
+      list.appendChild(none);
+      return;
+    }
+
+    var shown = hits.slice(0, SITE_ROW_CAP);
+    head.textContent = shown.length < hits.length
+      ? "Showing " + shown.length + " of " + hits.length + " — keep typing to narrow it"
+      : hits.length + (term ? " matching" : "") + " site" + (hits.length === 1 ? "" : "s");
+
+    shown.forEach(function (name) {
+      var row = document.createElement("span");
+      if (term) {
+        var at = name.toLowerCase().indexOf(term);
+        row.appendChild(document.createTextNode(name.slice(0, at)));
+        var hit = document.createElement("mark");
+        hit.textContent = name.slice(at, at + term.length);
+        row.appendChild(hit);
+        row.appendChild(document.createTextNode(name.slice(at + term.length)));
+      } else {
+        row.textContent = name;
+      }
+      list.appendChild(row);
+    });
+  }
+
+  function renderPicker() {
+    renderPickable();
+    renderAll();
+  }
+
+  function openSitePicker(opts) {
+    loadSites().then(function (data) {
+      pickerState = {
+        open: true,
+        mode: opts.mode || "pick",
+        picked: (opts.picked || []).slice(),
+        onSave: opts.onSave || null
+      };
+
+      $("sitePickerTitle").textContent = opts.title || "Sites";
+      $("sitePickerMsg").textContent = opts.message ||
+        (pickerState.mode === "pick"
+          ? "Nothing picked means every site."
+          : "Every site the installed engine can read.");
+      $("siteSearch").value = "";
+      $("siteAllWrap").hidden = pickerState.mode === "pick" && !data.all.length;
+      // Browse mode has nothing to save, so it gets one way out, not two.
+      $("sitePickerSave").hidden = pickerState.mode !== "pick";
+      $("sitePickerCancel").textContent =
+        pickerState.mode === "pick" ? "Cancel" : "Close";
+
+      renderPicker();
+      $("sitePicker").hidden = false;
+      $("siteSearch").focus();
+    });
+  }
+
+  function closeSitePicker() {
+    pickerState.open = false;
+    $("sitePicker").hidden = true;
+  }
+
+  $("siteSearch").addEventListener("input", function () {
+    if (pickerState.open) renderPicker();
+  });
+
+  $("sitePickerCancel").addEventListener("click", closeSitePicker);
+
+  $("sitePickerSave").addEventListener("click", function () {
+    var chosen = pickerState.picked.slice();
+    var done = pickerState.onSave;
+    closeSitePicker();
+    if (done) done(chosen);
+  });
+
+  // Escape closes it, and clicking the scrim behind it does too - the two
+  // ways out anyone tries first.
+  $("sitePicker").addEventListener("click", function (e) {
+    if (e.target === $("sitePicker")) closeSitePicker();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && pickerState.open) closeSitePicker();
+  });
+
+  $("browseSites").addEventListener("click", function () {
+    openSitePicker({
+      mode: "browse",
+      title: "What Riplox can download",
+      message: "Read from the installed engine, so this list is what this "
+             + "copy can actually reach — not a claim written once."
+    });
+  });
+
+  /* The clipboard filter. Its own note has to state the current rule, because
+     "instant download is on" and "instant download is on for two sites" are
+     very different things to leave running. */
+  function clipSitesNote(list) {
+    var note = $("clipSitesNote");
+    if (!note) return;
+    note.textContent = (list && list.length)
+      ? "Instant download only acts on: " + list.join(", ")
+      : "Instant download acts on any site.";
+  }
+
+  $("clipSitesBtn").addEventListener("click", function () {
+    openSitePicker({
+      mode: "pick",
+      picked: settings.clipboard_sites || [],
+      title: "Instant download — which sites",
+      message: "With nothing picked, every link you copy is downloaded. "
+             + "Pick sites to narrow that to the ones you meant.",
+      onSave: function (chosen) {
+        saveSetting({ clipboard_sites: chosen }).then(function (res) {
+          if (!res.ok) { toast("Could not save that.", "bad"); return; }
+          clipSitesNote(chosen);
+          toast(chosen.length
+            ? "Instant download limited to " + chosen.length + " site"
+              + (chosen.length === 1 ? "" : "s")
+            : "Instant download acts on any site", "good");
+        });
+      }
+    });
+  });
+
+  clipSitesNote(settings.clipboard_sites);
 
   /* -------------------------------------------------------- YouTube helper */
 
@@ -2665,7 +3464,12 @@
           " · JavaScript helper: " + (env.js ? "yes" : "missing") +
           " · YouTube helper: " + (env.potoken ? "installed" : "off") + ".";
       }
+
+      // Anything switched on that is not actually being applied gets said
+      // next to its own switch, not left for the user to discover in a file.
+      markDropped(res.dropped);
     });
+    loadHealth();
   }
 
   /* Is a newer engine published? A line of text, nothing else - the zip is

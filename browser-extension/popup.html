@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <img class="mark" src="icons/icon48.png" alt="" width="22" height="22">
+    <span>Riplox</span>
+  </header>
+
+  <p class="page" id="page" title="">Reading this tab…</p>
+
+  <label class="field">
+    <span>Quality</span>
+    <select id="quality">
+      <option value="best">Best available</option>
+      <option value="2160">4K · 2160p</option>
+      <option value="1440">1440p</option>
+      <option value="1080">1080p</option>
+      <option value="720">720p</option>
+      <option value="480">480p</option>
+      <option value="360">360p</option>
+      <option value="mp3">MP3 audio</option>
+    </select>
+  </label>
+
+  <button id="send" class="primary">Send to Riplox</button>
+
+  <p class="said" id="said" hidden></p>
+
+  <details class="more">
+    <summary>Options</summary>
+
+    <label class="check">
+      <input type="checkbox" id="showBadge">
+      <span>Show how many downloads are running</span>
+    </label>
+
+    <!-- Off, and it stays off until the browser is asked. Ticking it is what
+         gives this extension any sight of a page at all - before that it can
+         only see the tab you deliberately send. -->
+    <label class="check">
+      <input type="checkbox" id="inPageButton">
+      <span>Show a button on every page</span>
+    </label>
+    <p class="fine" id="permNote">Turning this on asks the browser for access
+      to pages. Turning it off gives that access back.</p>
+
+    <p class="fine">Only these sites — none ticked means every site.</p>
+    <div class="sites" id="sites"></div>
+  </details>
+
+  <footer>
+    <p>The download happens in Riplox, not here. The first time, the browser
+      asks whether Riplox may be opened — tick <b>always allow</b> in the tab
+      that opens and it will not ask again.</p>
+  </footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>

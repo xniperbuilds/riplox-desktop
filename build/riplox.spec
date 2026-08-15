@@ -48,6 +48,10 @@ a = Analysis(
         "sharing",
         "convert",
         "watch",
+        # Imported inside the function that uses it, so the analyser never
+        # sees it. Leaving it out builds cleanly and fails only on the day the
+        # engine is refused - which is the one day it has to work.
+        "doors",
         # Reached only through sharing.py, so PyInstaller cannot see them:
         # segno draws the pairing QR, and AES-GCM seals every message the
         # relay carries. Without these Sharing cannot be turned on at all.
@@ -82,8 +86,47 @@ exe = EXE(
     version=str(ROOT / "build" / "version_info.txt"),
 )
 
+# The native messaging host: a second, tiny program in the same folder.
+#
+# It has to be its own executable because Chrome talks to it over stdin and
+# stdout, and Riplox itself is built windowed - a windowed process has no
+# console streams to talk over. It shares this build's runtime rather than
+# carrying a second copy of Python: exclude_binaries keeps it dependent on the
+# _internal folder both exes sit beside, so it costs about a megabyte.
+host_a = Analysis(
+    [str(SRC / "native_host.py")],
+    pathex=[str(SRC)],
+    binaries=[],
+    datas=[],
+    hiddenimports=[],
+    hookspath=[],
+    runtime_hooks=[],
+    excludes=excludes,
+    noarchive=False,
+)
+
+host_pyz = PYZ(host_a.pure)
+
+host_exe = EXE(
+    host_pyz,
+    host_a.scripts,
+    [],
+    exclude_binaries=True,
+    name="RiploxHost",
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=False,
+    console=True,       # required: Chrome speaks to it over stdin/stdout
+    hide_console="hide-early",   # ...but nobody should ever see the window
+    disable_windowed_traceback=False,
+    icon=str(SRC / "static" / "img" / "riplox.ico"),
+    version=str(ROOT / "build" / "version_info.txt"),
+)
+
 coll = COLLECT(
     exe,
+    host_exe,
     a.binaries,
     a.datas,
     strip=False,

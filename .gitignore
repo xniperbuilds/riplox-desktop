@@ -30,6 +30,12 @@ V1.2_PLAN.md
 YOUTUBE_FIX_PLAN.md
 FINAL_PLAN.md
 
+# The test scripts. They live here rather than in a temp folder - that is where
+# they were, and a cleared temp directory would have taken the lot. Not
+# published yet: several hold this machine's own paths and real links from the
+# owner's history, so they need a pass for personal data before they could be.
+tests-local/
+
 # Local state from `wrangler dev`, which is a machine's own scratch copy of
 # the Durable Object storage.
 relay/.wrangler/

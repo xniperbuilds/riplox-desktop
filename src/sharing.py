@@ -172,18 +172,33 @@ def _open_envelope(key_b64: str, nonce_b64: str, cipher_b64: str):
         return None
 
 
-def _remember(nonce_b64: str, now: float) -> bool:
-    """True the first time this nonce is seen, False ever after.
+def _seen(nonce_b64: str) -> bool:
+    """Has this message already been dealt with?
 
     On disk, not in memory. The point of the relay holding a message while the
     PC is off is that it arrives after a restart - so a replay guard that
     forgets on restart would not be a guard at all.
     """
     with _lock:
+        return nonce_b64 in (load().get("seen") or {})
+
+
+def _burn(nonce_b64: str, now: float) -> None:
+    """
+    Record that this message has been dealt with, so a redelivery is ignored.
+
+    Split from the check on purpose, and called only once the message has
+    actually landed somewhere. Recording it up front - which is what this used
+    to do - meant that a link refused for any reason at all was already marked
+    as handled: the relay would redeliver it, this end would call it a replay,
+    and it was gone for good with nothing written anywhere. Links sent while
+    the PC was off went missing exactly this way.
+    """
+    with _lock:
         data = load()
         seen = data.get("seen") or {}
         if nonce_b64 in seen:
-            return False
+            return
 
         seen[nonce_b64] = now
         if len(seen) > MAX_SEEN:
@@ -195,7 +210,6 @@ def _remember(nonce_b64: str, now: float) -> bool:
 
         data["seen"] = seen
         _save(data)
-        return True
 
 
 def _fresh(body: dict, nonce_b64: str) -> str:
@@ -208,7 +222,7 @@ def _fresh(body: dict, nonce_b64: str) -> str:
     now = time.time()
     if sent < now - MESSAGE_LIFE or sent > now + CLOCK_SLACK:
         return "stale"
-    if not _remember(nonce_b64, now):
+    if _seen(nonce_b64):
         return "replay"
     return "ok"
 
@@ -468,8 +482,25 @@ def set_sink(fn) -> None:
 
 def _note(entry: dict) -> None:
     data = load()
-    data["log"] = ([entry] + data.get("log", []))[:40]
+    data["log"] = _trimmed([entry] + data.get("log", []))
     save(data)
+
+
+LOG_KEEP = 40
+
+
+def _trimmed(log: list) -> list:
+    """
+    The last forty entries - plus every link still waiting, however old.
+
+    A held link is not history, it is something still to be decided. Trimming
+    the list by age alone meant a busy day could push one off the end and take
+    it with it, which is the same silent loss the holding was there to prevent.
+    """
+    waiting = [e for e in log if e.get("state") == "waiting"]
+    settled = [e for e in log if e.get("state") != "waiting"][:LOG_KEEP]
+    keep = {id(e) for e in waiting} | {id(e) for e in settled}
+    return [e for e in log if id(e) in keep]
 
 
 def handle(nonce_b64: str, cipher_b64: str, via: str = "lan") -> str:
@@ -505,6 +536,13 @@ def handle(nonce_b64: str, cipher_b64: str, via: str = "lan") -> str:
 
         verdict = dead or _fresh(body, nonce_b64)
         if verdict == "ok":
+            # Only now, with the message decrypted and about to be acted on.
+            # Whatever the outcome below, it lands somewhere this end can show:
+            # queued, held for approval, or held with the reason it could not
+            # start. Nothing is refused into silence any more, which is what
+            # makes it safe to mark this one as handled.
+            _burn(nonce_b64, time.time())
+
             kind = body.get("kind")
             if kind == "hello":
                 verdict = ("paired" if (device is not None or _claim(body))
@@ -592,16 +630,15 @@ def _device_dir(name: str):
         return ""          # fall back to the usual folder rather than fail
 
 
-def _accept(device, body: dict) -> str:
-    """Apply this device's rules, then queue it. Returns what to tell the phone."""
-    url = str(body.get("url") or "").strip()
-    if not url.lower().startswith(("http://", "https://")) or len(url) > 2000:
-        return "bad-link"
+def _blocked_by(device, limits: dict, url: str) -> str:
+    """
+    Which of this device's rules stops this link, or "".
 
-    settings = engine.load_settings()
-    limits = (device or {}).get("limits") or {}
-    device_id = (device or {}).get("id", "")
-
+    Worked out in one place and returned rather than acted on, because none of
+    these are reasons to throw a link away. A daily limit is over by tomorrow,
+    a pause is undone by a click, a site list can be edited. The link is kept
+    either way and the reason travels with it.
+    """
     if (device or {}).get("paused"):
         return "paused"
 
@@ -617,6 +654,31 @@ def _accept(device, body: dict) -> str:
     total_gb = int(limits.get("total_gb") or 0)
     if total_gb and written >= total_gb * (1024 ** 3):
         return "total-limit"
+
+    return ""
+
+
+def _accept(device, body: dict) -> str:
+    """
+    Apply this device's rules, then queue it. Returns what to tell the phone.
+
+    A link that a rule stops is *held*, not dropped. It goes into the activity
+    log in the same "waiting" state an approval uses, so it appears with the
+    same Approve button and the same badge, and the reason is written beside
+    it. Before this, a link refused by a limit was answered to the phone and
+    then existed nowhere: the message had already been marked as handled, so
+    the relay's redelivery was refused as a replay and it was gone. Sending
+    several at once with the PC off was the reliable way to lose some.
+    """
+    url = str(body.get("url") or "").strip()
+    if not url.lower().startswith(("http://", "https://")) or len(url) > 2000:
+        return "bad-link"          # never going to work; nothing to keep
+
+    settings = engine.load_settings()
+    limits = (device or {}).get("limits") or {}
+    device_id = (device or {}).get("id", "")
+
+    blocked = _blocked_by(device, limits, url)
 
     quality = str(body.get("quality") or settings.get("default_quality", "best"))
     if quality not in QUALITIES:
@@ -643,13 +705,20 @@ def _accept(device, body: dict) -> str:
         "device": device_id,
         "opts": opts,
         "at": time.time(),
-        "state": "waiting" if hold else "queued",
+        # "waiting" either way, so a held link gets the Approve button and the
+        # badge the screen already draws for one. What differs is why.
+        "state": "waiting" if (hold or blocked) else "queued",
     }
+    if blocked:
+        entry["why"] = blocked
 
     if device is not None:
         data = load()
         for d in data["devices"]:
-            if d["id"] == device["id"]:
+            # A link that never started has cost nothing, so it is not counted
+            # against an allowance - otherwise a device at its daily limit
+            # would push its own held links further out of reach every time.
+            if d["id"] == device["id"] and not blocked:
                 d["last"] = time.time()
                 d["count"] = int(d.get("count", 0)) + 1
                 # Today's tally lives here so a daily limit larger than the
@@ -658,22 +727,35 @@ def _accept(device, body: dict) -> str:
                     d["day"] = _today()
                     d["day_count"] = 0
                 d["day_count"] = int(d.get("day_count") or 0) + 1
-        data["log"] = ([entry] + data.get("log", []))[:40]
+        data["log"] = _trimmed([entry] + data.get("log", []))
         save(data)
     else:
         _note(entry)
 
     if entry["state"] == "queued" and _sink:
         _sink(url, quality, who, opts, device_id)
+
+    # The phone is told the rule that stopped it, not a bare "held" - "your
+    # daily limit is up" and "your PC is asking first" are different news.
+    if blocked:
+        return blocked
     return "queued" if not hold else "held"
 
 
 def approve(entry_id: str, ok: bool) -> bool:
-    """Start, or throw away, a link that was held for approval."""
+    """
+    Start, or throw away, a link that was held.
+
+    Held for approval or held by a rule - the same button either way. Saying
+    yes to one a rule stopped is a decision about that link, so the rule is not
+    consulted again: the person looking at the screen outranks the allowance
+    they set themselves.
+    """
     data = load()
     for entry in data.get("log", []):
         if entry.get("id") == entry_id and entry.get("state") == "waiting":
             entry["state"] = "queued" if ok else "refused"
+            entry.pop("why", None)
             save(data)
             if ok and _sink:
                 _sink(entry["url"], entry["quality"], entry.get("from", ""),
@@ -818,6 +900,126 @@ def _serve_lan() -> None:
 # The relay
 # --------------------------------------------------------------------------
 
+# When one message may be let go: after this many failures AND not before this
+# much time has passed since the first of them.
+#
+# The count alone was not enough, and the reason is worth writing down. A relay
+# holding a message answers the poll immediately, and the loop re-opens the
+# poll the moment it returns - so three failures happen back to back. Measured:
+# a link that failed three times and would have worked on the fourth was given
+# up on in 31 milliseconds. Every transient worth surviving - a file still
+# locked by the last download, a folder being written to, a disk briefly full -
+# lasts longer than that, so the rule protected against nothing.
+#
+# Two minutes is long enough for those to clear and short enough that a link
+# which can never be handled is not still circling when anyone notices.
+GIVE_UP_AFTER = 3
+GIVE_UP_NOT_BEFORE = 120
+
+# nonce -> [failures, when the first one happened]. In memory only: a restart
+# is exactly the kind of thing that fixes whatever was wrong, so the count
+# starting again is the right behaviour rather than a lost record.
+_failures = {}
+
+
+def deliver(messages: list) -> list:
+    """
+    Hand each message to the app, and report which ones may be confirmed.
+
+    Its own function rather than a block inside the poll loop, so it can be
+    run without a network: the rule it carries - what happens to a link that
+    cannot be handled - is the one worth being sure about, and a rule that
+    can only be exercised by reaching a live relay does not get exercised.
+
+    A message is confirmed only once it has been dealt with. One that throws
+    is left unconfirmed so the relay keeps it and hands it back.
+    """
+    settled = []
+    for message in messages:
+        nonce = str(message.get("n", ""))
+        try:
+            handle(nonce, str(message.get("c", "")), via="relay")
+        except Exception as exc:                       # noqa: BLE001
+            # Kept - but only so many times. One that fails on every attempt
+            # would come back forever, quietly, and the holding meant to
+            # prevent a silent loss would have become a silent loop instead.
+            # After GIVE_UP_AFTER tries it is confirmed anyway and written
+            # down as given up on, which is the difference that matters.
+            now = time.time()
+            record = _failures.setdefault(nonce, [0, now])
+            record[0] += 1
+            tries, first = record[0], record[1]
+            waited = now - first
+
+            if tries < GIVE_UP_AFTER or waited < GIVE_UP_NOT_BEFORE:
+                _note({"at": now, "state": "error", "via": "relay",
+                       "why": f"could not be handled (try {tries}): {exc}"[:120]})
+                continue
+            _note({"at": now, "state": "error", "via": "relay",
+                   "why": (f"gave up after {tries} tries over "
+                           f"{int(waited)}s: {exc}")[:120]})
+            _failures.pop(nonce, None)
+        else:
+            _failures.pop(nonce, None)
+        settled.append(nonce)
+    return settled
+
+
+def _confirm(room: str, nonces: list) -> None:
+    """
+    Tell the relay these are dealt with, by name.
+
+    Named rather than "all of them": a batch can be half handled, and clearing
+    the lot because one worked is the same mistake ack=1 exists to fix.
+    Failing to confirm costs nothing - the relay keeps them and hands them
+    back on the next poll, where the nonce check refuses the duplicates.
+    """
+    try:
+        body = json.dumps({"n": list(nonces)[:50]}).encode("utf-8")
+        request = urllib.request.Request(
+            f"{relay_base()}/done/{room}", data=body,
+            headers=dict(RELAY_HEADERS, **{"Content-Type": "application/json"}))
+        with urllib.request.urlopen(request, timeout=15):
+            pass
+    except Exception:                                  # noqa: BLE001
+        pass
+
+
+def pending() -> dict:
+    """
+    Is anything of mine still sitting at the relay?
+
+    Asked the practical way round: rather than the PC poking every paired
+    phone - which cannot be woken reliably anyway - the PC asks the one place
+    that already keeps the queue for seven days. Counts only; the relay cannot
+    read the contents and is not asked to hand them over.
+    """
+    if engine.load_settings().get("share_lan_only"):
+        return {"ok": False, "error": "Sharing is set to this network only."}
+    try:
+        room = load()["room"]
+        request = urllib.request.Request(f"{relay_base()}/pending/{room}",
+                                         headers=RELAY_HEADERS)
+        with urllib.request.urlopen(request, timeout=20) as response:
+            data = json.loads(response.read().decode("utf-8", "replace"))
+    except Exception as exc:                           # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:140]}
+
+    waiting = int(data.get("waiting") or 0)
+    held = int(data.get("held") or 0)
+    oldest = float(data.get("oldest") or 0) / 1000.0
+    return {
+        "ok": True,
+        "waiting": waiting,
+        "held": held,
+        "stuck": waiting + held,
+        "oldest": oldest,
+        # An older copy of the relay knows neither route; saying so beats
+        # reporting a confident zero it never actually answered.
+        "since": engine._ago(oldest) if oldest else "",
+    }
+
+
 def _poll_relay() -> None:
     """
     One long request at a time, re-opened the moment it returns.
@@ -846,7 +1048,12 @@ def _poll_relay() -> None:
         room = load()["room"]
         # No cursor on purpose - see the note in the Worker. The relay hands
         # over whatever is waiting; a repeat is refused here by nonce.
-        url = f"{relay_base()}/wait/{room}?hold={hold}"
+        #
+        # ack=1 says: do not treat the next poll as proof this batch landed.
+        # Without it the relay drops a message the moment we ask again, so a
+        # copy that received a link and then failed to queue it lost the link
+        # for good. Now each one is confirmed by name, after it is dealt with.
+        url = f"{relay_base()}/wait/{room}?hold={hold}&ack=1"
         try:
             request = urllib.request.Request(url, headers=RELAY_HEADERS)
             with urllib.request.urlopen(request, timeout=hold + 10) as response:
@@ -856,9 +1063,18 @@ def _poll_relay() -> None:
             proven = True
             backoff = 2
 
-            for message in data.get("msgs") or []:
-                handle(str(message.get("n", "")), str(message.get("c", "")),
-                       via="relay")
+            arrived = data.get("msgs") or []
+            settled = deliver(arrived)
+            if settled:
+                _confirm(room, settled)
+
+            # Messages that arrived and none of them dealt with: the relay is
+            # holding them and will hand back the same ones the instant this
+            # asks again. Without a pause that is a loop with no wait in it -
+            # it burns a core, fills the log, and spends the retry budget in
+            # milliseconds on a problem that needs seconds to clear.
+            if arrived and not settled:
+                _stop.wait(min(POLL_SECONDS, 20))
 
         except urllib.error.HTTPError as exc:
             _status["relay"] = f"relay said {exc.code}"

@@ -551,8 +551,29 @@ button { font-family: var(--body); }
   flex: 1;
 }
 
-/* The shortcut is the app's best feature and lives three tabs away in
-   Settings, so the first screen says it out loud. */
+/* One quiet row under the URL bar: the page action on the left, the shortcut
+   on the right. This replaced two bordered prose blocks that between them
+   took more vertical space than the input they were explaining - on a screen
+   whose whole job is one field, that was the design going wrong. */
+.capture-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 11px;
+}
+
+/* The shortcut is the app's best feature and otherwise lives three tabs away
+   in Settings, so it is stated here - as a keycap, not a sentence. */
+.capture-shortcut {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
 .tip {
   display: flex;
   align-items: baseline;
@@ -572,7 +593,7 @@ button { font-family: var(--body); }
   font-size: 12.5px;
   font-weight: 600;
 }
-.tip code {
+.tip code, .capture-shortcut code {
   padding: 1px 6px;
   border: 1px solid rgba(var(--cyan-rgb), .28);
   border-radius: 5px;
@@ -1746,6 +1767,369 @@ button { font-family: var(--body); }
 }
 .dlg-foot button { min-width: 120px; }
 
+/* --- settings: eight rows, not thirty ------------------------------------ */
+
+.set-lede {
+  margin: 0 0 16px;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
+/* The closed state is the one that matters: this is what the screen looks
+   like when it is opened, and it has to read as a short list of subjects. */
+.group-head.is-group {
+  margin: 0 0 8px;
+  padding: 0;
+  border: 0;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.group-toggle {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 15px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--tint);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .18s var(--ease), background .18s var(--ease);
+}
+.group-toggle:hover { border-color: rgba(var(--cyan-rgb), .45); }
+
+/* A chevron that points down when the group is open. Rotation only, so
+   nothing around it moves. */
+.group-toggle::before {
+  content: "";
+  flex: none;
+  align-self: center;
+  width: 6px; height: 6px;
+  margin-right: 2px;
+  border-right: 1.5px solid var(--ink-faint);
+  border-bottom: 1.5px solid var(--ink-faint);
+  transform: rotate(-45deg);
+  transition: transform .18s var(--ease);
+}
+.group-head.is-open .group-toggle::before { transform: rotate(45deg); }
+
+.group-name {
+  flex: none;
+  font-family: var(--display);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* The whole point of the closed screen: what you would find in here, in
+   words, so the list of names is also a description of the app. */
+.group-what {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--ink-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-count {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+.group-head.is-open + .panel { margin-bottom: 18px; }
+
+/* Below this the description would be a sliver of itself, so it wraps under
+   the name instead of being cut to nothing. */
+@media (max-width: 720px) {
+  .group-toggle { flex-wrap: wrap; }
+  .group-what { flex-basis: 100%; white-space: normal; }
+}
+
+/* A row whose switch still holds a choice but cannot act on it right now.
+   Dimmed rather than hidden: hiding it would lose the setting from view and
+   make the master switch look like it reset everything. */
+.field.is-inert .field-text { opacity: .5; }
+.field.is-inert .toggle { opacity: .4; cursor: not-allowed; }
+
+/* --- did anything get lost? ---------------------------------------------- */
+
+.share-check {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0 0 16px;
+}
+.share-check-note {
+  flex: 1;
+  min-width: 200px;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+/* --- finding a setting --------------------------------------------------- */
+
+.set-find {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0 0 18px;
+}
+.set-find .text-input {
+  flex: 1;
+  min-width: 190px;
+  font-family: var(--body);
+}
+.set-level {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  font-size: 12.5px;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+.set-level input { cursor: pointer; }
+.set-level:hover { color: var(--ink); }
+.set-found {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+
+/* --- the diagnostics report ---------------------------------------------- */
+
+.diag {
+  margin: 0 18px 16px;
+  padding: 12px 14px;
+  max-height: 300px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--sunk);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: var(--ink-dim);
+  white-space: pre;
+  user-select: text;
+  overscroll-behavior: contain;
+}
+
+/* --- one press, two files ------------------------------------------------ */
+
+.also-audio {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 11px;
+  font-size: 12.5px;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+.also-audio input { cursor: pointer; }
+.also-audio:hover { color: var(--ink); }
+
+/* --- who you download from ----------------------------------------------- */
+
+.accounts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 0 0 14px;
+}
+.accounts-none {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+.account-chip { padding: 5px 12px; font-size: 12px; }
+.account-chip em {
+  font-style: normal;
+  margin-left: 7px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-faint);
+}
+.account-chip:hover em { color: inherit; }
+
+/* --- searching a long queue ---------------------------------------------- */
+
+.queue-find {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.queue-find .text-input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--body);
+}
+.queue-found {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+
+/* --- how sites are behaving ---------------------------------------------- */
+
+.health { padding: 2px 18px 14px; }
+.health-none {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
+.health-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line-soft);
+  font-size: 12.5px;
+}
+.health-row:first-child { border-top: 0; }
+
+.health-dot { flex: none; font-size: 11px; color: var(--ink-faint); }
+.health-row.is-ok .health-dot { color: var(--cyan-ink); }
+/* The middle state is the one worth noticing: it still worked, but only
+   because the fallback caught it. Amber, not green. */
+.health-row.is-door .health-dot { color: var(--amber-ink); }
+.health-row.is-down .health-dot { color: var(--pink-soft); }
+
+.health-site {
+  flex: none;
+  min-width: 92px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.health-what {
+  flex: 1;
+  min-width: 0;
+  color: var(--ink-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.health-when {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+/* --- what's next --------------------------------------------------------- */
+
+.roadmap {
+  list-style: none;
+  margin: 0;
+  padding: 4px 18px 16px;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--ink-dim);
+}
+.roadmap li {
+  position: relative;
+  padding-left: 20px;
+  margin-top: 8px;
+}
+/* An open circle for what is coming, a filled tick for what landed. Shape,
+   not colour alone - the two states have to read the same in either theme
+   and to anyone who cannot tell the colours apart. */
+.roadmap li::before {
+  content: "○";
+  position: absolute;
+  left: 0;
+  color: var(--ink-faint);
+}
+.roadmap li.done::before { content: "✓"; color: var(--cyan-ink); }
+.roadmap li.done { color: var(--ink-faint); }
+.roadmap li b { color: var(--ink); font-weight: 600; }
+.roadmap li.done b { color: var(--ink-dim); font-weight: 600; }
+
+/* --- the site picker ----------------------------------------------------- */
+
+/* Wider than the ask box: this one holds a grid, not a sentence. */
+.dlg-sites { width: min(620px, 100%); }
+
+.dlg-sites .text-input {
+  width: 100%;
+  margin-top: 14px;
+  font-family: var(--body);       /* a search box, not a field of code */
+}
+
+/* The chips are the same component the per-device rules use, deliberately:
+   the two screens are choosing from the same list for the same reason, and
+   two different-looking pickers for one idea is how an app stops feeling
+   like one app. */
+.site-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.site-pick:empty { margin-top: 0; }
+
+.site-all { margin-top: 16px; }
+.site-all-head {
+  font-size: 12px;
+  color: var(--ink-faint);
+  margin-bottom: 8px;
+}
+.site-all-list {
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--sunk);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.9;
+  color: var(--ink-dim);
+  /* A long list inside a dialog that also scrolls is two scrollbars fighting;
+     this one owns its overflow so the dialog does not have to. */
+  overscroll-behavior: contain;
+}
+.site-all-list span { display: block; }
+.site-all-list mark {
+  background: rgba(var(--cyan-rgb), .18);
+  color: var(--cyan-ink);
+  border-radius: 3px;
+}
+.site-all-none { color: var(--ink-faint); font-family: var(--body); }
+
+/* A button that reads as part of the sentence it sits in. */
+.link-quiet {
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: var(--cyan-ink);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.link-quiet:hover { color: var(--ink); }
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* The ask/tell box is narrower than the warning sheet - it holds a sentence,
    not a briefing. */
 .dlg-ask { width: min(420px, 100%); }
@@ -1901,6 +2285,8 @@ body.dropping::after {
   color: var(--ink-faint);
 }
 .site-row.in .site-mark { color: var(--cyan-ink); }
+/* Held back, not signed out - a different thing, so a different colour. */
+.site-row.held .site-mark { color: var(--amber-ink); }
 
 /* --- the cookies.txt files ----------------------------------------------- */
 

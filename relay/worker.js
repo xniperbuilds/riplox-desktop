@@ -29,6 +29,10 @@ const MAX_ACKS = 200;
 
 const ROOM_RE = /^[a-f0-9]{16,64}$/;
 const RID_RE = /^[A-Za-z0-9_-]{6,40}$/;
+// One definition, used both where a nonce arrives and where it is confirmed.
+// Two copies of this would eventually disagree, and the shape a message was
+// accepted under has to be the shape it can be cleared under.
+const NONCE_RE = /^[A-Za-z0-9_-]{8,64}$/;
 
 const APP_PAGE = "https://xniperbuilds.com/riplox-desktop/";
 
@@ -152,7 +156,24 @@ export default {
 
     if (parts[0] === "wait" && request.method === "GET") {
       const hold = url.searchParams.get("hold") || "25";
-      return stub.fetch(`https://room/wait?hold=${hold}`);
+      // ack has to travel too. This router rebuilds the address rather than
+      // passing it through, so anything not named here is silently dropped -
+      // which is exactly what happened to ack on the first deploy: the flag
+      // was sent, never arrived, and the fix appeared not to work.
+      const ack = url.searchParams.get("ack") === "1" ? "&ack=1" : "";
+      return stub.fetch(`https://room/wait?hold=${hold}${ack}`);
+    }
+
+    // The PC confirming, by name, what it actually dealt with.
+    if (parts[0] === "done" && request.method === "POST") {
+      const raw = await request.text();
+      if (raw.length > MAX_BODY) return json({ ok: false }, 413);
+      return stub.fetch("https://room/done", { method: "POST", body: raw });
+    }
+
+    // "Is anything of mine still sitting here?" - counts only.
+    if (parts[0] === "pending" && request.method === "GET") {
+      return stub.fetch("https://room/pending");
     }
 
     if (parts[0] === "ack") {
@@ -238,7 +259,7 @@ export class Room {
       const c = String(body.c || "");
       // Base64url, and nothing else - this worker cannot read the contents,
       // so shape is the only thing it can check.
-      if (!/^[A-Za-z0-9_-]{8,64}$/.test(n) || !/^[A-Za-z0-9_-]{8,4000}$/.test(c)) {
+      if (!NONCE_RE.test(n) || !/^[A-Za-z0-9_-]{8,4000}$/.test(c)) {
         return json({ ok: false }, 400);
       }
 
@@ -256,8 +277,21 @@ export class Room {
     if (url.pathname === "/wait") {
       const hold = Math.min(Number(url.searchParams.get("hold") || 25) || 25, MAX_HOLD);
 
-      // This request arriving is proof the previous response got through.
-      if (this.flight.length) {
+      /* Who clears the in-flight batch.
+       *
+       * Originally the next /wait did: its arrival was taken as proof the
+       * previous response got through. It is not. It proves the response
+       * arrived at the PC - not that the PC managed to do anything with it.
+       * A copy that received a link and then failed to queue it would ask
+       * again, and this line would quietly drop the link on the way past.
+       *
+       * A client that says ack=1 promises to confirm each message itself,
+       * through /done. One that does not is an older copy which has no way
+       * to confirm, so the old behaviour is kept for it - changing that
+       * would leave every existing install redelivering the same link
+       * forever. */
+      const willAck = url.searchParams.get("ack") === "1";
+      if (this.flight.length && !willAck) {
         this.flight = [];
         await this.keep();
       }
@@ -283,6 +317,54 @@ export class Room {
       return json({
         ok: true,
         msgs: this.flight.map((m) => ({ n: m.n, c: m.c })),
+        // So a PC that asks can tell the difference between "nothing was
+        // sent" and "something was sent and is still not dealt with".
+        held: this.flight.length,
+      });
+    }
+
+    /* The PC confirming it actually dealt with a message.
+     *
+     * Named nonces rather than "all of them": a batch can be half handled,
+     * and clearing the whole flight because one of them worked is the same
+     * mistake this route exists to fix. Anything not named stays in flight
+     * and comes back on the next /wait. */
+    if (url.pathname === "/done" && request.method === "POST") {
+      let body;
+      try {
+        body = JSON.parse(await request.text());
+      } catch {
+        return json({ ok: false }, 400);
+      }
+      const names = Array.isArray(body.n) ? body.n : [];
+      const done = new Set(
+        names.filter((n) => typeof n === "string" && NONCE_RE.test(n)));
+      if (!done.size) return json({ ok: false }, 400);
+
+      const before = this.flight.length;
+      this.flight = this.flight.filter((m) => !done.has(m.n));
+      if (this.flight.length !== before) await this.keep();
+
+      return json({ ok: true, cleared: before - this.flight.length,
+                    held: this.flight.length });
+    }
+
+    /* "Is anything of mine still sitting here?"
+     *
+     * The answer is counts, never contents: this worker cannot read the
+     * messages, and a route that handed them out to whoever asked would be a
+     * way to drain someone's queue without holding their key. Counts are
+     * enough for the PC to notice something is stuck and ask for it properly.
+     */
+    if (url.pathname === "/pending") {
+      this.sweep();
+      const oldest = [...this.queue, ...this.flight]
+        .reduce((min, m) => (min === 0 || m.at < min ? m.at : min), 0);
+      return json({
+        ok: true,
+        waiting: this.queue.length,   // never handed over yet
+        held: this.flight.length,     // handed over, never confirmed
+        oldest: oldest || 0,
       });
     }
 

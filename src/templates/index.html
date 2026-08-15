@@ -109,7 +109,10 @@
 
     <div class="capture-head reveal" style="--d:0ms">
       <h1>Paste a link.<br><span>Keep the video.</span></h1>
-      <p class="sub">YouTube · TikTok · Instagram · Facebook · X · Reddit — and a thousand more.</p>
+      <!-- The claim and the proof in one place: the app says "a thousand
+           more", so the phrase itself opens the list and shows them. -->
+      <p class="sub">YouTube · TikTok · Instagram · Facebook · X · Reddit —
+        <button type="button" class="link-quiet" id="browseSites">and a thousand more</button>.</p>
     </div>
 
     <form class="urlbar reveal" id="urlForm" style="--d:60ms" autocomplete="off">
@@ -128,18 +131,20 @@
       <em id="clipText"></em>
     </div>
 
-    <div class="tip reveal" id="hotkeyTip" style="--d:130ms" hidden>
-      <b>Instant download</b>
-      <span>Copy a link in any program and press <code id="hotkeyTipKeys"></code>.
-            Riplox queues it without you switching windows — even from the tray.</span>
-    </div>
+    <!-- One row, not two paragraphs. Both of these used to be prose blocks
+         stacked under the URL bar, which is a lot of explaining for a screen
+         whose whole job is one input. The action is a real button now, and
+         the shortcut is a keycap rather than a sentence about a keycap.
 
-    <!-- For the pages no extractor knows: a blog post with videos in it, a
-         links page, a thread. Read once, listed, and nothing is fetched until
-         something is picked. -->
-    <div class="hint reveal" id="grabHint" style="--d:150ms">
-      <span>A whole page with videos on it? </span>
-      <button type="button" id="grabBtn">Find everything on it</button>
+         The button is for pages no extractor knows: a blog post with videos
+         in it, a links page, a thread. Read once, listed, and nothing is
+         fetched until something is picked. -->
+    <div class="capture-actions reveal" style="--d:130ms">
+      <button type="button" class="ghost small" id="grabBtn"
+              title="Reads the page in the box above and lists every video on it. Nothing downloads until you pick.">Find everything on a page</button>
+      <span class="capture-shortcut" id="hotkeyTip" hidden>
+        Copy a link anywhere, press <code id="hotkeyTipKeys"></code>
+      </span>
     </div>
 
     <div class="error-box" id="analyzeError" hidden></div>
@@ -156,6 +161,14 @@
         <div class="quality-block">
           <label>Quality</label>
           <div class="chips" id="qualityChips"></div>
+          <!-- One press, two files. Downloading the same link twice to get
+               the audio as well was the thing people were doing by hand.
+               Hidden when MP3 is already the choice - offering to also make
+               an MP3 of an MP3 is nonsense. -->
+          <label class="also-audio" id="alsoAudioWrap">
+            <input type="checkbox" id="alsoAudio">
+            <span>Also save the audio as MP3</span>
+          </label>
         </div>
 
         <!-- One quiet line, closed on every install and after every link. It
@@ -277,6 +290,24 @@
             <p class="more-note" id="cookieNow"></p>
           </div>
 
+          <!-- Three things that change what comes out of one download, rather
+               than how it is fetched. Each is cleared for the next link. -->
+          <div class="more-sec">
+            <label class="more-check">
+              <input type="checkbox" id="optSubsOnly">
+              <span>Subtitles only — no video file</span>
+            </label>
+            <label class="more-check">
+              <input type="checkbox" id="optThumbAll">
+              <span>Save every thumbnail the site offers, not just the default</span>
+            </label>
+            <label class="more-check" id="optLiveWrap">
+              <input type="checkbox" id="optLiveFromStart">
+              <span>Live stream: start from the beginning, not from now</span>
+            </label>
+            <p class="more-note" id="subsOnlyNote" hidden></p>
+          </div>
+
           <div class="more-sec">
             <div class="more-row between">
               <label>The command Riplox will run</label>
@@ -335,7 +366,22 @@
   <section class="view" id="view-queue">
     <div class="view-head">
       <h2>Queue</h2>
+      <!-- Each of these shows only while it has something to act on. A row of
+           buttons that is always there but usually does nothing teaches
+           people to stop reading the row. -->
+      <button class="ghost small" id="pauseAll" hidden>Pause all</button>
+      <button class="ghost small" id="resumeAllTop" hidden>Resume all</button>
+      <button class="ghost small" id="retryAll" hidden>Retry all</button>
       <button class="ghost small" id="clearFinished">Clear finished</button>
+    </div>
+    <!-- Appears once the queue is long enough to need it. A search box over
+         four rows is furniture; over eighty it is the only way to find the
+         one that failed. -->
+    <div class="queue-find" id="queueFind" hidden>
+      <label class="sr-only" for="queueSearch">Search the queue</label>
+      <input type="search" id="queueSearch" class="text-input" autocomplete="off"
+             spellcheck="false" placeholder="Search the queue…">
+      <span class="queue-found" id="queueFound"></span>
     </div>
     <div class="resume-bar update-bar" id="updateBar" hidden>
       <span id="updateText"></span>
@@ -374,8 +420,16 @@
         <option value="big">Biggest first</option>
       </select>
       <span class="lib-count" id="libCount"></span>
+      <button class="ghost small" id="showAccounts">Accounts</button>
       <div class="chips lib-chips" id="libChips"></div>
     </div>
+
+    <!-- Built from the uploader already recorded with every finished
+         download, so nothing is fetched to produce it. Clicking one searches
+         the library for that name rather than being a shelf of its own -
+         there is already a search box, and a second way to filter the same
+         list would be a second thing to keep in step. -->
+    <div class="accounts" id="accountsBox" hidden></div>
     <div class="empty" id="libraryEmpty">
       <p>No downloads yet.</p>
       <span>Finished files are listed here.</span>
@@ -525,6 +579,16 @@
       PC. Only the link travels, and nothing on the internet can reach this
       computer.</p>
 
+    <!-- Asked the practical way round. A PC cannot reliably wake a phone to
+         ask it anything, but the relay already holds undelivered links for
+         seven days - so the PC asks the relay instead. Counts only; the relay
+         cannot read the links and is not asked to hand them over. -->
+    <div class="share-check">
+      <button class="ghost small" id="checkStuck">Check for anything missed</button>
+      <span class="share-check-note" id="stuckNote">Links sent while this PC
+        was off are kept for a week and arrive when it comes back.</span>
+    </div>
+
     <div class="share-grid">
       <div class="panel share-pair">
         <div class="field">
@@ -610,8 +674,36 @@
   <section class="view" id="view-settings">
     <div class="view-head"><h2>Settings</h2></div>
 
+    <!-- Someone opening this screen for the first time is not looking for a
+         particular setting - they are looking at what the app can even do.
+         Thirty rows of switches answers that question by drowning it, and the
+         honest outcome is that they scroll once and leave.
+         So the page opens as its table of contents: six short rows saying
+         what is inside each one, and nothing expanded but the first. The
+         search is for the second visit, when you do know what you want. -->
+    <!-- No number in this sentence on purpose: it would be wrong the first
+         time a group is added and nobody would notice. -->
+    <p class="set-lede">Everything Riplox can be told to do, grouped. Open one
+      to see what is inside it.</p>
+
+    <!-- Searches the descriptions as well as the names, which is the whole
+         reason it earns its place: an earlier attempt matched names only, and
+         a search that needs you to already know the name helps exactly the
+         person who did not need help. Typing "cookie" should find the sign-in
+         rows without knowing any of them are called that. -->
+    <div class="set-find">
+      <label class="sr-only" for="setSearch">Search settings</label>
+      <input type="search" id="setSearch" class="text-input" autocomplete="off"
+             spellcheck="false" placeholder="Search settings…">
+      <label class="set-level">
+        <input type="checkbox" id="setShowAdvanced">
+        <span>Show advanced</span>
+      </label>
+      <span class="set-found" id="setFound"></span>
+    </div>
+
     <!-- ---------------------------------------------------- Downloads -->
-    <h3 class="group-head">Downloads</h3>
+    <h3 class="group-head" data-what="Where files are saved, quality, how many at once, speed limit">Downloads</h3>
     <div class="panel">
       <div class="field">
         <div class="field-text">
@@ -661,6 +753,22 @@
 
       <div class="field">
         <div class="field-text">
+          <label>Play-anywhere video</label>
+          <span>H.264, so files open in any player. Off for maximum resolution.</span>
+        </div>
+        <button class="toggle {% if settings.prefer_h264 %}on{% endif %}"
+                id="setH264" role="switch"><i></i></button>
+      </div>
+    </div>
+
+    <!-- ---------------------------------------------------- Automatic -->
+    <!-- Everything Riplox can do without being asked, in one place. These
+         were scattered through Downloads, which is how a switch that acts on
+         its own ends up switched on by someone who never saw it. -->
+    <h3 class="group-head" data-what="Scheduled hours, watching the clipboard, the shortcut, starting with Windows">Doing it for you</h3>
+    <div class="panel">
+      <div class="field">
+        <div class="field-text">
           <label>Only download between these hours</label>
           <span>Fill the queue whenever you like and let it run when nobody
                 is using the connection.</span>
@@ -675,15 +783,6 @@
           <button class="toggle {% if settings.schedule_on %}on{% endif %}"
                   id="setSchedule" role="switch"><i></i></button>
         </div>
-      </div>
-
-      <div class="field">
-        <div class="field-text">
-          <label>Play-anywhere video</label>
-          <span>H.264, so files open in any player. Off for maximum resolution.</span>
-        </div>
-        <button class="toggle {% if settings.prefer_h264 %}on{% endif %}"
-                id="setH264" role="switch"><i></i></button>
       </div>
 
       <div class="field">
@@ -713,6 +812,17 @@
                 id="setAutoDownload" role="switch"><i></i></button>
       </div>
 
+      <!-- The one place a filter is worth having: with both switches above
+           on, every link copied anywhere is downloaded - including one being
+           copied to send to somebody. -->
+      <div class="field sub-field">
+        <div class="field-text">
+          <label>Only from these sites</label>
+          <span id="clipSitesNote">Instant download acts on any site.</span>
+        </div>
+        <button class="ghost small" id="clipSitesBtn">Choose sites</button>
+      </div>
+
       <div class="field sub-field">
         <div class="field-text">
           <label>Shortcut: <code class="inline" id="hotkeyLabel">checking…</code></label>
@@ -722,7 +832,11 @@
         <button class="toggle {% if settings.hotkey %}on{% endif %}"
                 id="setHotkey" role="switch"><i></i></button>
       </div>
+    </div>
 
+    <!-- ------------------------------------------- Saved with the video -->
+    <h3 class="group-head" data-what="Subtitles, chapters, thumbnails, and how files are filed">Saved alongside</h3>
+    <div class="panel">
       <div class="field">
         <div class="field-text">
           <label>Subtitles</label>
@@ -792,7 +906,7 @@
     </div>
 
     <!-- ------------------------------------------------------ YouTube -->
-    <h3 class="group-head">YouTube</h3>
+    <h3 class="group-head" data-what="Pacing, sponsor segments, and the helper for when YouTube asks if you are a bot">YouTube</h3>
     <div class="panel">
       <div class="field">
         <div class="field-text">
@@ -838,7 +952,7 @@
     </div>
 
     <!-- ------------------------------------------------------ Sign-in -->
-    <h3 class="group-head">Sign-in</h3>
+    <h3 class="group-head" data-what="Sign in to sites so private and members-only links work — one session per site, pausable">Sign-in</h3>
     <div class="panel">
       <div class="field">
         <div class="field-text">
@@ -891,7 +1005,7 @@
     </div>
 
     <!-- ------------------------------------------------------ Sharing -->
-    <h3 class="group-head">Sharing</h3>
+    <h3 class="group-head" data-what="Send a link from your phone and have this PC download it">Sharing</h3>
     <div class="panel">
       <div class="field">
         <div class="field-text">
@@ -914,7 +1028,7 @@
     </div>
 
     <!-- ------------------------------------------------------- Backup -->
-    <h3 class="group-head">Backup</h3>
+    <h3 class="group-head" data-what="Save your links and settings to a file, or load them back">Backup</h3>
     <div class="panel">
       <div class="field">
         <div class="field-text">
@@ -942,9 +1056,11 @@
     </div>
 
     <!-- ----------------------------------------------------- Advanced -->
-    <details class="group-adv">
-      <summary class="group-head">Advanced</summary>
-      <div class="panel">
+    <!-- Was a <details> of its own, back when it was the only closed group.
+         Now every group closes, so it uses the same one and stops being a
+         second kind of thing that opens differently. -->
+    <h3 class="group-head" data-what="Engine version and update channel, connection tuning, version checks">Advanced</h3>
+    <div class="panel">
         <div class="field">
           <div class="field-text">
             <label>Download engine</label>
@@ -1002,11 +1118,122 @@
           engine first — that fixes it most of the time.
           <span id="envLine"></span>
         </p>
+    </div>
+
+    <!-- -------------------------------------------------- Notifications -->
+    <h3 class="group-head" data-what="Which pop-ups Riplox shows, and a single switch to stop all of them">Notifications</h3>
+    <div class="panel">
+      <div class="field">
+        <div class="field-text">
+          <label>Show notifications</label>
+          <span>Off silences every one of them, whatever the switches below
+                say. Downloads keep running either way.</span>
+        </div>
+        <button class="toggle {% if settings.notify %}on{% endif %}"
+                id="setNotify" role="switch"><i></i></button>
       </div>
-    </details>
+
+      <div class="field sub-field">
+        <div class="field-text">
+          <label>A link arrived</label>
+          <span>When your phone or browser sends one over.</span>
+        </div>
+        <button class="toggle {% if settings.notify_sent %}on{% endif %}"
+                id="setNotifySent" role="switch"><i></i></button>
+      </div>
+
+      <div class="field sub-field">
+        <div class="field-text">
+          <label>Download finished</label>
+          <span>One per file, or one line for a batch.</span>
+        </div>
+        <button class="toggle {% if settings.notify_done %}on{% endif %}"
+                id="setNotifyDone" role="switch"><i></i></button>
+      </div>
+
+      <div class="field sub-field">
+        <div class="field-text">
+          <label>Download failed</label>
+          <span>The one worth keeping on — a silent failure is a file you
+                think you have.</span>
+        </div>
+        <button class="toggle {% if settings.notify_failed %}on{% endif %}"
+                id="setNotifyFailed" role="switch"><i></i></button>
+      </div>
+
+      <div class="field sub-field">
+        <div class="field-text">
+          <label>Something new to watch</label>
+          <span>When a watched channel posts. Nothing is downloaded.</span>
+        </div>
+        <button class="toggle {% if settings.notify_watch %}on{% endif %}"
+                id="setNotifyWatch" role="switch"><i></i></button>
+      </div>
+    </div>
+
+    <!-- --------------------------------------------------- Site status -->
+    <h3 class="group-head" data-what="Whether it is the site or you — from this PC's own last result per site">How sites are behaving</h3>
+    <div class="panel">
+      <div class="field">
+        <div class="field-text">
+          <label>Last result per site</label>
+          <span>Only what happened on this PC. Nothing is asked of any service
+                and nothing leaves this machine. A site drops off the list
+                after a week, because an old result says nothing about today.</span>
+        </div>
+      </div>
+      <div class="health" id="healthList"></div>
+
+      <div class="field">
+        <div class="field-text">
+          <label>If something is wrong</label>
+          <span>Copies a short report — versions, tools, free space and the
+                last result per site. No links, no sign-ins, and your account
+                name is taken out of the paths.</span>
+        </div>
+        <button class="ghost small" id="copyDiag">Copy report</button>
+      </div>
+      <pre class="diag" id="diagBox" hidden></pre>
+    </div>
+
+    <!-- ---------------------------------------------------- What's next -->
+    <!-- Half the desktop downloaders anyone can name are abandoned, and there
+         is no way to tell from the outside until something breaks and stays
+         broken. A visible list of what is being worked on is worth more than
+         another feature: it is the only evidence a user has that the app is
+         still being made. Kept honest - things move to Landed when they
+         actually ship, and nothing is promised with a date. -->
+    <h3 class="group-head" data-what="What is being built right now — so you can tell this apart from an abandoned app">What's next</h3>
+    <div class="panel">
+      <div class="field">
+        <div class="field-text">
+          <label>Being worked on</label>
+          <span>No dates — this is what is actually in progress, so you can
+                tell a maintained app from an abandoned one.</span>
+        </div>
+      </div>
+      <ul class="roadmap" id="roadmap">
+        <li class="done"><b>Riplox's own route</b> — when the engine is refused,
+          Riplox now fetches TikTok and Instagram itself instead of giving up.</li>
+        <li class="done"><b>Pause a sign-in</b> — hold a saved session back
+          without deleting it, for when a stale login breaks public links.</li>
+        <li class="done"><b>Whole-queue buttons</b> — pause, resume or retry
+          everything at once.</li>
+        <li><b>Downloads that tell you why</b> — a health badge and a
+          diagnostics panel, so a failure says what went wrong.</li>
+        <li><b>More at once</b> — several formats from one link, and a search
+          box for a long queue.</li>
+        <li><b>Accounts you download from</b> — a list built from your own
+          history, and a notification when a watched channel posts.</li>
+        <li><b>Browser button</b> — send the page you are on straight to
+          Riplox, without the store.</li>
+        <li><b>The same own-route for Facebook and YouTube</b>, so no single
+          engine failure can take the app down.</li>
+      </ul>
+    </div>
 
     <!-- ------------------------------------------------- Something wrong? -->
-    <h3 class="group-head">Something wrong, or missing?</h3>
+    <h3 class="group-head" data-what="Report a bug or ask for a feature">Something wrong, or missing?</h3>
     <div class="panel">
       <div class="field">
         <div class="field-text">
@@ -1073,6 +1300,35 @@
     <div class="dlg-foot">
       <button class="ghost" id="watchWarnNo">Cancel</button>
       <button class="primary" id="watchWarnOk" disabled>I understand (15)</button>
+    </div>
+  </div>
+</div>
+
+<!-- One component, two jobs. In pick mode it chooses from the short list of
+     names a rule can be written against; in browse mode it answers "which
+     sites does this actually work with" from the engine's own extractor list.
+     The two lists are deliberately not interchangeable: a filter naming
+     "youtube:tab" would match nothing, forever, and say nothing about it. -->
+<div class="scrim" id="sitePicker" hidden>
+  <div class="dlg dlg-sites" role="dialog" aria-modal="true"
+       aria-labelledby="sitePickerTitle">
+    <h3 id="sitePickerTitle">Sites</h3>
+    <p class="dlg-msg" id="sitePickerMsg"></p>
+
+    <label class="sr-only" for="siteSearch">Search sites</label>
+    <input type="search" id="siteSearch" class="text-input" autocomplete="off"
+           spellcheck="false" placeholder="Search sites…">
+
+    <div class="site-pick" id="sitePickList"></div>
+
+    <div class="site-all" id="siteAllWrap" hidden>
+      <div class="site-all-head" id="siteAllHead"></div>
+      <div class="site-all-list" id="siteAllList"></div>
+    </div>
+
+    <div class="dlg-foot">
+      <button class="ghost" id="sitePickerCancel">Cancel</button>
+      <button class="primary" id="sitePickerSave">Save</button>
     </div>
   </div>
 </div>

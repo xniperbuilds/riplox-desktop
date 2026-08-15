@@ -264,7 +264,28 @@ def check(item_id: str) -> dict:
     item["error"] = ""
     item["botcheck"] = False
     save(data)
+
+    # Watching runs on a timer, usually with the window closed or minimised,
+    # so a badge nobody is looking at is the same as saying nothing. Told
+    # once per check, naming the channel - and still never downloading, which
+    # is the promise this feature is built on.
+    if found:
+        _announce(item.get("title") or "A watched channel", len(found))
+
     return {"ok": True, "new": len(found), "item": _public(item)}
+
+
+def _announce(where: str, count: int) -> None:
+    """Tray notification for new items. Never raises into the check."""
+    try:
+        import app
+        tray = getattr(app, "tray_app", None)
+        if tray is None:
+            return
+        what = "1 new video" if count == 1 else f"{count} new videos"
+        tray.notify(where[:60], what + " - nothing has been downloaded.", "watch")
+    except Exception:                       # noqa: BLE001
+        pass                                # a missed notice is not a failure
 
 
 def check_all() -> dict:

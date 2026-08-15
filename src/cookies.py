@@ -71,6 +71,13 @@ SITES = {
 AUTH_DOMAINS = {domains[0]: domains for _, _, domains in SITES.values()}
 AUTH_DOMAINS["twitter.com"] = SITES["x"][2]      # same site, older address
 
+# Which single sign-in an address belongs to, for deciding whether a download
+# is covered by a pause. Keyed on the front door only, for the same reason
+# AUTH_DOMAINS is: a facebook.com link is Facebook's business, even though the
+# Instagram session carries facebook.com cookies too.
+SITE_BY_ROOT = {domains[0]: key for key, (_l, _u, domains) in SITES.items()}
+SITE_BY_ROOT["twitter.com"] = "x"
+
 
 # --------------------------------------------------------------------------
 # Where things live
@@ -102,8 +109,12 @@ def site_file(key: str) -> Path:
     return store_dir() / f"{key}.dat"
 
 
-# Site keys only, never a cookie, so this one is plain JSON.
+# Site keys only, never a cookie, so these are plain JSON.
 _DROPPED_FILE = "dropped.json"
+# Sites whose saved session is being held back for now. Deliberately not the
+# same list as dropped.json: the two mean opposite things. Dropped is "this
+# session is gone", paused is "keep it, just do not send it yet".
+_PAUSED_FILE = "paused.json"
 # Cookies from somewhere Riplox has no sign-in for. Kept rather than thrown
 # away so a download from such a site behaves exactly as it did before.
 _OTHER = "other"
@@ -245,6 +256,26 @@ def _write_dropped(keys) -> None:
         pass
 
 
+def _paused() -> list:
+    try:
+        data = json.loads((store_dir() / _PAUSED_FILE).read_text("utf-8"))
+    except (OSError, ValueError):
+        return []
+    if not isinstance(data, list):
+        return []
+    # A site that has since been removed from SITES would otherwise sit in
+    # here holding back nothing, invisibly.
+    return [str(k) for k in data if str(k) in SITES]
+
+
+def _write_paused(keys) -> None:
+    try:
+        (store_dir() / _PAUSED_FILE).write_text(json.dumps(sorted(set(keys))),
+                                                encoding="utf-8")
+    except OSError:
+        pass
+
+
 def _site_files() -> list:
     return [p for p in store_dir().glob("*.dat") if p.stem != _OTHER]
 
@@ -257,10 +288,33 @@ def _migrate_single_store() -> None:
     machine that owns the session. If it cannot be read it is of no use to
     anyone and goes - leaving it would mean carrying an unopenable file for
     the life of the install.
+
+    The guard below is the whole reason this function is dangerous without
+    one. _save_cookies() writes the complete set and deletes any site file
+    not in it, which is correct when it is being handed everything - and
+    catastrophic when it is handed a blob from before the split. On a machine
+    where the old file was left behind (the delete below can fail, and then
+    nothing ever removes it), every single cookie read re-ran this migration
+    and rebuilt the store from a months-old snapshot: signing in to Instagram
+    worked, and then the next read silently deleted that session because the
+    old blob had never heard of it. Measured on a real install - one status()
+    call took instagram.dat and tiktok.dat with it.
+
+    So: if the split store already has anything in it, this blob is history.
+    It is older than what is on disk by definition, and merging it back can
+    only destroy newer sessions.
     """
     old = store_file()
     if not old.exists():
         return
+
+    if _site_files():
+        try:
+            old.unlink()
+        except OSError:
+            pass            # it stays; the check above keeps it harmless
+        return
+
     data = _read_encrypted(old)
     if data.get("cookies"):
         _save_cookies(data.get("cookies") or [], data.get("dropped") or [])
@@ -340,6 +394,7 @@ def status() -> dict:
     cookies = data.get("cookies") or []
     found = find_browser()
     roots = {_root_domain(c.get("domain", "")) for c in cookies} - {""}
+    paused = set(_paused())
 
     return {
         "browser": found[0] if found else "",
@@ -351,7 +406,8 @@ def status() -> dict:
         # keep its own copy of this list.
         "known": [
             {"key": key, "label": label,
-             "signedIn": bool(roots & set(domains))}
+             "signedIn": bool(roots & set(domains)),
+             "paused": key in paused}
             for key, (label, _url, domains) in SITES.items()
         ],
         "busy": _flow.busy,
@@ -377,6 +433,9 @@ def forget(site: str = "") -> None:
         except OSError:
             pass
         _write_dropped(set(_dropped()) | {key})
+        # There is no session left to hold back, so the pause has nothing to
+        # mean. Leaving it set would quietly gag the next sign-in.
+        _write_paused(set(_paused()) - {key})
         # The other sites keep their own files untouched - which is the whole
         # reason for the split. Only when none are left is there anything to
         # tidy up, and then the browser profile goes with them.
@@ -389,6 +448,31 @@ def forget(site: str = "") -> None:
     except OSError:
         pass
     shutil.rmtree(profile_dir(), ignore_errors=True)
+
+
+def set_paused(site: str, on: bool) -> dict:
+    """
+    Hold a site's saved session back, without deleting it.
+
+    Forget was the only way to stop a session being sent, and it destroys the
+    sign-in to do it. That is far too heavy when the session is itself the
+    thing breaking a download - a stale Instagram login makes even a public
+    reel fail, and the only cure on offer was to throw the login away. A
+    paused site keeps its file untouched; it is simply not handed to the
+    engine, so the download runs signed out, the way it would on a machine
+    that had never signed in at all.
+    """
+    key = (site or "").lower()
+    if key not in SITES:
+        return {"ok": False, "error": "Riplox has no sign-in for that site."}
+
+    keys = set(_paused())
+    if on:
+        keys.add(key)
+    else:
+        keys.discard(key)
+    _write_paused(keys)
+    return {"ok": True, "cookies": status()}
 
 
 # --------------------------------------------------------------------------
@@ -611,11 +695,14 @@ class _Flow:
             self.error = ""
             self.site = site.lower()
 
-        # Signing in deliberately undoes a previous Forget for this site.
+        # Signing in deliberately undoes a previous Forget for this site, and
+        # a Pause for the same reason: both are someone asking for this
+        # session to count again.
         data = _load_cookies()
         dropped = [k for k in (data.get("dropped") or []) if k != site.lower()]
         if dropped != (data.get("dropped") or []):
             _save_cookies(data.get("cookies") or [], dropped)
+        _write_paused(set(_paused()) - {site.lower()})
 
         threading.Thread(target=self._run, args=(found[1], entry[1], site.lower()),
                          daemon=True).start()
@@ -811,15 +898,27 @@ def from_files(paths, url: str):
     return _write_temp("\n".join(lines) + "\n")
 
 
+def paused_for(url: str) -> str:
+    """The label of the site whose session is paused for this URL, or ""."""
+    key = SITE_BY_ROOT.get(_root_domain(urlsplit(url).hostname or ""), "")
+    return SITES[key][0] if key and key in _paused() else ""
+
+
 def materialize(url: str):
     """
     Write the cookies this URL is allowed to see into a temp file and return
     its path, or None when there is nothing to give. The caller must always
     call release() afterwards - the file is a live session in the clear.
     """
+    # Checked before anything is decrypted: a paused site has nothing to say
+    # here, and reading every other site's file to work that out would be
+    # work done only to throw away.
+    if not url or paused_for(url):
+        return None
+
     data = _load_cookies()
     cookies = data.get("cookies") or []
-    if not cookies or not url:
+    if not cookies:
         return None
 
     domains = _wanted_domains(url)

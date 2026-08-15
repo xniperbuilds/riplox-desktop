@@ -224,9 +224,31 @@ class Tray:
 
     # -- notifications ---------------------------------------------------
 
-    def notify(self, title, message):
+    # Every notification in the app comes through here, which is why the
+    # switches are checked here and nowhere else. Five guards at five call
+    # sites is five chances for one of them to be forgotten - and the one
+    # that gets forgotten is the one that keeps popping up after the user
+    # has turned it off.
+    KINDS = {
+        "sent": "notify_sent",        # a link arrived from a phone or browser
+        "done": "notify_done",        # a download finished
+        "failed": "notify_failed",    # a download failed
+        "watch": "notify_watch",      # a watched channel has something new
+    }
+
+    def notify(self, title, message, kind="app"):
         if not self.icon:
             return
+        try:
+            settings = engine.load_settings()
+            if not settings.get("notify", True):
+                return                          # the master switch is off
+            key = self.KINDS.get(kind)
+            if key and not settings.get(key, True):
+                return
+        except Exception:
+            pass            # a settings problem must not silence everything
+
         try:
             self.icon.notify(str(message)[:180], str(title)[:60])
         except Exception:
@@ -261,12 +283,12 @@ class Tray:
                 del self._seen[job_id]
 
         if len(finished) == 1:
-            self.notify("Download finished", finished[0]["title"])
+            self.notify("Download finished", finished[0]["title"], "done")
         elif len(finished) > 1:
-            self.notify("Downloads finished", f"{len(finished)} files saved")
+            self.notify("Downloads finished", f"{len(finished)} files saved", "done")
 
         for job in failed[:2]:
-            self.notify("Download failed", job["error"] or job["title"])
+            self.notify("Download failed", job["error"] or job["title"], "failed")
 
         self._update_progress(jobs)
 
