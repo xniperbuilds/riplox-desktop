@@ -20,26 +20,51 @@ one.
 | Right-click a page | **Send this page to Riplox** |
 | Right-click a link | **Send this link to Riplox** |
 | Quality | Chosen in the popup, remembered for next time |
+| Sites | Optionally limit it to sites you pick. Empty means every site |
+| Badge | How many downloads Riplox has running. Blank when Riplox is closed |
+| In-page button | Off by default. See below — this is the one that asks for access |
 
 ## How the handoff works
 
-The extension opens a `riplox://add?url=…&q=…` link. Windows already knows which
-program owns that scheme, so:
+Two routes, tried in that order.
 
-- there is no port to find,
-- there is no token to keep,
-- and nothing is listening on this machine that a web page could reach.
+**The native host.** Riplox's installer registers a small program with Chrome,
+Edge and Brave, and the extension speaks to it directly. This route is silent
+and instant, opens no tab, and asks nothing — but it only exists where Riplox
+was installed by its own installer, and it cannot start Riplox when Riplox is
+closed.
 
-The first time, Chrome asks whether Riplox may be opened. Ticking *always allow*
-there is what makes every later send silent.
+**The `riplox://` link**, when the host does not answer. Windows knows which
+program owns that scheme, so there is still no port to find and no token to
+keep — and this route *can* start Riplox. Its cost is that the browser asks
+first, in a tab that opens and closes itself. Current versions of Chrome ask
+**every time**: the "always allow" tick that used to make this silent is no
+longer offered. That is the browser's decision, not a setting here.
+
+The popup says which route was used, because they feel different and a tab
+appearing deserves an explanation.
+
+## The in-page button, and why it is off
+
+Turning it on adds a small Riplox button to video pages. That needs permission
+to run on pages, which the extension does **not** hold when you install it:
+
+- the access is declared as *optional*, so installing grants nothing;
+- ticking the box makes the browser itself ask you;
+- unticking it hands the access back;
+- and if the browser refuses, the tick returns to off — a switch that is on
+  while its work cannot happen is a lie.
+
+Everything else in the extension works without it.
 
 ## What it deliberately does not do
 
-- **No `webRequest`.** The API that older downloaders used to intercept video
-  streams was removed in Manifest V3, and this design never needed it.
-- **No host permissions.** It does not read the contents of any page.
-- **No site names anywhere.** The extension does not know or care which site you
-  are on; it forwards an address and stops there.
+- **No `webRequest`.** The API older downloaders used to intercept video streams
+  was removed in Manifest V3, and this design never needed it.
+- **No `tabs`.** That would hand over the address of every tab in every window,
+  all the time.
+- **No reading pages by default.** Page access is optional, off, and only for
+  the in-page button.
 - **It never claims a download happened.** A scheme handoff gives nothing back,
   so the popup says *handed to Riplox* and nothing stronger. If Riplox is not
   running, nothing opens — and the popup says that is what to look for.
@@ -50,12 +75,14 @@ there is what makes every later send silent.
 |---|---|
 | `activeTab` | reads the address of the tab you are on — and only when you click the icon |
 | `contextMenus` | the two right-click entries |
-| `storage` | remembers the quality you picked |
+| `storage` | remembers the quality, the site list and the toggles |
+| `nativeMessaging` | the silent route to Riplox, and where the badge count comes from |
+| `alarms` | wakes the badge every 30 seconds |
+| `scripting` | registers the in-page button, and only while it is switched on |
+| `*://*/*` *(optional)* | page access for the in-page button. Not granted at install |
 
-That is all of them, and `activeTab` is the reason there is no `tabs`
-permission. `tabs` would hand over the address of every tab in every window,
-all of the time. `activeTab` grants one tab, once, in answer to a click of
-yours — so the extension can only ever see the page you asked it about.
+`activeTab` is the reason there is no `tabs` permission: it grants one tab,
+once, in answer to a click of yours.
 
 ## Installing it
 
@@ -68,11 +95,16 @@ Riplox ships this folder. Until it is loaded for you:
 Works in Chrome, Edge and Brave. Firefox needs a small manifest change and is not
 supported yet.
 
+The badge and the silent route both need Riplox installed by its installer —
+that is what registers the native host. Loading the extension on a machine
+without it still works; every send just takes the `riplox://` route.
+
 ## Files
 
 | File | What it is |
 |---|---|
 | `manifest.json` | Manifest V3 declaration |
-| `background.js` | the right-click menu and the handoff |
+| `background.js` | the right-click menu, the handoff, the site filter, the badge |
+| `content.js` | the in-page button, injected only when it is turned on |
 | `popup.html/.css/.js` | the toolbar popup |
 | `icons/` | Riplox's own mark, resized — the app, the installer and this share one image |
