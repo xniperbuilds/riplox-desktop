@@ -53,10 +53,67 @@ final class Outbox {
         }
     }
 
-    /** Everything waiting, oldest first. */
-    static JSONArray take(Context context) {
+    /** The oldest one still waiting, or null. */
+    static JSONObject first(Context context) {
         synchronized (LOCK) {
-            return read(context);
+            JSONArray items = read(context);
+            for (int i = 0; i < items.length(); i++) {
+                JSONObject item = items.optJSONObject(i);
+                if (item != null) {
+                    return item;
+                }
+            }
+            return null;
+        }
+    }
+
+    /**
+     * The sealed envelope for one waiting link - sealed once, then kept.
+     *
+     * This is the whole defence against sending the same link twice. Sealing
+     * uses a fresh random nonce, and the nonce is what the PC recognises a
+     * repeat by: seal the same link a second time and the PC has no way left
+     * to know it is the same link, so it downloads it again. Fourteen links
+     * shared at a switched-off PC came back with four copies of some of them
+     * for exactly this reason.
+     *
+     * Sealed on the first attempt and written down beside the link, so every
+     * later attempt sends the identical message and the PC refuses it as the
+     * replay it is.
+     */
+    static JSONObject envelope(Context context, JSONObject item, byte[] key) throws Exception {
+        synchronized (LOCK) {
+            String url = item.optString("url");
+            long at = item.optLong("at");
+
+            JSONObject kept = new JSONObject();
+            if (item.optString("n", "").length() > 0
+                    && item.optString("c", "").length() > 0
+                    && item.optString("r", "").length() > 0) {
+                kept.put("n", item.optString("n"));
+                kept.put("c", item.optString("c"));
+                kept.put("r", item.optString("r"));
+                return kept;
+            }
+
+            JSONObject body = new JSONObject();
+            body.put("url", url);
+            body.put("quality", "");           // whatever the PC is set to
+            JSONObject sealed = Relay.envelope(key, body);
+
+            JSONArray items = read(context);
+            for (int i = 0; i < items.length(); i++) {
+                JSONObject stored = items.optJSONObject(i);
+                if (stored == null || !url.equals(stored.optString("url"))
+                        || at != stored.optLong("at")) {
+                    continue;
+                }
+                stored.put("n", sealed.optString("n"));
+                stored.put("c", sealed.optString("c"));
+                stored.put("r", sealed.optString("r"));
+            }
+            write(context, items);
+            return sealed;
         }
     }
 

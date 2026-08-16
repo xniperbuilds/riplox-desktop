@@ -144,18 +144,52 @@ final class Relay {
      * not a failure, only silence.
      */
     static String deliver(String room, byte[] key, JSONObject body) throws Exception {
+        JSONObject envelope = envelope(key, body);
+        leave(room, envelope);
+        return verdict(room, key, envelope.optString("r"), 12);
+    }
+
+    /**
+     * Seal one message, and hand back the reply id with it.
+     *
+     * Separate from sending it because a message that is going to be re-sent
+     * has to be re-sent *identically*. Sealing again would produce a fresh
+     * nonce, and a fresh nonce is a different message to the PC - which is how
+     * one link shared once ended up downloaded four times. Seal once, keep it,
+     * send the same bytes however many attempts it takes, and the PC's own
+     * replay guard does the rest.
+     */
+    static JSONObject envelope(byte[] key, JSONObject body) throws Exception {
         String rid = b64(randomBytes(12));
         body.put("r", rid);
         body.put("ts", System.currentTimeMillis() / 1000.0);
 
         JSONObject envelope = seal(key, body.toString());
+        // Carried for our own use. The relay reads n and c and ignores the
+        // rest, and it learns this id from the /ack request anyway.
+        envelope.put("r", rid);
+        return envelope;
+    }
+
+    /** Leave a sealed envelope in the postbox. Throws if it was not taken. */
+    static void leave(String room, JSONObject envelope) throws Exception {
         String answer = post("/send/" + room, envelope.toString(), 15000);
         if (!new JSONObject(answer).optBoolean("ok", false)) {
             throw new Exception("the relay would not take it");
         }
+    }
 
+    /**
+     * The PC's own word on a message already left, or "" for silence.
+     *
+     * Never throws: by the time this is called the message is in the postbox,
+     * so nothing here can make it un-sent. Silence means the PC is not running
+     * - which is not a failure, and must never be treated as one.
+     */
+    static String verdict(String room, byte[] key, String rid, int hold) {
         try {
-            JSONObject ack = new JSONObject(get("/ack/" + room + "?r=" + rid + "&hold=12", 20000));
+            JSONObject ack = new JSONObject(
+                    get("/ack/" + room + "?r=" + rid + "&hold=" + hold, hold * 1000 + 8000));
             if (ack.optBoolean("ok", false) && ack.has("ack")) {
                 JSONObject sealed = ack.getJSONObject("ack");
                 JSONObject said = open(key, sealed.optString("n"), sealed.optString("c"));
@@ -164,8 +198,8 @@ final class Relay {
                 }
             }
         } catch (Exception ignored) {
-            // No answer is not an error. The message is in the postbox either
-            // way, and the PC picks it up whenever it is next running.
+            // The message is in the postbox either way, and the PC picks it up
+            // whenever it is next running.
         }
         return "";
     }
@@ -180,6 +214,7 @@ final class Relay {
         if ("day-limit".equals(why)) return "Today's downloads are used up";
         if ("total-limit".equals(why)) return "This phone's allowance is used up";
         if ("replay".equals(why)) return "That one was already sent";
+        if ("duplicate".equals(why)) return "Already on your PC - not downloading it twice";
         if ("stale".equals(why)) return "Your phone's clock is too far ahead";
         if ("expired".equals(why)) return "That pairing code has expired";
         if ("used".equals(why)) return "That pairing code was already used";

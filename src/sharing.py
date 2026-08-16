@@ -30,6 +30,7 @@ Deliberate limits, so the promises above stay true:
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
 import re
@@ -68,6 +69,20 @@ MESSAGE_LIFE = 7 * 24 * 3600
 CLOCK_SLACK = 300                # a phone running fast, not a replay
 SEEN_LIFE = MESSAGE_LIFE + 24 * 3600
 MAX_SEEN = 4000
+
+# The nonce above stops the same *message* twice. It cannot stop the same
+# *link* twice, because a phone that re-sends seals a fresh envelope with a
+# fresh nonce - two genuinely different messages that happen to carry the same
+# URL. That is not hypothetical: fourteen links shared while the PC was off
+# came back with four copies of some of them.
+#
+# So the same link, from the same device, arriving again while the first copy
+# is still in hand is treated as the same link arriving again - not as a
+# request to download it twice. It is written into the log as "duplicate" so
+# it is visible rather than silently dropped, and the window is short enough
+# that deliberately sending something again later still works.
+DUPLICATE_WINDOW = 15 * 60
+MAX_RECENT = 200
 
 MAX_BODY = 4096                  # an envelope is a few hundred bytes
 POLL_SECONDS = 25                # how long the relay holds our request open
@@ -114,7 +129,8 @@ def _file() -> Path:
 
 def _blank() -> dict:
     return {"room": secrets.token_hex(16), "devices": [], "invite": None,
-            "pending": [], "log": [], "spent": [], "revoked": [], "seen": {}}
+            "pending": [], "log": [], "spent": [], "revoked": [], "seen": {},
+            "recent": {}}
 
 
 def load() -> dict:
@@ -666,6 +682,64 @@ def _blocked_by(device, limits: dict, url: str) -> str:
     return ""
 
 
+def _link_key(url: str, device_id: str) -> str:
+    """One short name for "this link, from this phone"."""
+    raw = f"{device_id or ''}\n{url}".encode("utf-8", "replace")
+    return hashlib.sha1(raw).hexdigest()[:16]
+
+
+def _remember_link(url: str, device_id: str) -> None:
+    """
+    Note that this link is in hand, so a copy of it can be recognised.
+
+    Kept in its own small record rather than read back out of the activity
+    log, and that is not tidiness. The log holds the last forty settled
+    entries: fifty other links arriving in between would push this one off the
+    end, and a copy after that would no longer look like a copy - the same
+    duplicate bug, just delayed by a busy day. Measured, not imagined; the
+    log-reading version of this check failed exactly that test.
+
+    Trimmed by age first, so the usual case never grows, and capped after that
+    so nothing can make it grow anyway.
+    """
+    now = time.time()
+    with _lock:
+        data = load()
+        recent = {k: t for k, t in (data.get("recent") or {}).items()
+                  if isinstance(t, (int, float)) and now - t <= DUPLICATE_WINDOW}
+        recent[_link_key(url, device_id)] = now
+        if len(recent) > MAX_RECENT:
+            newest = sorted(recent.items(), key=lambda kv: kv[1])[-MAX_RECENT:]
+            recent = dict(newest)
+        data["recent"] = recent
+        _save(data)
+
+
+def _forget_link(url: str, device_id: str) -> None:
+    """
+    Drop a link from that record, so sending it again works normally.
+
+    Used when someone says No to one. Refusing is a decision about that link,
+    and a link sent again after that is a new decision to make - not a copy of
+    one already in hand.
+    """
+    with _lock:
+        data = load()
+        recent = data.get("recent") or {}
+        if recent.pop(_link_key(url, device_id), None) is not None:
+            data["recent"] = recent
+            _save(data)
+
+
+def _already_here(url: str, device_id: str) -> bool:
+    """Is this exact link, from this exact device, already in hand?"""
+    when = (load().get("recent") or {}).get(_link_key(url, device_id))
+    try:
+        return time.time() - float(when) <= DUPLICATE_WINDOW
+    except (TypeError, ValueError):
+        return False
+
+
 def _accept(device, body: dict) -> str:
     """
     Apply this device's rules, then queue it. Returns what to tell the phone.
@@ -720,6 +794,21 @@ def _accept(device, body: dict) -> str:
     if blocked:
         entry["why"] = blocked
 
+    # The same link twice from the same phone is one link, sent twice. It is
+    # logged rather than dropped - "duplicate" beside the original is the
+    # difference between a guard anyone can see working and a link that went
+    # missing - and it starts nothing, counts for nothing, and is not a second
+    # thing to approve.
+    if _already_here(url, device_id):
+        entry["state"] = "duplicate"
+        entry.pop("why", None)
+        _note(entry)
+        # A link that is still arriving is still the same link arriving, so
+        # the window runs from the last time it turned up rather than the
+        # first: a sender that keeps trying cannot simply out-wait this.
+        _remember_link(url, device_id)
+        return "duplicate"
+
     if device is not None:
         data = load()
         for d in data["devices"]:
@@ -739,6 +828,10 @@ def _accept(device, body: dict) -> str:
         save(data)
     else:
         _note(entry)
+
+    # In hand now, whether it is downloading or waiting to be approved. Either
+    # way a second copy of it is a copy, not a second thing to do.
+    _remember_link(url, device_id)
 
     if entry["state"] == "queued" and _sink:
         _sink(url, quality, who, opts, device_id)
@@ -765,6 +858,10 @@ def approve(entry_id: str, ok: bool) -> bool:
             entry["state"] = "queued" if ok else "refused"
             entry.pop("why", None)
             save(data)
+            if not ok:
+                # Said no to it, so it is no longer in hand: sending it again
+                # is a fresh decision rather than a copy of this one.
+                _forget_link(entry.get("url", ""), entry.get("device", ""))
             if ok and _sink:
                 _sink(entry["url"], entry["quality"], entry.get("from", ""),
                       entry.get("opts") or {}, entry.get("device", ""))

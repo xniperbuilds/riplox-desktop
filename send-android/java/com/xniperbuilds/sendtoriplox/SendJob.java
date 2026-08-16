@@ -6,12 +6,6 @@ import android.app.job.JobScheduler;
 import android.app.job.JobService;
 import android.content.ComponentName;
 import android.content.Context;
-import android.os.Handler;
-import android.os.Looper;
-import android.widget.Toast;
-
-import org.json.JSONArray;
-import org.json.JSONObject;
 
 /**
  * Sends whatever is in the outbox, owned by the system rather than by a screen.
@@ -57,37 +51,11 @@ public class SendJob extends JobService {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                boolean again = false;
-                JSONArray items = Outbox.take(context);
-
-                for (int i = 0; i < items.length() && !stopped; i++) {
-                    JSONObject item = items.optJSONObject(i);
-                    if (item == null) {
-                        continue;
-                    }
-                    String url = item.optString("url");
-                    long at = item.optLong("at");
-
-                    try {
-                        JSONObject body = new JSONObject();
-                        body.put("url", url);
-                        body.put("quality", "");   // whatever the PC is set to
-                        String why = Relay.deliver(store.room(), store.key(), body);
-
-                        // Anything the PC actually answered is a final answer,
-                        // including a refusal - repeating it would only queue
-                        // the same link again tomorrow.
-                        Outbox.done(context, url, at);
-                        String words = Relay.words(why);
-                        say(context, words.length() > 0 ? words
-                                : context.getString(R.string.left_for_pc));
-                    } catch (Exception exc) {
-                        // Could not be delivered at all. Leave it in the
-                        // outbox and let the system bring us back.
-                        again = true;
-                    }
-                }
-
+                // The same one sender the share path uses. If a foreground
+                // send is already working through the outbox this returns
+                // immediately and asks to come back - two senders on one
+                // outbox is what sent the same link more than once.
+                boolean again = Sender.drain(context);
                 jobFinished(params, again || stopped);
             }
         }, "riplox-outbox").start();
@@ -99,14 +67,5 @@ public class SendJob extends JobService {
     public boolean onStopJob(JobParameters params) {
         stopped = true;
         return true;                            // come back for what is left
-    }
-
-    private static void say(final Context context, final String message) {
-        new Handler(Looper.getMainLooper()).post(new Runnable() {
-            @Override
-            public void run() {
-                Toast.makeText(context, message, Toast.LENGTH_LONG).show();
-            }
-        });
     }
 }

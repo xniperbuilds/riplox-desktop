@@ -7,13 +7,7 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
-import android.os.Handler;
 import android.os.IBinder;
-import android.os.Looper;
-import android.widget.Toast;
-
-import org.json.JSONArray;
-import org.json.JSONObject;
 
 /**
  * Sends the outbox now.
@@ -51,42 +45,20 @@ public class SendService extends Service {
         startForeground(NOTE_ID, note());
 
         final Context context = getApplicationContext();
-        final Store store = new Store(context);
 
         new Thread(new Runnable() {
             @Override
             public void run() {
-                boolean leftover = false;
                 try {
-                    JSONArray items = Outbox.take(context);
-                    for (int i = 0; i < items.length(); i++) {
-                        JSONObject item = items.optJSONObject(i);
-                        if (item == null || !store.paired()) {
-                            continue;
-                        }
-                        String url = item.optString("url");
-                        long at = item.optLong("at");
-                        try {
-                            JSONObject body = new JSONObject();
-                            body.put("url", url);
-                            body.put("quality", "");
-                            String why = Relay.deliver(store.room(), store.key(), body);
-
-                            // Any answer from the PC is final, refusals
-                            // included - repeating one would only send the
-                            // same link again tomorrow.
-                            Outbox.done(context, url, at);
-                            String words = Relay.words(why);
-                            say(context, words.length() > 0 ? words
-                                    : context.getString(R.string.left_for_pc));
-                        } catch (Exception exc) {
-                            leftover = true;      // no network; try again later
-                        }
-                    }
-                } finally {
-                    if (leftover) {
+                    // One sender for the whole outbox, however many shares
+                    // start this service. If a drain is already running this
+                    // returns at once and the link it was started for is
+                    // picked up by the one that is already working - starting
+                    // a second sender is how one share became four downloads.
+                    if (Sender.drain(context)) {
                         SendJob.schedule(context);
                     }
+                } finally {
                     stopSelf(startId);
                 }
             }
@@ -128,14 +100,5 @@ public class SendService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         return null;
-    }
-
-    private static void say(final Context context, final String message) {
-        new Handler(Looper.getMainLooper()).post(new Runnable() {
-            @Override
-            public void run() {
-                Toast.makeText(context, message, Toast.LENGTH_LONG).show();
-            }
-        });
     }
 }

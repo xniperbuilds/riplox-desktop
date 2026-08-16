@@ -27,6 +27,20 @@ const MAX_QUEUE = 100;
 const ACK_KEEP = 3 * 60 * 1000;    // a verdict nobody collected
 const MAX_ACKS = 200;
 
+/* How long after the last sign of the PC this room still counts as watched.
+ *
+ * A phone holds /ack open waiting for the PC's own word on the message it just
+ * left. With no PC there, that wait can only ever end in a timeout - and it is
+ * not free: the sender is holding the link until the wait returns, so twelve
+ * seconds of pointless waiting per link is twelve seconds in which the same
+ * link can be picked up and sent a second time. Fourteen links shared at a
+ * switched-off PC came back with duplicates for exactly that reason.
+ *
+ * So a room nobody is listening to answers straight away. A poll re-asks every
+ * 25 seconds and a socket is visible directly, so this only has to be longer
+ * than one poll. */
+const PC_QUIET = 90 * 1000;
+
 const ROOM_RE = /^[a-f0-9]{16,64}$/;
 const RID_RE = /^[A-Za-z0-9_-]{6,40}$/;
 // One definition, used both where a nonce arrives and where it is confirmed.
@@ -237,15 +251,33 @@ export class Room {
     this.waiters = [];       // resolve functions of held-open /wait requests
     this.acks = new Map();   // rid -> {n, c, at}
     this.ackWaiters = new Map();
+    this.seen = 0;           // when a PC last asked for anything
 
     state.blockConcurrencyWhile(async () => {
       this.queue = (await state.storage.get("queue")) || [];
       this.flight = (await state.storage.get("flight")) || [];
+      this.seen = (await state.storage.get("seen")) || 0;
     });
   }
 
   async keep() {
     await this.state.storage.put({ queue: this.queue, flight: this.flight });
+  }
+
+  /* A PC just asked for something, so this room is being watched.
+   *
+   * On disk rather than in memory: the object hibernates between messages and
+   * comes back with its fields blank, and "the PC is gone" is exactly the
+   * wrong thing to conclude from a nap. */
+  async markSeen() {
+    this.seen = Date.now();
+    await this.state.storage.put("seen", this.seen);
+  }
+
+  /** Is anyone listening for this room right now? */
+  watched() {
+    return this.state.getWebSockets().length > 0
+      || Date.now() - (this.seen || 0) < PC_QUIET;
   }
 
   sweep() {
@@ -326,6 +358,7 @@ export class Room {
     // "I am here, send me anything waiting." Sent on connect, and after the
     // PC has finished dealing with a batch.
     if (msg.hello) {
+      await this.markSeen();
       await this.pushToSockets();
       return;
     }
@@ -358,6 +391,10 @@ export class Room {
       const [client, server] = Object.values(pair);
       this.state.acceptWebSocket(server);
       this.sweep();
+      // Deliberately not awaited either - see below. A socket that has just
+      // been accepted is proof enough on its own; this only matters after it
+      // closes again.
+      this.markSeen();
       // Deliberately not awaited: the 101 has to be returned promptly, and
       // anything waiting will also go out when the PC says hello.
       this.pushToSockets();
@@ -380,6 +417,17 @@ export class Room {
       }
 
       this.sweep();
+
+      // The same nonce twice is the same message twice - a sender that could
+      // not hear the answer and left it again. The PC would refuse the repeat
+      // as a replay anyway; dropping it here saves it the trip and keeps the
+      // queue honest about how much is actually waiting. Only a sender that
+      // re-uses its envelope gets this: one that seals a fresh nonce each time
+      // is, to this worker, indistinguishable from a new message.
+      if (this.queue.some((m) => m.n === n) || this.flight.some((m) => m.n === n)) {
+        return json({ ok: true, queued: this.queue.length, repeat: true });
+      }
+
       this.queue.push({ n, c, at: Date.now() });
       await this.keep();
 
@@ -411,6 +459,7 @@ export class Room {
        * would leave every existing install redelivering the same link
        * forever. */
       const willAck = url.searchParams.get("ack") === "1";
+      await this.markSeen();
       if (this.flight.length && !willAck) {
         this.flight = [];
         await this.keep();
@@ -522,6 +571,19 @@ export class Room {
       const rid = url.searchParams.get("r") || "";
       if (!RID_RE.test(rid)) return json({ ok: false }, 400);
       const hold = Math.min(Number(url.searchParams.get("hold") || 10) || 10, MAX_HOLD);
+
+      /* Nobody is listening, so nobody is going to answer.
+       *
+       * Waiting the full hold here is not merely pointless, it is harmful: the
+       * sender keeps the link in its outbox until this returns, and a link
+       * still in an outbox is a link something else can pick up and send
+       * again. Answering now turns a twelve-second window into a moment.
+       *
+       * "ok: false" is what an older sender already understands as "no word
+       * from the PC", so this needs nothing new on the phone. */
+      if (!this.acks.has(rid) && !this.watched()) {
+        return json({ ok: false, offline: true });
+      }
 
       if (!this.acks.has(rid)) {
         await new Promise((resolve) => {
@@ -965,6 +1027,7 @@ const PAGE = String.raw`<!doctype html>
     "total-limit": ["This phone has used up its total allowance.", "bad"],
     "bad-link": ["That link was refused.", "bad"],
     replay: ["That one has already been sent.", "bad"],
+    duplicate: ["Already on your PC - it is not downloading twice.", "ok"],
     stale: ["Your phone's clock is too far off. Fix the time and try again.", "bad"],
     expired: ["That pairing code has expired. Make a new one in Riplox.", "bad"],
     used: ["That pairing code has already been used. Make a new one in Riplox.", "bad"],
@@ -1029,7 +1092,7 @@ const PAGE = String.raw`<!doctype html>
     }).then(function (id) {
       return verdict(pair.room, pair.key, id);
     }).then(function (why) {
-      var good = (why === "queued" || why === "held" || !why);
+      var good = (why === "queued" || why === "held" || why === "duplicate" || !why);
       if (good) $("url").value = "";
       report(why, "Left for your PC. It starts as soon as Riplox is running.");
       if (auto) {
