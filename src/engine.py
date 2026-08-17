@@ -2151,6 +2151,41 @@ def _available_qualities(info: dict, settings: dict = None) -> dict:
     return {"rungs": ["best"] + rungs + ["mp3"], "upscaled": notes}
 
 
+# What the engine says when Instagram is refusing the post rather than the
+# request. Any one of these, followed by the door finding a page with no video
+# in it, is the same story told twice.
+_IG_WALLED = ("certain audiences", "not available to everyone",
+              "empty media response", "http error 400",
+              "instagram turned this one down", "limits who can see this one")
+
+
+def _door_verdict(engine_error: str, door_error: str) -> str:
+    """
+    Which of the two refusals to show the user.
+
+    The door's answer is normally the better one - it names a removed post or
+    an age gate where yt-dlp leaves a stack trace. Not here. When the engine
+    was refused for a restricted post and the door then reports a page with no
+    video in it, the door's list of maybes - "private, or removed, or sign in"
+    - is the weaker sentence: it asks for a sign-in that was already tried and
+    already refused.
+
+    Measured on one of Nazim's reels rather than reasoned about: 400 with the
+    saved session, "certain audiences" without it, page-but-no-video from the
+    door - and an ordinary reel fetched fine on that same session seconds
+    later. Three refusals of one post, and a working session.
+    """
+    low_engine = (engine_error or "").lower()
+    low_door = (door_error or "").lower()
+    if ("page but no video" in low_door
+            and any(sign in low_engine for sign in _IG_WALLED)):
+        return ("Instagram limits who can see this one. Riplox tried it signed "
+                "in, signed out, and by its own route - all three were refused, "
+                "so this is the post rather than anything on this end. Only an "
+                "account that can already see it will get it.")
+    return door_error
+
+
 def _clean_error(stderr: str) -> str:
     """Turn a yt-dlp stack of ERROR lines into one human sentence."""
     text = (stderr or "").strip()
@@ -2239,10 +2274,17 @@ def _clean_error(stderr: str) -> str:
                 "Instagram links still work, it is this post rather than the "
                 "sign-in.")
 
+    # Instagram answers 400 for two different things and does not say which:
+    # a session it has stopped accepting, and a post it will not serve to the
+    # account being used. Measured on this machine - a restricted reel gave
+    # 400 with a session that fetched an ordinary reel seconds later - so a
+    # message that names only the sign-in sends people to sign in again for
+    # nothing. Both are named, with the way to tell them apart.
     if "400" in low_all and "instagram" in low_all:
-        return ("Instagram turned down the saved sign-in. Sign in again in "
-                "Settings - or pause Instagram there, which keeps the session "
-                "and downloads public posts signed out.")
+        return ("Instagram turned this one down. If other Instagram links "
+                "still work, it is this post rather than your sign-in - a "
+                "restricted or age-gated one, which nothing here can open. If "
+                "they have all stopped, sign in again in Settings.")
 
     if "cookie" in low_all and ("permission" in low_all or "could not copy"
                                 in low_all or "database" in low_all):
@@ -3773,11 +3815,11 @@ class DownloadManager:
         try:
             info = doors.resolve(job.url)
         except doors.DoorError as exc:
-            # The door knows something worth saying - a removed post, an
-            # age-gate - so its answer beats yt-dlp's stack trace.
+            # The door usually knows something worth saying - a removed post,
+            # an age-gate - so its answer beats yt-dlp's stack trace. Usually.
             job.status = "error"
             job.stage = ""
-            job.error = str(exc)
+            job.error = _door_verdict(engine_error, str(exc))
             return
         except Exception:                       # noqa: BLE001
             # It simply did not work. The user keeps the error they can act
