@@ -645,8 +645,15 @@ def api_cookies_signin():
     # A site by name, never a URL from the page: the login address comes from
     # the table in cookies.py, so nothing that reaches this endpoint can send
     # the browser somewhere of its own choosing.
-    site = ((request.json or {}).get("site") or "youtube").strip().lower()
-    return jsonify(cookies.start_login(site))
+    body = request.json or {}
+    site = (body.get("site") or "youtube").strip().lower()
+    # Which of that site's accounts is being signed in. 1 is the one that has
+    # always been there; anything else has to have been added first.
+    try:
+        account = int(body.get("account") or 1)
+    except (TypeError, ValueError):
+        account = 1
+    return jsonify(cookies.start_login(site, account))
 
 
 @app.post("/api/cookies/refresh")
@@ -659,8 +666,38 @@ def api_cookies_pause():
     # Set a session aside instead of deleting it. Same guard as sign-in: a
     # site by name, checked against the table in cookies.py.
     body = request.json or {}
-    return jsonify(cookies.set_paused((body.get("site") or "").strip().lower(),
-                                      bool(body.get("on"))))
+    site = (body.get("site") or "").strip().lower()
+    try:
+        account = int(body.get("account") or 1)
+    except (TypeError, ValueError):
+        account = 1
+    return jsonify(cookies.set_account_paused(site, account, bool(body.get("on"))))
+
+
+# --------------------------------------------------------------------------
+# More than one account for the same site
+# --------------------------------------------------------------------------
+# Worth being plain about in the code as well as on the screen: this is a
+# spare and a way to reach what another account can see. It is not protection.
+# Every account here goes out from this machine on this connection, which is
+# how the sites decide two accounts are the same person in the first place.
+
+@app.post("/api/cookies/account/add")
+def api_cookies_account_add():
+    body = request.json or {}
+    return jsonify(cookies.add_account((body.get("site") or "").strip().lower(),
+                                       body.get("label") or ""))
+
+
+@app.post("/api/cookies/account/remove")
+def api_cookies_account_remove():
+    body = request.json or {}
+    try:
+        account = int(body.get("account") or 0)
+    except (TypeError, ValueError):
+        account = 0
+    return jsonify(cookies.remove_account((body.get("site") or "").strip().lower(),
+                                          account))
 
 
 @app.post("/api/cookies/forget")

@@ -132,6 +132,247 @@ def temp_dir() -> Path:
 
 
 # --------------------------------------------------------------------------
+# More than one account for the same site
+# --------------------------------------------------------------------------
+# What this is for, and what it is not for.
+#
+# It is NOT a way to be safer by spreading downloads over several accounts.
+# Every one of them goes out from this machine, on this connection, with the
+# same fingerprint, and that is exactly what Instagram and TikTok use to
+# decide two accounts belong to the same person. Rotating between them does
+# not divide the risk; it ties the accounts together, so trouble on one is
+# trouble on all. Nothing here should ever be described as protection.
+#
+# What it is actually good for, and each of these is real:
+#   * a spare - a session that has been checkpointed or has expired stops the
+#     downloads until someone signs in again, and a second one keeps working
+#   * reach - a private or followed post only one of the accounts can see
+#   * keeping the everyday account out of it - if downloads are going to cost
+#     an account something, let it be one that does not matter
+#
+# The first account for a site is the one that was always there: the same file
+# and the same browser profile as before, so nothing has to be migrated and an
+# install that never adds a second account behaves exactly as it did. Extra
+# ones get a file and a profile of their own - a profile is where a sign-in
+# lives, so two accounts in one profile would simply be the second replacing
+# the first.
+
+_ACCOUNTS_FILE = "accounts.json"
+
+# Highest number an extra account can take. Not a safety rule - a person with
+# nine sessions for one site has a different problem - but a list that cannot
+# grow without limit.
+MAX_ACCOUNTS = 8
+
+
+def accounts_file() -> Path:
+    return store_dir() / _ACCOUNTS_FILE
+
+
+def load_accounts() -> dict:
+    """{site: [{n, label, added, paused, last}]} - extras only, never the first."""
+    try:
+        with open(accounts_file(), "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+            return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _write_accounts(data: dict) -> None:
+    path = accounts_file()
+    tmp = path.with_suffix(".tmp")
+    try:
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, indent=1)
+        tmp.replace(path)
+    except OSError:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+
+
+def account_file(site: str, n: int = 1) -> Path:
+    """Where one account's session lives. The first is the file it always was."""
+    return site_file(site) if int(n) <= 1 else store_dir() / f"{site}.{int(n)}.dat"
+
+
+def account_profile(site: str, n: int = 1) -> Path:
+    """
+    The browser profile an account signs in through.
+
+    One each, because a profile IS the sign-in: opening Instagram in a profile
+    that is already signed in as somebody else does not offer a login page, it
+    shows that somebody else's account.
+    """
+    return profile_dir() if int(n) <= 1 else \
+        engine.data_dir() / f"browser-profile-{site}-{int(n)}"
+
+
+def accounts_for(site: str) -> list:
+    """Every account for this site, the original one first."""
+    site = (site or "").lower()
+    if site not in SITES:
+        return []
+
+    stored = load_accounts().get(site) or []
+    # The first account keeps a row here too, but only to carry the time it
+    # was last used - its session and its profile are where they always were.
+    # Without that time it would sort as "rested longest" for ever and the
+    # second account would never get a turn.
+    first = next((e for e in stored if int(e.get("n") or 0) == 1), {})
+
+    out = [{
+        "n": 1,
+        "label": str(first.get("label") or "Main")[:24],
+        # The site-wide pause belongs to the first account: it is the one that
+        # existed when that switch was written, and a saved session held back
+        # is exactly what it means.
+        "paused": site in _paused(),
+        "signedIn": account_file(site, 1).exists(),
+        "last": float(first.get("last") or 0),
+        "added": 0.0,
+    }]
+    for entry in stored:
+        try:
+            n = int(entry.get("n") or 0)
+        except (TypeError, ValueError):
+            continue
+        if n < 2:
+            continue
+        out.append({
+            "n": n,
+            "label": str(entry.get("label") or f"Account {n}")[:24],
+            "paused": bool(entry.get("paused")),
+            "signedIn": account_file(site, n).exists(),
+            "last": float(entry.get("last") or 0),
+            "added": float(entry.get("added") or 0),
+        })
+    return out
+
+
+def add_account(site: str, label: str = "") -> dict:
+    """Make room for another account. It is signed in separately, after this."""
+    site = (site or "").lower()
+    if site not in SITES:
+        return {"ok": False, "error": "Riplox has no sign-in for that site."}
+
+    data = load_accounts()
+    existing = data.get(site) or []
+    if len(existing) + 1 >= MAX_ACCOUNTS:
+        return {"ok": False, "error": f"That is as many as Riplox keeps "
+                                      f"({MAX_ACCOUNTS} for one site)."}
+
+    used = {int(e.get("n") or 0) for e in existing}
+    n = 2
+    while n in used:
+        n += 1
+
+    clean = "".join(c for c in str(label or "") if c.isalnum() or c in " -_").strip()
+    existing.append({"n": n, "label": clean[:24] or f"Account {n}",
+                     "added": time.time(), "paused": False, "last": 0.0})
+    data[site] = existing
+    _write_accounts(data)
+    return {"ok": True, "n": n}
+
+
+def remove_account(site: str, n: int) -> dict:
+    """
+    Forget one extra account: its session, its profile, its row.
+
+    The first account is not removed here - that is what Forget on the site
+    itself has always done, and it also has the browser profile every site
+    shares to think about.
+    """
+    site = (site or "").lower()
+    n = int(n or 0)
+    if n < 2:
+        return {"ok": False, "error": "Use Forget for the main account."}
+
+    data = load_accounts()
+    kept = [e for e in (data.get(site) or []) if int(e.get("n") or 0) != n]
+    if len(kept) == len(data.get(site) or []):
+        return {"ok": False, "error": "There is no such account."}
+
+    data[site] = kept
+    if not kept:
+        data.pop(site, None)
+    _write_accounts(data)
+
+    try:
+        account_file(site, n).unlink()
+    except OSError:
+        pass
+    shutil.rmtree(account_profile(site, n), ignore_errors=True)
+    return {"ok": True}
+
+
+def set_account_paused(site: str, n: int, on: bool) -> dict:
+    """Stop using one account without signing out of it."""
+    site = (site or "").lower()
+    n = int(n or 0)
+    if n <= 1:
+        return set_paused(site, on)
+
+    data = load_accounts()
+    hit = False
+    for entry in data.get(site) or []:
+        if int(entry.get("n") or 0) == n:
+            entry["paused"] = bool(on)
+            hit = True
+    if not hit:
+        return {"ok": False, "error": "There is no such account."}
+    _write_accounts(data)
+    return {"ok": True, "paused": bool(on)}
+
+
+def pick_account(site: str) -> int:
+    """
+    Which account to use for this site now, or 0 for none.
+
+    The one that has gone longest without being used, which with a single
+    account is simply that account. Deliberately not random: a rested session
+    is the one least likely to be asked to prove anything, and "least recently
+    used" is also what makes a spare a spare rather than a second thing being
+    hammered in turn.
+    """
+    ready = [a for a in accounts_for(site) if a["signedIn"] and not a["paused"]]
+    if not ready:
+        return 0
+    ready.sort(key=lambda a: (a["last"], a["n"]))
+    return ready[0]["n"]
+
+
+def note_account_used(site: str, n: int) -> None:
+    """
+    Remember when, so the next pick is the other one.
+
+    Written for the first account as well, and only ever when there is a
+    second one to take turns with: an install with one account should not
+    acquire a file it has no use for.
+    """
+    site, n = (site or "").lower(), int(n or 0)
+    if n < 1 or site not in SITES:
+        return
+
+    data = load_accounts()
+    entries = data.get(site) or []
+    if n == 1 and not any(int(e.get("n") or 0) >= 2 for e in entries):
+        return
+
+    for entry in entries:
+        if int(entry.get("n") or 0) == n:
+            entry["last"] = time.time()
+            break
+    else:
+        entries.append({"n": n, "label": "Main" if n == 1 else f"Account {n}",
+                        "added": time.time(), "paused": False, "last": time.time()})
+    data[site] = entries
+    _write_accounts(data)
+
+
+# --------------------------------------------------------------------------
 # Finding a browser
 # --------------------------------------------------------------------------
 
@@ -276,8 +517,28 @@ def _write_paused(keys) -> None:
         pass
 
 
+def _is_extra_account_file(path) -> bool:
+    """
+    cookies/<site>.<n>.dat is one extra account's session, on its own.
+
+    It deliberately does not join the shared pool every other reader works
+    from. Two accounts for one site hold the same cookie under the same name,
+    so merging them means one silently replaces the other - which is exactly
+    what happened the first time this was written: the picked account was
+    account one and the file handed over was account two's, every time. A site
+    key never contains a dot, so the dot is the whole test.
+    """
+    return "." in Path(path).stem
+
+
+def _pool_files() -> list:
+    """The shared per-site files: everything except the extra accounts."""
+    return [p for p in store_dir().glob("*.dat")
+            if not _is_extra_account_file(p)]
+
+
 def _site_files() -> list:
-    return [p for p in store_dir().glob("*.dat") if p.stem != _OTHER]
+    return [p for p in _pool_files() if p.stem != _OTHER]
 
 
 def _migrate_single_store() -> None:
@@ -353,7 +614,12 @@ def _save_cookies(cookies: list, dropped=None) -> None:
 
     # A site with nothing left is signed out; its file should not sit there
     # holding yesterday's session. Both callers pass the complete set.
-    for path in store_dir().glob("*.dat"):
+    #
+    # The extra accounts are not in this set and never were: they are signed
+    # in through their own browser profiles, so a refresh of the shared one
+    # knows nothing about them. Without the filter, every sign-in deleted
+    # every extra account's session.
+    for path in _pool_files():
         if path.stem not in buckets:
             try:
                 path.unlink()
@@ -368,7 +634,7 @@ def _load_cookies() -> dict:
     _migrate_single_store()
 
     cookies, saved, seen = [], 0.0, set()
-    for path in sorted(store_dir().glob("*.dat")):
+    for path in sorted(_pool_files()):
         data = _read_encrypted(path)
         saved = max(saved, float(data.get("saved") or 0))
         for cookie in data.get("cookies") or []:
@@ -386,7 +652,7 @@ def _load_cookies() -> dict:
 
 def have_cookies() -> bool:
     _migrate_single_store()
-    return bool(list(store_dir().glob("*.dat")))
+    return bool(_pool_files())
 
 
 def status() -> dict:
@@ -407,7 +673,10 @@ def status() -> dict:
         "known": [
             {"key": key, "label": label,
              "signedIn": bool(roots & set(domains)),
-             "paused": key in paused}
+             "paused": key in paused,
+             # Only ever more than one row when someone has added a second
+             # account, so a screen that never uses this sees no change.
+             "accounts": accounts_for(key)}
             for key, (label, _url, domains) in SITES.items()
         ],
         "busy": _flow.busy,
@@ -442,12 +711,21 @@ def forget(site: str = "") -> None:
         if _site_files():
             return
 
+    # Everything means everything. The extra accounts keep their sessions in
+    # browser profiles of their own, and a profile left behind here is a live
+    # sign-in sitting on the disk after someone pressed Forget.
+    extras = [(s, int(e.get("n") or 0))
+              for s, entries in load_accounts().items()
+              for e in entries or [] if int(e.get("n") or 0) >= 2]
+
     shutil.rmtree(store_dir(), ignore_errors=True)
     try:
         store_file().unlink()
     except OSError:
         pass
     shutil.rmtree(profile_dir(), ignore_errors=True)
+    for site_key, n in extras:
+        shutil.rmtree(account_profile(site_key, n), ignore_errors=True)
 
 
 def set_paused(site: str, on: bool) -> dict:
@@ -600,21 +878,27 @@ COMMON_FLAGS = [
 ]
 
 
-def _launch_login(exe: Path, url: str):
+def _launch_login(exe: Path, url: str, profile: Path = None):
     """
     Plain window, no automation switches. Google blocks sign-in when it can
     tell the browser is being driven, so this launch must look ordinary.
+
+    The profile is a parameter because a second account for the same site
+    needs one of its own - opening Instagram in a profile already signed in as
+    somebody else shows that account rather than a login page.
     """
-    args = [str(exe), f"--user-data-dir={profile_dir()}"] + COMMON_FLAGS + [url]
+    profile = profile or profile_dir()
+    args = [str(exe), f"--user-data-dir={profile}"] + COMMON_FLAGS + [url]
     return subprocess.Popen(args, creationflags=_NO_WINDOW)
 
 
-def _read_cookies(exe: Path) -> list:
+def _read_cookies(exe: Path, profile: Path = None) -> list:
     """Reopen the signed-in profile headless and ask it for its cookies."""
     port = _free_port()
+    profile = profile or profile_dir()
     args = [
         str(exe),
-        f"--user-data-dir={profile_dir()}",
+        f"--user-data-dir={profile}",
         "--headless=new",
         f"--remote-debugging-port={port}",
         "--remote-allow-origins=*",
@@ -678,10 +962,15 @@ class _Flow:
         self.proc = None
         self._lock = threading.Lock()
 
-    def start(self, site: str) -> dict:
+    def start(self, site: str, account: int = 1) -> dict:
         entry = SITES.get((site or "").lower())
         if entry is None:
             return {"ok": False, "error": "Riplox has no sign-in for that site."}
+
+        account = int(account or 1)
+        if account >= 2 and not any(a["n"] == account
+                                    for a in accounts_for(site)):
+            return {"ok": False, "error": "There is no such account."}
 
         found = find_browser()
         if not found:
@@ -697,27 +986,33 @@ class _Flow:
 
         # Signing in deliberately undoes a previous Forget for this site, and
         # a Pause for the same reason: both are someone asking for this
-        # session to count again.
-        data = _load_cookies()
-        dropped = [k for k in (data.get("dropped") or []) if k != site.lower()]
-        if dropped != (data.get("dropped") or []):
-            _save_cookies(data.get("cookies") or [], dropped)
-        _write_paused(set(_paused()) - {site.lower()})
+        # session to count again. Only for the first account - the others have
+        # their own pause, and their own file to be dropped from.
+        if account <= 1:
+            data = _load_cookies()
+            dropped = [k for k in (data.get("dropped") or []) if k != site.lower()]
+            if dropped != (data.get("dropped") or []):
+                _save_cookies(data.get("cookies") or [], dropped)
+            _write_paused(set(_paused()) - {site.lower()})
+        else:
+            set_account_paused(site.lower(), account, False)
 
-        threading.Thread(target=self._run, args=(found[1], entry[1], site.lower()),
+        threading.Thread(target=self._run,
+                         args=(found[1], entry[1], site.lower(), account),
                          daemon=True).start()
         return {"ok": True, "browser": found[0], "site": entry[0]}
 
-    def _run(self, exe: Path, url: str, site: str) -> None:
+    def _run(self, exe: Path, url: str, site: str, account: int = 1) -> None:
         try:
-            profile_dir().mkdir(parents=True, exist_ok=True)
+            profile = account_profile(site, account)
+            profile.mkdir(parents=True, exist_ok=True)
             self.step = "waiting"
-            self.proc = _launch_login(exe, url)
+            self.proc = _launch_login(exe, url, profile)
             self.proc.wait()
             self.proc = None
 
             self.step = "reading"
-            found = _read_cookies(exe)
+            found = _read_cookies(exe, profile)
             if not found:
                 raise OSError("No cookies were found - was the sign-in completed?")
 
@@ -736,7 +1031,17 @@ class _Flow:
                     f"in the window that opened, then close that window - "
                     f"Riplox reads the session once the window is closed.")
 
-            _save_cookies(found)
+            if account >= 2:
+                # This profile belongs to one account of one site, so only
+                # that site's cookies are kept from it. Anything else it
+                # picked up on the way is not what was being signed into and
+                # has a file of its own elsewhere.
+                mine = [c for c in found
+                        if _root_domain(c.get("domain", "")) in wanted]
+                _write_encrypted(account_file(site, account),
+                                 {"saved": time.time(), "cookies": mine})
+            else:
+                _save_cookies(found)
             self.step = "done"
         except Exception as exc:
             self.error = str(exc)[:200]
@@ -782,8 +1087,8 @@ class _Flow:
 _flow = _Flow()
 
 
-def start_login(site: str = "youtube") -> dict:
-    return _flow.start(site)
+def start_login(site: str = "youtube", account: int = 1) -> dict:
+    return _flow.start(site, account)
 
 
 def refresh() -> dict:
@@ -904,11 +1209,20 @@ def paused_for(url: str) -> str:
     return SITES[key][0] if key and key in _paused() else ""
 
 
+def site_of_url(url: str) -> str:
+    """The site key this URL belongs to, or ""."""
+    return SITE_BY_ROOT.get(_root_domain(urlsplit(url).hostname or ""), "")
+
+
 def materialize(url: str):
     """
     Write the cookies this URL is allowed to see into a temp file and return
     its path, or None when there is nothing to give. The caller must always
     call release() afterwards - the file is a live session in the clear.
+
+    With more than one account for a site, exactly one of them is used - the
+    one that has gone longest without a turn. Never two: they are two sessions
+    for the same site, and handing both to the same request is neither of them.
     """
     # Checked before anything is decrypted: a paused site has nothing to say
     # here, and reading every other site's file to work that out would be
@@ -916,8 +1230,16 @@ def materialize(url: str):
     if not url or paused_for(url):
         return None
 
-    data = _load_cookies()
-    cookies = data.get("cookies") or []
+    site = site_of_url(url)
+    chosen = pick_account(site) if site else 1
+    if site and not chosen:
+        return None                         # every account for it is paused
+
+    if site and chosen >= 2:
+        cookies = (_read_encrypted(account_file(site, chosen))
+                   .get("cookies") or [])
+    else:
+        cookies = _load_cookies().get("cookies") or []
     if not cookies:
         return None
 
@@ -925,6 +1247,11 @@ def materialize(url: str):
     body = _netscape(cookies, domains)
     if body.count("\n") <= 3:               # header only, nothing matched
         return None
+
+    # Only once something is actually being handed over: a site whose cookies
+    # did not match had no turn to take.
+    if site:
+        note_account_used(site, chosen)
     return _write_temp(body)
 
 

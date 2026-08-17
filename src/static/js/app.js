@@ -2925,11 +2925,22 @@
         out.textContent = "Forget";
         out.addEventListener("click", function () { forgetSite(site.key, site.label); });
 
+        // A spare account for the same site. Offered on every row rather
+        // than hidden behind a menu, but only useful once the first one is
+        // signed in - which is what the update below decides.
+        var more = document.createElement("button");
+        more.className = "ghost small";
+        more.type = "button";
+        more.textContent = "+ account";
+        more.title = "Sign in a second account for this site";
+        more.addEventListener("click", function () { addAccount(site.key, site.label); });
+
         row.appendChild(name);
         row.appendChild(mark);
         row.appendChild(go);
         row.appendChild(hold);
         row.appendChild(out);
+        row.appendChild(more);
         box.appendChild(row);
       });
     }
@@ -2952,11 +2963,103 @@
       row.children[3].disabled = !!c.busy;
       row.children[4].hidden = !site.signedIn;
       row.children[4].disabled = !!c.busy;
+      row.children[5].hidden = !site.signedIn;
+      row.children[5].disabled = !!c.busy;
+    });
+
+    renderExtraAccounts(c);
+  }
+
+  /* The extra accounts, in a list of their own rather than folded into the
+     rows above. The site rows are patched by position on every poll, and
+     growing them by a variable number of children is how that quietly breaks. */
+  function renderExtraAccounts(c) {
+    var box = $("extraAccounts");
+    if (!box) return;
+
+    var rows = [];
+    (c.known || []).forEach(function (site) {
+      (site.accounts || []).forEach(function (acct) {
+        if (acct.n >= 2) rows.push({ site: site, acct: acct });
+      });
+    });
+
+    box.hidden = rows.length === 0;
+    if (box.hidden) { box.innerHTML = ""; return; }
+
+    box.innerHTML =
+      '<p class="conv-note">A spare for when a session stops working, or an ' +
+      'account that can see something the other cannot. Riplox uses whichever ' +
+      'has gone longest without a turn — one at a time, never both at once. ' +
+      'They all go out from this PC, so the sites can still tell they belong ' +
+      'to the same person.</p>' +
+      rows.map(function (r) {
+        var state = r.acct.paused ? "Paused"
+          : (r.acct.signedIn ? "Signed in" : "Not signed in");
+        return '<div class="site-row' +
+          (r.acct.signedIn && !r.acct.paused ? " in" : "") +
+          (r.acct.paused ? " held" : "") + '">' +
+          '<span class="site-name">' + esc(r.site.label) + " · " +
+            esc(r.acct.label) + "</span>" +
+          '<span class="site-mark">' + state + "</span>" +
+          '<button class="ghost small" data-asignin="' + esc(r.site.key) +
+            '" data-n="' + r.acct.n + '">' +
+            (r.acct.signedIn ? "Sign in again" : "Sign in") + "</button>" +
+          (r.acct.signedIn
+            ? '<button class="ghost small" data-apause="' + esc(r.site.key) +
+              '" data-n="' + r.acct.n + '" data-to="' + (r.acct.paused ? "0" : "1") +
+              '">' + (r.acct.paused ? "Use again" : "Pause") + "</button>"
+            : "") +
+          '<button class="ghost small danger" data-aremove="' + esc(r.site.key) +
+            '" data-n="' + r.acct.n + '">Remove</button>' +
+          "</div>";
+      }).join("");
+  }
+
+  function addAccount(site, label) {
+    api("/api/cookies/account/add", { site: site }).then(function (res) {
+      if (!res.ok) { toast(res.error || "Could not add that.", "bad"); return; }
+      // Added and then signed in, because an account with no session is a row
+      // that does nothing - the browser window is the point of pressing this.
+      signIn(site, label + " (account " + res.n + ")", res.n);
     });
   }
 
-  function signIn(site, label) {
-    api("/api/cookies/signin", { site: site }).then(function (res) {
+  $("extraAccounts").addEventListener("click", function (e) {
+    var go = e.target.closest("[data-asignin]");
+    if (go) {
+      signIn(go.dataset.asignin, go.dataset.asignin + " (account " +
+             go.dataset.n + ")", parseInt(go.dataset.n, 10));
+      return;
+    }
+
+    var hold = e.target.closest("[data-apause]");
+    if (hold) {
+      api("/api/cookies/pause", { site: hold.dataset.apause,
+                                  account: parseInt(hold.dataset.n, 10),
+                                  on: hold.dataset.to === "1" }).then(function (res) {
+        if (!res.ok) { toast(res.error || "Could not change that.", "bad"); return; }
+        loadCookies();
+      });
+      return;
+    }
+
+    var drop = e.target.closest("[data-aremove]");
+    if (drop) {
+      if (!window.confirm("Remove this account? Its sign-in is deleted from "
+                          + "this PC. The other accounts are not touched.")) return;
+      api("/api/cookies/account/remove", { site: drop.dataset.aremove,
+                                           account: parseInt(drop.dataset.n, 10) })
+        .then(function (res) {
+          if (!res.ok) { toast(res.error || "Could not remove it.", "bad"); return; }
+          toast("Account removed");
+          loadCookies();
+        });
+    }
+  });
+
+  function signIn(site, label, account) {
+    api("/api/cookies/signin", { site: site, account: account || 1 }).then(function (res) {
       if (!res.ok) { toast(res.error || "Could not open the browser.", "bad"); return; }
       toast("Sign in to " + label + ", then close that window", "good");
       loadCookies();

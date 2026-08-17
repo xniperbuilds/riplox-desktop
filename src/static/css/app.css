@@ -2351,6 +2351,16 @@ body.dropping::after {
 /* Held back, not signed out - a different thing, so a different colour. */
 .site-row.held .site-mark { color: var(--amber-ink); }
 
+/* The spare accounts. Set in from the site rows above so it reads as
+   belonging to them rather than as a second, competing list. */
+.extra-accounts {
+  margin: 0 0 4px 18px;
+  padding-left: 12px;
+  border-left: 2px solid var(--line-soft);
+}
+.extra-accounts .conv-note { margin: 10px 0 2px; }
+.extra-accounts .site-row { padding-left: 0; padding-right: 18px; }
+
 /* --- the cookies.txt files ----------------------------------------------- */
 
 .cookie-files { margin-top: 6px; }
