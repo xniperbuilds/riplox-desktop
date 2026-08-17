@@ -26,7 +26,7 @@ import re
 import time
 import urllib.error
 import urllib.request
-from http.cookiejar import CookieJar
+from http.cookiejar import CookieJar, MozillaCookieJar
 from urllib.parse import urlsplit
 
 CHROME_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -165,18 +165,64 @@ def handles(url: str) -> bool:
 # Fetching
 # --------------------------------------------------------------------------
 
-def _opener() -> urllib.request.OpenerDirector:
+def _opener(session_for: str = "") -> urllib.request.OpenerDirector:
     """
-    A fresh jar per link.
+    A fresh jar per link, optionally carrying the saved sign-in for a site.
 
     TikTok answers the first request from an unknown client with a wall page
     and a Set-Cookie, and the second request - carrying that cookie - with the
     real thing. Keeping the jar is the entire trick; a stateless request can
     never get past the first step, which is why so many attempts at this look
     like the site is blocking the machine.
+
+    The jar starts empty by default and that is deliberate. A session is only
+    put in when the site has actually said it wants one - see the age-gated
+    path below - because signed out is what gets past the wall, and a door
+    that always announced who it was would be trading a reliable route for an
+    occasional one.
     """
-    return urllib.request.build_opener(
-        urllib.request.HTTPCookieProcessor(CookieJar()))
+    jar = CookieJar()
+    if session_for:
+        _load_session(jar, session_for)
+    return urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+
+
+def _session_jar(url: str):
+    """The saved sign-in for this address as a jar, or None."""
+    # Imported here rather than at the top: this module is the fallback that
+    # has to keep working when the rest of the app is having a bad day, and
+    # the cookie store brings Windows-only machinery with it.
+    try:
+        import cookies as store
+    except ImportError:
+        return None
+
+    path = store.materialize(url)          # None when absent or paused
+    if not path:
+        return None
+    try:
+        jar = MozillaCookieJar(str(path))
+        jar.load(ignore_discard=True, ignore_expires=True)
+        return jar
+    except Exception:                      # noqa: BLE001
+        return None
+    finally:
+        # The file is a live session in the clear; it does not outlive this.
+        store.release(path)
+
+
+def _load_session(jar, url: str) -> bool:
+    saved = _session_jar(url)
+    if saved is None:
+        return False
+    for cookie in saved:
+        jar.set_cookie(cookie)
+    return True
+
+
+def _have_session(url: str) -> bool:
+    """Is there a sign-in to offer at all? A paused site counts as none."""
+    return _session_jar(url) is not None
 
 
 def _headers_with_jar(opener, headers: dict) -> dict:
@@ -241,7 +287,7 @@ def _tiktok_id(opener, url: str) -> str:
     return found.group(1)
 
 
-def _tiktok_detail(post_id: str) -> tuple:
+def _tiktok_detail(post_id: str, signed_in: bool = False) -> tuple:
     """
     The post's own data out of the page, plus the jar that got it.
 
@@ -269,7 +315,9 @@ def _tiktok_detail(post_id: str) -> tuple:
     for wait in (0, 0.6, 1.2, 2.0, 3.0, 4.0):
         if wait:
             time.sleep(wait)
-        opener = _opener()                 # a clean jar, every time
+        # A clean jar every time - plus the saved sign-in when the post has
+        # already told us it will not be handed over without one.
+        opener = _opener(_TT_HOME if signed_in else "")
         try:
             page = _get(opener, url, referer="https://www.tiktok.com/")
         except (urllib.error.URLError, OSError) as exc:
@@ -320,6 +368,42 @@ def _tiktok_playable(item: dict) -> tuple:
     raise DoorError("TikTok did not include a video address for that post.")
 
 
+_TT_HOME = "https://www.tiktok.com/"
+
+
+def _tiktok_signed_in(post_id: str, item: dict, opener) -> tuple:
+    """
+    One more go at an age-gated post, this time carrying the saved sign-in.
+
+    Worth its own attempt rather than a message telling the user to sign in:
+    they generally already have. The first pass is signed out on purpose, so
+    until now a saved TikTok session was never offered to this route at all -
+    the post was refused with "sign in", by the one part of Riplox that never
+    tried signing in. Now the refusal only stands if it survives the session.
+
+    Anything that comes back is used with the jar that fetched it: the address
+    TikTok hands out is checked against the session that asked for it, so the
+    bytes have to be requested the same way.
+    """
+    if not _have_session(_TT_HOME):
+        raise DoorError("TikTok has age-restricted that post. Sign in to "
+                        "TikTok in Settings and try again.")
+
+    try:
+        detail, signed = _tiktok_detail(post_id, signed_in=True)
+    except DoorError:
+        detail, signed = {}, None
+
+    fresh = (detail or {}).get("itemInfo", {}).get("itemStruct") or {}
+    if fresh.get("video"):
+        return fresh, signed
+
+    raise DoorError("TikTok has age-restricted that post and would not hand "
+                    "it over even with your saved sign-in. Signing in to "
+                    "TikTok again in Settings is the only thing that can "
+                    "change this.")
+
+
 def _tiktok(url: str) -> dict:
     # Following a short link is a separate errand from reading the post, and
     # the jar that ends up mattering is the one the post came back on.
@@ -336,8 +420,7 @@ def _tiktok(url: str) -> dict:
     if not item:
         raise DoorError("That TikTok post could not be read.")
     if item.get("isContentClassified"):
-        raise DoorError("TikTok has age-restricted that post, so it cannot be "
-                        "fetched without a signed-in account.")
+        item, opener = _tiktok_signed_in(post_id, item, opener)
     if item.get("imagePost"):
         raise DoorError("That is a TikTok photo post, not a video.")
 

@@ -46,6 +46,14 @@
       </svg>
       <span class="tab-label">Library</span>
     </button>
+    <button class="tab" data-view="failed" role="tab" title="Failed">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="8.4"/><path d="M12 7.8v4.7M12 16h.01"/>
+      </svg>
+      <span class="tab-label">Failed</span>
+      <em class="badge" id="failedBadge" hidden>0</em>
+    </button>
     <button class="tab" data-view="convert" role="tab" title="Convert">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -394,6 +402,10 @@
     <!-- Why nothing is starting. A queue that just sits there, saying nothing,
          is the difference between "it is waiting" and "it is broken". -->
     <div class="hold-bar" id="holdBar" hidden></div>
+    <!-- A site that answered "too many requests" is left alone for a while.
+         Said out loud, with the way out beside it: a silent pause and a broken
+         app look identical from here. -->
+    <div class="cool-bar" id="coolBar" hidden></div>
     <div class="empty" id="queueEmpty">
       <p>Nothing downloading.</p>
       <span>Analyzed links land here.</span>
@@ -435,6 +447,31 @@
       <span>Finished files are listed here.</span>
     </div>
     <div class="history" id="history"></div>
+  </section>
+
+  <!-- ============================ FAILED =============================
+       Kept apart from the queue on purpose. The queue is cleared, and it used
+       to take the record of what went wrong with it - so the one thing worth
+       still having the next day was the one thing that did not last. Nothing
+       here disappears on its own: no age limit, no count limit, and every
+       button that removes a row is pressed by hand. -->
+  <section class="view" id="view-failed">
+    <div class="view-head">
+      <h2>Failed downloads</h2>
+      <div class="row-gap">
+        <button class="ghost small" id="failedRetryAll">Retry all</button>
+        <button class="ghost small danger" id="failedClear">Delete all</button>
+      </div>
+    </div>
+
+    <p class="conv-note">Kept until you delete them, so a link that would not
+      download is still here tomorrow. Retry puts it back in the queue.</p>
+
+    <div class="empty" id="failedEmpty">
+      <p>Nothing has failed.</p>
+      <span>A download that will not finish is listed here, with the reason.</span>
+    </div>
+    <div class="history" id="failedList"></div>
   </section>
 
   <!-- ============================ CONVERT ============================ -->
@@ -783,6 +820,22 @@
           <button class="toggle {% if settings.schedule_on %}on{% endif %}"
                   id="setSchedule" role="switch"><i></i></button>
         </div>
+      </div>
+
+      <!-- The number is not a guess: two maintained downloaders allow about
+           one Instagram request every eight to twelve seconds, and sharing a
+           dozen reels at once runs straight into that. Only Instagram is
+           slowed, because it is the only site anyone has published a budget
+           for. The pause after a site actually refuses is separate and is not
+           a setting - it only ever happens once the site has said no. -->
+      <div class="field">
+        <div class="field-text">
+          <label>Go easy on Instagram</label>
+          <span>Leaves a few seconds between Instagram downloads so a batch is
+                not refused halfway through. Nothing else is slowed.</span>
+        </div>
+        <button class="toggle {% if settings.pace_sites %}on{% endif %}"
+                id="setPace" role="switch"><i></i></button>
       </div>
 
       <div class="field">

@@ -1156,6 +1156,45 @@ button { font-family: var(--body); }
   letter-spacing: .05em;
 }
 
+/* --- failed --------------------------------------------------------------- */
+
+/* Same row as the library, plus the one thing that page never has to show:
+   why it did not work. The reason wraps rather than being cut off - a
+   truncated error is a row that has to be opened to be any use at all. */
+.fail-row { align-items: start; }
+.fail-row .t { white-space: normal; }
+
+/* Two classes deep on purpose: .hrow .m sets the quiet grey these rows
+   inherit, and a single class cannot outrank it however far down it sits. */
+.fail-row .fail-why {
+  margin-top: 3px;
+  color: var(--pink-ink);
+  white-space: normal;
+  letter-spacing: .03em;
+  line-height: 1.45;
+}
+
+/* A row that eventually downloaded is kept, not removed - so it has to look
+   settled rather than shouting for attention. */
+.fail-row.is-fixed { opacity: .62; }
+.fail-row.is-fixed .fail-why { color: var(--ink-faint); }
+
+.fail-log {
+  margin: 9px 0 2px;
+  padding: 9px 10px;
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--sunk);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  line-height: 1.55;
+  color: var(--ink-dim);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* --- empty --------------------------------------------------------------- */
 
 .empty {
@@ -2254,6 +2293,30 @@ body.dropping::after {
   color: var(--ink-dim);
   font-size: 13px;
 }
+
+/* A site being left alone. The same shape as the hold bar because it is the
+   same kind of news - "nothing is starting, and here is why" - with the way
+   out on the right. */
+.cool-bar {
+  margin-bottom: 14px;
+  padding: 4px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cool-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--amber);
+  border-radius: 10px;
+  background: var(--sunk);
+  color: var(--ink-dim);
+  font-size: 13px;
+}
+.cool-row span { flex: 1; }
 
 /* --- one row per site you can sign in to --------------------------------- */
 

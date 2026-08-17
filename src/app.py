@@ -319,6 +319,14 @@ def api_jobs():
     return jsonify({
         "ok": True,
         "jobs": manager.snapshot(),
+        # Counted here so the Failed tab can carry a badge without a second
+        # poll of its own. The rows themselves are only fetched when that page
+        # is actually opened.
+        "failedCount": len([f for f in engine.load_failed() if not f.get("fixed")]),
+        # Sites being left alone after they asked Riplox to slow down. Shown
+        # rather than left silent: a queue that is not moving looks broken,
+        # and this is the one case where not moving is the correct behaviour.
+        "cooling": engine.cooling_sites(),
         "hasFfmpeg": engine.has_ffmpeg(),
         # Decides whether a failed job is offered a "Fix this" button.
         "hasPotoken": potoken.installed(),
@@ -1145,6 +1153,69 @@ def api_history():
 @app.post("/api/history/clear")
 def api_history_clear():
     engine.clear_history()
+    return jsonify({"ok": True})
+
+
+# --------------------------------------------------------------------------
+# Downloads that failed
+# --------------------------------------------------------------------------
+# Its own page, because the queue is a working surface rather than a record:
+# it gets cleared, and what failed went with it. Nothing below removes a row
+# on anyone's behalf - each route that deletes one was pressed by hand.
+
+@app.post("/api/pace/resume")
+def api_pace_resume():
+    """
+    "Go now" for a site that is being left alone.
+
+    The user's call outranks the wait - but the strike count stays, so if the
+    site refuses again the next pause is the longer one rather than starting
+    over from the beginning.
+    """
+    site = (request.json or {}).get("site", "")
+    return jsonify({"ok": engine.clear_cooldown(site)})
+
+
+@app.get("/api/failed")
+def api_failed():
+    return jsonify({"ok": True, "failed": engine.load_failed()})
+
+
+@app.post("/api/failed/retry")
+def api_failed_retry():
+    """
+    Queue a remembered failure again, exactly as it was.
+
+    The row stays. If this attempt works, the entry says so and goes quiet -
+    it is still the user who decides when it leaves the list.
+    """
+    entry_id = (request.json or {}).get("id", "")
+    for entry in engine.load_failed():
+        if entry.get("id") != entry_id:
+            continue
+        if entry.get("kind") == "convert":
+            return jsonify({"ok": False,
+                            "error": "That was a conversion, not a download. "
+                                     "Start it again from the Convert page."})
+        manager.add(url=entry.get("url", ""),
+                    title=entry.get("title", ""),
+                    thumbnail=entry.get("thumbnail", ""),
+                    quality=entry.get("quality", "best"),
+                    uploader=entry.get("uploader", ""),
+                    opts=entry.get("opts") or {},
+                    origin=entry.get("from", ""))
+        return jsonify({"ok": True})
+    return jsonify({"ok": False, "error": "That one is no longer on the list."})
+
+
+@app.post("/api/failed/forget")
+def api_failed_forget():
+    return jsonify({"ok": engine.forget_failure((request.json or {}).get("id", ""))})
+
+
+@app.post("/api/failed/clear")
+def api_failed_clear():
+    engine.clear_failed()
     return jsonify({"ok": True})
 
 

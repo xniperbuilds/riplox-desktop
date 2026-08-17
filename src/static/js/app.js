@@ -176,8 +176,8 @@
 
   /* ---------------------------------------------------------------- tabs */
 
-  var views = ["capture", "queue", "library", "convert", "watch", "sharing",
-               "settings"];
+  var views = ["capture", "queue", "library", "failed", "convert", "watch",
+               "sharing", "settings"];
 
   function show(view) {
     views.forEach(function (v) {
@@ -189,6 +189,7 @@
 
     if (view === "queue") pollJobs();
     if (view === "library") loadHistory();
+    if (view === "failed") loadFailed();
     if (view === "convert") loadConvert();
     if (view === "watch") loadWatch();
     if (view === "sharing") loadSharing();
@@ -1530,6 +1531,36 @@
     });
   }
 
+  /* A site being left alone after it asked Riplox to slow down.
+
+     Written out rather than hidden: this is the one time a queue that is not
+     moving is doing the right thing, and the only way anyone can tell that
+     apart from a broken app is being told. The way out sits next to it. */
+  function renderCooling(cooling) {
+    var bar = $("coolBar");
+    if (!bar) return;
+    bar.hidden = cooling.length === 0;
+    if (bar.hidden) { bar.innerHTML = ""; return; }
+
+    bar.innerHTML = cooling.map(function (c) {
+      var mins = Math.max(1, Math.round(c.left / 60));
+      return '<div class="cool-row"><span>' + esc(c.site) +
+        " asked Riplox to slow down. Waiting about " + mins +
+        (mins === 1 ? " minute" : " minutes") +
+        " — everything else carries on.</span>" +
+        '<button class="ghost small" data-gonow="' + esc(c.site) +
+        '">Go now anyway</button></div>';
+    }).join("");
+  }
+
+  $("coolBar").addEventListener("click", function (e) {
+    var go = e.target.closest("[data-gonow]");
+    if (!go) return;
+    api("/api/pace/resume", { site: go.dataset.gonow }).then(function () {
+      pollJobs();
+    });
+  });
+
   function pollJobs() {
     return api("/api/jobs").then(function (res) {
       if (!res.ok) return 0;
@@ -1537,6 +1568,10 @@
       S.hasPotoken = res.hasPotoken;
       S.hasFfmpeg = res.hasFfmpeg;
       holdNote = res.holdNote || "";
+      // Comes back with the queue rather than from a poll of its own: the
+      // number is the only part of that page anything else needs.
+      setFailedBadge(res.failedCount || 0);
+      renderCooling(res.cooling || []);
       var active = renderJobs(res.jobs);
       renderBulkButtons(res.jobs);
 
@@ -1700,6 +1735,128 @@
   $("openFolder").addEventListener("click", function () {
     api("/api/open", {}).then(function (r) {
       if (!r.ok) toast(r.error || "Could not open the folder.", "bad");
+    });
+  });
+
+  /* ---------------------------------------------------------------- failed */
+  /* The list nothing tidies up. Every button here that removes a row is one
+     the user pressed: there is no age limit, no cap, and no quiet clean-up
+     when something eventually works - a row that downloaded later says so and
+     stays until it is deleted. */
+
+  var failedItems = [];
+  var failedOpen = "";       // whose details are showing
+
+  function setFailedBadge(count) {
+    var badge = $("failedBadge");
+    if (!badge) return;
+    badge.textContent = count;
+    badge.hidden = !count;
+  }
+
+  function loadFailed() {
+    return api("/api/failed").then(function (res) {
+      failedItems = res.failed || [];
+      renderFailed();
+      setFailedBadge(failedItems.filter(function (f) { return !f.fixed; }).length);
+    });
+  }
+
+  // Local time, not UTC: everything else on this screen is what the clock on
+  // the wall said, and a row five minutes old reading as yesterday evening is
+  // worse than no time at all.
+  function whenText(seconds) {
+    if (!seconds) return "";
+    var d = new Date(seconds * 1000);
+    var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
+      " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+  }
+
+  function renderFailed() {
+    $("failedEmpty").hidden = failedItems.length > 0;
+    $("failedRetryAll").hidden = failedItems.length === 0;
+    $("failedClear").hidden = failedItems.length === 0;
+
+    $("failedList").innerHTML = failedItems.map(function (f) {
+      var facts = [labels[f.quality] || f.quality || "", f.site || "",
+                   whenText(f.last || f.when)];
+      if (f.tries > 1) facts.push(f.tries + " tries");
+      var open = failedOpen === f.id;
+
+      return '<div class="hrow fail-row' + (f.fixed ? " is-fixed" : "") + '">' +
+        (f.thumbnail
+          ? '<img src="' + esc(f.thumbnail) + '" alt="" onerror="this.style.visibility=\'hidden\'">'
+          : "<div></div>") +
+        '<div><div class="t">' + esc(f.title || f.url) +
+          (f.fixed ? ' <em class="tag">downloaded later</em>' : "") + "</div>" +
+        '<div class="m">' + esc(facts.filter(Boolean).join(" · ")) + "</div>" +
+        '<div class="m fail-why">' + esc(f.error || "No reason was recorded.") + "</div>" +
+        (open ? '<pre class="fail-log">' + esc(f.log || "Nothing was logged.") + "</pre>" : "") +
+        "</div>" +
+        '<button class="icon-btn" data-details="' + esc(f.id) + '" title="' +
+          (open ? "Hide details" : "Show details") + '">' + ICON.copy + "</button>" +
+        '<button class="icon-btn go" data-refail="' + esc(f.id) +
+          '" title="Try again">' + ICON.retry + "</button>" +
+        '<button class="icon-btn" data-forget="' + esc(f.id) +
+          '" title="Delete this row">' + ICON.trash + "</button>" +
+        "</div>";
+    }).join("");
+  }
+
+  $("failedList").addEventListener("click", function (e) {
+    var details = e.target.closest("[data-details]");
+    if (details) {
+      failedOpen = failedOpen === details.dataset.details ? "" : details.dataset.details;
+      renderFailed();
+      return;
+    }
+
+    var retry = e.target.closest("[data-refail]");
+    if (retry) {
+      api("/api/failed/retry", { id: retry.dataset.refail }).then(function (r) {
+        if (!r.ok) { toast(r.error || "Could not queue that again.", "bad"); return; }
+        toast("Back in the queue", "good");
+        show("queue");
+        pollJobs();
+      });
+      return;
+    }
+
+    var forget = e.target.closest("[data-forget]");
+    if (forget) {
+      api("/api/failed/forget", { id: forget.dataset.forget }).then(function () {
+        loadFailed();
+      });
+    }
+  });
+
+  $("failedRetryAll").addEventListener("click", function () {
+    var waiting = failedItems.filter(function (f) { return !f.fixed; });
+    if (!waiting.length) { toast("Nothing waiting to retry.", "bad"); return; }
+
+    // One after another rather than all at once: the queue decides how many
+    // run together, and a hundred requests fired in a breath is a way to be
+    // rate-limited by every site at the same time.
+    var index = 0;
+    (function next() {
+      if (index >= waiting.length) {
+        toast(waiting.length + " back in the queue", "good");
+        show("queue");
+        pollJobs();
+        return;
+      }
+      api("/api/failed/retry", { id: waiting[index++].id }).then(next);
+    })();
+  });
+
+  $("failedClear").addEventListener("click", function () {
+    if (!window.confirm("Delete every row on this page? The files are not "
+                        + "touched - only this list.")) return;
+    api("/api/failed/clear", {}).then(function () {
+      failedOpen = "";
+      loadFailed();
+      toast("Failed list emptied", "good");
     });
   });
 
@@ -2544,6 +2701,7 @@
   bindToggle("setAutoDownload", "auto_download");
   bindToggle("setHotkey", "hotkey");
   bindToggle("setAutoPaste", "auto_paste");
+  bindToggle("setPace", "pace_sites");
   bindToggle("setThumb", "write_thumbnail");
   bindToggle("setPolite", "polite_mode");
   bindToggle("setUpscale", "allow_ai_upscale");

@@ -388,6 +388,11 @@ DEFAULT_SETTINGS = {
     # On: the session was captured because someone signed in, so use it. It is
     # already per-site, so a YouTube login never travels to another site.
     "cookies_signin": True,
+    # On: leave a few seconds between two Instagram downloads. It is the one
+    # site with a published request budget, and sharing a dozen reels at once
+    # is what runs into it. Nothing else is slowed, and the cooldown after a
+    # site actually refuses is separate - that one is not optional.
+    "pace_sites": True,
     "engine_channel": "stable",      # stable | nightly
     # On: when the engine is refused, let Riplox try its own way in. It only
     # ever runs on a link that has already failed, so the cost of leaving it on
@@ -571,6 +576,134 @@ def clear_history() -> None:
             history_file().unlink()
         except OSError:
             pass
+
+
+# --------------------------------------------------------------------------
+# Downloads that failed
+# --------------------------------------------------------------------------
+# The queue is a working surface: it is cleared, and it does not survive a
+# restart intact. That is right for what is running and wrong for what failed -
+# a link that did not download is the one thing worth still having tomorrow,
+# and until now it was the one thing that disappeared.
+#
+# So failures are written down here instead, and nothing removes them on
+# anyone's behalf. There is no age limit and no count limit: this list shrinks
+# when the person looking at it decides it should, and at no other time.
+#
+# The one thing that is not kept twice is the same link failing again - that
+# updates the entry it already has, with a count and a fresh time, because
+# forty rows of one stubborn link is not a record of anything.
+
+_failed_lock = threading.Lock()
+
+# The tail of the log, which is where the reason is. Enough to explain a
+# failure a week later, small enough that a thousand of them is still a file
+# that opens instantly.
+FAILED_LOG_KEEP = 4000
+
+
+def failed_file() -> Path:
+    return data_dir() / "failed.json"
+
+
+def load_failed() -> list:
+    try:
+        with open(failed_file(), "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+            return data if isinstance(data, list) else []
+    except (OSError, ValueError):
+        return []
+
+
+def _write_failed(items: list) -> None:
+    tmp = failed_file().with_suffix(".tmp")
+    try:
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(items, fh, indent=1)
+        tmp.replace(failed_file())
+    except OSError:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+
+
+def _failed_key(url: str, quality: str) -> str:
+    return f"{url}\n{quality}"
+
+
+def record_failure(entry: dict) -> None:
+    """
+    Remember one download that did not happen.
+
+    The same link at a different quality is a different attempt and gets its
+    own row: "1080p failed, 720p worked" is a useful thing to be able to see.
+    """
+    key = _failed_key(entry.get("url", ""), entry.get("quality", ""))
+    now = time.time()
+    with _failed_lock:
+        items = load_failed()
+        for item in items:
+            if _failed_key(item.get("url", ""), item.get("quality", "")) != key:
+                continue
+            item["tries"] = int(item.get("tries") or 1) + 1
+            item["last"] = now
+            item["error"] = entry.get("error", "")
+            item["log"] = entry.get("log", "")
+            item["title"] = entry.get("title") or item.get("title", "")
+            item["thumbnail"] = entry.get("thumbnail") or item.get("thumbnail", "")
+            # It failed again, so whatever it is, it is not fixed now.
+            item.pop("fixed", None)
+            _write_failed(items)
+            return
+
+        entry = dict(entry)
+        entry.setdefault("id", uuid.uuid4().hex[:12])
+        entry["when"] = now
+        entry["last"] = now
+        entry["tries"] = 1
+        items.insert(0, entry)
+        _write_failed(items)
+
+
+def note_failure_fixed(url: str, quality: str) -> None:
+    """
+    Mark a remembered failure as having downloaded later.
+
+    Not removed: taking the row away would be this program deciding something
+    on the list should go, which is the one thing this list promises not to do.
+    A row that says it worked in the end is also worth seeing - it is the
+    difference between "that site is broken" and "that day was bad".
+    """
+    key = _failed_key(url, quality)
+    with _failed_lock:
+        items = load_failed()
+        hit = False
+        for item in items:
+            if _failed_key(item.get("url", ""), item.get("quality", "")) == key:
+                if not item.get("fixed"):
+                    item["fixed"] = time.time()
+                    hit = True
+        if hit:
+            _write_failed(items)
+
+
+def forget_failure(entry_id: str) -> bool:
+    with _failed_lock:
+        items = load_failed()
+        kept = [i for i in items if i.get("id") != entry_id]
+        if len(kept) == len(items):
+            return False
+        _write_failed(kept)
+        return True
+
+
+def clear_failed() -> None:
+    with _failed_lock:
+        try:
+            failed_file().unlink()
+        except OSError:
+            _write_failed([])
 
 
 # --------------------------------------------------------------------------
@@ -2088,6 +2221,19 @@ def _clean_error(stderr: str) -> str:
     # A session that is being turned down, rather than one that is missing.
     # Worth separating: the fix is to sign in again, not to change anything
     # about the download.
+    # Instagram's other way of saying no: the media call answers with an empty
+    # body, which the engine can only report as a JSON parse failure - ending
+    # in "please report this issue", so a refusal by Instagram reads as a bug
+    # in Riplox. Measured on a post Instagram's own page calls age-restricted,
+    # with a session it had just accepted.
+    if "instagram" in low_all and ("failed to parse json" in low_all
+                                   or "expecting value" in low_all):
+        return ("Instagram answered with nothing at all for that post. That "
+                "is how it refuses one it will not serve to the account being "
+                "used - an age-restricted post, most often. If other "
+                "Instagram links still work, it is this post rather than the "
+                "sign-in.")
+
     if "400" in low_all and "instagram" in low_all:
         return ("Instagram turned down the saved sign-in. Sign in again in "
                 "Settings - or pause Instagram there, which keeps the session "
@@ -2183,6 +2329,217 @@ _SITE_NAMES = {
     "dailymotion": "Dailymotion", "twitch": "Twitch", "soundcloud": "SoundCloud",
     "pinterest": "Pinterest", "snapchat": "Snapchat", "linkedin": "LinkedIn",
 }
+
+
+# --------------------------------------------------------------------------
+# Pacing, and what to do when a site says no
+# --------------------------------------------------------------------------
+# Two separate things, and only one of them ever slows anything down.
+#
+# The one that costs nothing is the cooldown. yt-dlp has no handling for HTTP
+# 429 at all - checked in its own extractor/common.py - so a site that answers
+# "too many requests" is currently asked again immediately, by the next job in
+# the queue. Asking harder is exactly what turns a temporary refusal into a
+# blocked account. After a refusal, that site is left alone for a while.
+# Nothing about this is active until a site has already said no.
+#
+# The one that does cost something is the gap between jobs, and it is applied
+# to Instagram alone because Instagram is the only site anyone has published a
+# budget for. Two maintained projects agree on the number: gallery-dl ships
+# 6-12 seconds between Instagram requests, and instaloader's own limiter allows
+# 75 requests per 11 minutes - about 8.8 seconds each. Everywhere else the
+# honest answer is that nobody knows, so nothing else is slowed down.
+#
+# Fourteen links shared at once - the way this app is actually used - is 40 to
+# 80 requests, which lands squarely on that budget. That is the case this is
+# for; a single link is never held back.
+
+# site -> seconds between STARTING two jobs for it.
+PACE_GAP = {"Instagram": 8.0}
+
+# What "go properly slowly" means for a site that has already refused once:
+# seconds between the engine's own page requests inside a single download.
+# gallery-dl ships 6-12s for Instagram; this is the floor of that.
+#
+# Not the everyday setting. Every download already carries the polite 0.75s
+# from _base_args, and the honest arithmetic says that plus the job gap is
+# still faster than Instagram's published budget - roughly one request every
+# two seconds against a budget of one every nine. Closing that gap completely
+# would turn fourteen shared reels into eight minutes of waiting, every time,
+# for a refusal that may never come. So the strict number is held back until
+# the site itself says no, and then it is used.
+PACE_STRICT_REQUESTS = {"Instagram": 6.0}
+
+# The gap between starting two jobs grows the same way, for the same reason.
+PACE_GAP_MAX = 40.0
+
+COOLDOWN_FIRST = 45 * 60         # after the first refusal
+COOLDOWN_MAX = 6 * 3600          # doubling, but never past this
+STRIKE_WINDOW = 12 * 3600        # after this long with no refusal, forgiven
+
+# What a refusal actually looks like. Deliberately narrow: a site put to sleep
+# for the wrong reason is a broken app as far as anyone can tell, so this
+# matches the things sites say when they are rate-limiting and nothing else.
+_REFUSALS = (
+    "http error 429", "429 too many requests", "too many requests",
+    "rate-limit reached", "rate limit exceeded",
+    "please wait a few minutes before you try again",
+    "checkpoint_required", "challenge_required",
+)
+
+_pace_lock = threading.Lock()
+_pace_started = {}               # site -> when a job for it last started
+
+
+def pace_file() -> Path:
+    return data_dir() / "pace.json"
+
+
+def load_pace() -> dict:
+    try:
+        with open(pace_file(), "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+            return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_pace(data: dict) -> None:
+    tmp = pace_file().with_suffix(".tmp")
+    try:
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, indent=1)
+        tmp.replace(pace_file())
+    except OSError:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+
+
+def looks_rate_limited(text: str) -> bool:
+    low = (text or "").lower()
+    return any(phrase in low for phrase in _REFUSALS)
+
+
+def start_cooldown(site: str, why: str = "") -> float:
+    """
+    Leave this site alone for a while. Returns when it may be used again.
+
+    A second refusal doubles the wait, because the first one plainly was not
+    long enough. It is written to disk on purpose: restarting the app is the
+    most natural thing to try when downloads stop, and a cooldown that a
+    restart clears is a cooldown that never happens.
+    """
+    if not site:
+        return 0.0
+    now = time.time()
+    with _pace_lock:
+        data = load_pace()
+        cooling = data.get("cooldown") or {}
+        before = cooling.get(site) or {}
+        strikes = int(before.get("strikes") or 0)
+        # A refusal months ago says nothing about today.
+        if now - float(before.get("at") or 0) > STRIKE_WINDOW:
+            strikes = 0
+        strikes += 1
+
+        wait = min(COOLDOWN_FIRST * (2 ** (strikes - 1)), COOLDOWN_MAX)
+        cooling[site] = {"until": now + wait, "at": now, "strikes": strikes,
+                         "why": (why or "")[:200]}
+        data["cooldown"] = cooling
+        _save_pace(data)
+        return now + wait
+
+
+def cooldown_left(site: str) -> float:
+    """Seconds until this site may be asked again. 0 when it is free."""
+    entry = (load_pace().get("cooldown") or {}).get(site) or {}
+    return max(0.0, float(entry.get("until") or 0) - time.time())
+
+
+def clear_cooldown(site: str) -> bool:
+    """
+    The user saying "no, go now".
+
+    Their call, and it wins - but the strike count is kept, so if the site
+    refuses again the next wait is still the longer one rather than starting
+    over at forty-five minutes.
+    """
+    with _pace_lock:
+        data = load_pace()
+        cooling = data.get("cooldown") or {}
+        entry = cooling.get(site)
+        if not entry:
+            return False
+        entry["until"] = 0
+        data["cooldown"] = cooling
+        _save_pace(data)
+        return True
+
+
+def cooling_sites() -> list:
+    """Everything currently being left alone, for the screen."""
+    now = time.time()
+    out = []
+    for site, entry in (load_pace().get("cooldown") or {}).items():
+        left = float(entry.get("until") or 0) - now
+        if left > 0:
+            out.append({"site": site, "left": int(left),
+                        "why": entry.get("why", "")})
+    return sorted(out, key=lambda e: -e["left"])
+
+
+def _strikes(site: str) -> int:
+    """How many times this site has refused recently."""
+    entry = (load_pace().get("cooldown") or {}).get(site) or {}
+    if time.time() - float(entry.get("at") or 0) > STRIKE_WINDOW:
+        return 0
+    return int(entry.get("strikes") or 0)
+
+
+def pace_requests(site: str, settings: dict = None):
+    """
+    Seconds between page requests for a site that has been refused, or None.
+
+    None means "leave it alone" - the ordinary polite pause every download
+    already carries is enough for a site that has never complained.
+    """
+    settings = settings if settings is not None else load_settings()
+    if not settings.get("pace_sites", True):
+        return None
+    strict = PACE_STRICT_REQUESTS.get(site or "")
+    if not strict or not _strikes(site):
+        return None
+    return strict
+
+
+def note_started(site: str) -> None:
+    """One job for this site has just begun."""
+    if site:
+        _pace_started[site] = time.monotonic()
+
+
+def pace_left(site: str, settings: dict = None) -> float:
+    """
+    How long before another job for this site may start.
+
+    In memory rather than on disk: this is about the gap between two downloads
+    minutes apart, and after a restart there is nothing to space out from.
+    """
+    settings = settings if settings is not None else load_settings()
+    if not settings.get("pace_sites", True):
+        return 0.0
+    gap = PACE_GAP.get(site or "")
+    if not gap:
+        return 0.0
+    last = _pace_started.get(site)
+    if last is None:
+        return 0.0
+    # A site that has refused gets more room, doubling each time, because the
+    # gap it was given plainly was not enough.
+    gap = min(gap * (2 ** _strikes(site)), PACE_GAP_MAX)
+    return max(0.0, gap - (time.monotonic() - last))
 
 
 # --------------------------------------------------------------------------
@@ -3029,9 +3386,22 @@ class DownloadManager:
                 return None
             for jid in self._order:
                 job = self._jobs.get(jid)
-                if job and job.status == "queued":
-                    job.status = "starting"
-                    return job
+                if not job or job.status != "queued":
+                    continue
+
+                # A site that has already refused, or one that was asked
+                # moments ago, is skipped rather than the whole queue being
+                # stopped: everything else carries on downloading while one
+                # site waits its turn.
+                site = site_of(job.url) if job.kind != "convert" else ""
+                if site and (cooldown_left(site)
+                             or pace_left(site, settings)):
+                    continue
+
+                job.status = "starting"
+                if site:
+                    note_started(site)
+                return job
         return None
 
     def _worker_loop(self) -> None:
@@ -3049,8 +3419,56 @@ class DownloadManager:
             except Exception as exc:  # a crashed job must not kill the worker
                 job.status = "error"
                 job.error = str(exc)[:200]
+            self._remember_outcome(job)
             self._save()
             self._wake.set()
+
+    def _remember_outcome(self, job: Job) -> None:
+        """
+        Write down a job that failed - or note that a remembered one worked.
+
+        Here rather than at each of the dozen places that set "error": this is
+        the one point every job passes through on its way out, whichever route
+        it took and however it went wrong. A list of failures with holes in it
+        would be worse than no list, because the holes are invisible.
+        """
+        if job.cancelled or job.status in ("cancelled", "paused"):
+            return
+        if job.status == "done":
+            note_failure_fixed(job.url, job.quality)
+            return
+        if job.status != "error":
+            return
+
+        # "Too many requests" is not a failure to retry - it is the site
+        # asking to be left alone, and the next job in the queue asking again
+        # a second later is what turns that into something worse. Read from
+        # this job's own words only.
+        if job.kind != "convert" and looks_rate_limited(
+                f"{job.error}\n{job.log}"):
+            site = site_of(job.url)
+            until = start_cooldown(site, (job.error or "")[:120])
+            job.error = (f"{job.error}\n\n{site} asked Riplox to slow down, so "
+                         f"it is being left alone until "
+                         f"{time.strftime('%H:%M', time.localtime(until))}. "
+                         f"Other sites carry on as normal.").strip()
+
+        record_failure({
+            "url": job.url,
+            "title": job.title or job.url,
+            "quality": job.quality,
+            "thumbnail": job.thumbnail,
+            "uploader": job.uploader,
+            "site": site_of(job.url),
+            "from": job.origin,
+            "kind": job.kind,
+            # Kept so retrying from that page is the same download again -
+            # same folder, same trim - rather than a plainer one that happens
+            # to have the same address.
+            "opts": dict(getattr(job, "opts", None) or {}),
+            "error": (job.error or "")[:400],
+            "log": (job.log or "")[-FAILED_LOG_KEEP:],
+        })
 
     def _outtmpl(self, settings: dict, job: Job) -> str:
         opts = getattr(job, "opts", None) or {}
@@ -3413,6 +3831,16 @@ class DownloadManager:
 
         trimmed = bool(job.start or job.end)
         args += extra_args(settings, job.quality, trimmed)
+
+        # A site that has actually refused gets the strict treatment: a real
+        # gap between the engine's own page requests, not the polite 0.75s
+        # every download already carries. Passed after the base arguments on
+        # purpose - yt-dlp keeps the last value given for an option, so this
+        # replaces the polite one rather than fighting with it.
+        strict = pace_requests(site_of(job.url), settings)
+        if strict:
+            args += ["--sleep-requests", str(strict)]
+
         if opts.get("max_mb"):
             args += ["--max-filesize", f"{opts['max_mb']}M"]
         if opts.get("sub_langs"):
