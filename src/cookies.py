@@ -327,7 +327,7 @@ def set_account_paused(site: str, n: int, on: bool) -> dict:
     return {"ok": True, "paused": bool(on)}
 
 
-def pick_account(site: str) -> int:
+def pick_account(site: str, skip=None) -> int:
     """
     Which account to use for this site now, or 0 for none.
 
@@ -336,8 +336,15 @@ def pick_account(site: str) -> int:
     is the one least likely to be asked to prove anything, and "least recently
     used" is also what makes a spare a spare rather than a second thing being
     hammered in turn.
+
+    `skip` is for accounts the caller knows are resting after a site asked
+    Riplox to slow down. That belongs to the caller because the resting is
+    recorded by the part of the app that saw the refusal, and a module that
+    only keeps sessions has no business knowing about it.
     """
-    ready = [a for a in accounts_for(site) if a["signedIn"] and not a["paused"]]
+    skip = {int(n) for n in (skip or ())}
+    ready = [a for a in accounts_for(site)
+             if a["signedIn"] and not a["paused"] and a["n"] not in skip]
     if not ready:
         return 0
     ready.sort(key=lambda a: (a["last"], a["n"]))
@@ -1214,26 +1221,36 @@ def site_of_url(url: str) -> str:
     return SITE_BY_ROOT.get(_root_domain(urlsplit(url).hostname or ""), "")
 
 
-def materialize(url: str):
+def materialize(url: str, skip=None):
+    """The path only - see materialize_for, which also says whose session it is."""
+    return materialize_for(url, skip)[0]
+
+
+def materialize_for(url: str, skip=None):
     """
     Write the cookies this URL is allowed to see into a temp file and return
-    its path, or None when there is nothing to give. The caller must always
-    call release() afterwards - the file is a live session in the clear.
+    (path, account), or (None, 0) when there is nothing to give. The caller
+    must always call release() afterwards - the file is a live session in the
+    clear.
 
     With more than one account for a site, exactly one of them is used - the
     one that has gone longest without a turn. Never two: they are two sessions
     for the same site, and handing both to the same request is neither of them.
+
+    Which one is handed back rather than looked up again afterwards: by the
+    time a download fails, another job may have taken a turn, and blaming the
+    wrong account for a refusal is worse than not knowing.
     """
     # Checked before anything is decrypted: a paused site has nothing to say
     # here, and reading every other site's file to work that out would be
     # work done only to throw away.
     if not url or paused_for(url):
-        return None
+        return None, 0
 
     site = site_of_url(url)
-    chosen = pick_account(site) if site else 1
+    chosen = pick_account(site, skip) if site else 1
     if site and not chosen:
-        return None                         # every account for it is paused
+        return None, 0                      # all paused, or all resting
 
     if site and chosen >= 2:
         cookies = (_read_encrypted(account_file(site, chosen))
@@ -1241,18 +1258,18 @@ def materialize(url: str):
     else:
         cookies = _load_cookies().get("cookies") or []
     if not cookies:
-        return None
+        return None, 0
 
     domains = _wanted_domains(url)
     body = _netscape(cookies, domains)
     if body.count("\n") <= 3:               # header only, nothing matched
-        return None
+        return None, 0
 
     # Only once something is actually being handed over: a site whose cookies
     # did not match had no turn to take.
     if site:
         note_account_used(site, chosen)
-    return _write_temp(body)
+    return _write_temp(body), (chosen if site else 0)
 
 
 def release(path) -> None:

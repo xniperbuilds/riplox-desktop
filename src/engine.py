@@ -745,7 +745,9 @@ def open_cookies(settings: dict, url: str):
         except Exception:
             path = None            # never let cookie trouble block a download
         if path:
-            return path, True
+            # A file the user picked belongs to no account of ours, so there
+            # is nothing here to rest afterwards.
+            return path, True, 0
         # Files are set but none of them knows this site: fall through to the
         # sign-in rather than sending nothing, which is what a user who has
         # both would expect.
@@ -753,13 +755,16 @@ def open_cookies(settings: dict, url: str):
     if (settings or {}).get("cookies_signin", True):
         try:
             import cookies as cookie_store
-            path = cookie_store.materialize(url)
+            # An account that is resting after a refusal is not offered, so a
+            # spare takes the work instead of the whole site waiting.
+            path, account = cookie_store.materialize_for(
+                url, skip=resting_accounts(site_of(url)))
         except Exception:
-            path = None            # never let cookie trouble block a download
+            path, account = None, 0   # cookie trouble never blocks a download
         if path:
-            return path, True
+            return path, True, account
 
-    return None, False
+    return None, False, 0
 
 
 def close_cookies(path, temporary: bool) -> None:
@@ -1707,7 +1712,7 @@ def analyze(url: str, settings: dict) -> dict:
     plans = _RETRY_CLIENTS if _is_youtube(url) else _PLAIN_RETRIES
     out = None
 
-    cookie_path, temp_cookie = open_cookies(settings, url)
+    cookie_path, temp_cookie, _account = open_cookies(settings, url)
     try:
         for index, client in enumerate(plans):
             args = _base_args(settings, cookie_path)
@@ -1964,7 +1969,7 @@ def peek(url: str, settings: dict, limit: int = 30) -> dict:
     looks like scraping.
     """
     limit = max(1, min(int(limit or 30), 100))
-    cookie_path, temp_cookie = open_cookies(settings, url)
+    cookie_path, temp_cookie, _account = open_cookies(settings, url)
     try:
         args = _base_args(settings, cookie_path) + [
             "-J", "--flat-playlist", "--no-progress",
@@ -2422,9 +2427,24 @@ def looks_rate_limited(text: str) -> bool:
     return any(phrase in low for phrase in _REFUSALS)
 
 
-def start_cooldown(site: str, why: str = "") -> float:
+def cool_key(site: str, account: int = 0) -> str:
     """
-    Leave this site alone for a while. Returns when it may be used again.
+    What is being rested: one account, or the site itself.
+
+    A refusal answers the request that was made, and that request carried one
+    account's session. Resting the whole site because one account was asked to
+    slow down wastes the spare that exists for exactly this - so the account is
+    named when it is known. A request that carried no session at all has only
+    the site to blame, and that is what the bare key is.
+    """
+    site = site or ""
+    return f"{site}#{int(account)}" if int(account or 0) >= 1 else site
+
+
+def start_cooldown(site: str, why: str = "", account: int = 0) -> float:
+    """
+    Leave this site - or one of its accounts - alone for a while.
+    Returns when it may be used again.
 
     A second refusal doubles the wait, because the first one plainly was not
     long enough. It is written to disk on purpose: restarting the app is the
@@ -2434,10 +2454,11 @@ def start_cooldown(site: str, why: str = "") -> float:
     if not site:
         return 0.0
     now = time.time()
+    key = cool_key(site, account)
     with _pace_lock:
         data = load_pace()
         cooling = data.get("cooldown") or {}
-        before = cooling.get(site) or {}
+        before = cooling.get(key) or {}
         strikes = int(before.get("strikes") or 0)
         # A refusal months ago says nothing about today.
         if now - float(before.get("at") or 0) > STRIKE_WINDOW:
@@ -2445,20 +2466,30 @@ def start_cooldown(site: str, why: str = "") -> float:
         strikes += 1
 
         wait = min(COOLDOWN_FIRST * (2 ** (strikes - 1)), COOLDOWN_MAX)
-        cooling[site] = {"until": now + wait, "at": now, "strikes": strikes,
-                         "why": (why or "")[:200]}
+        cooling[key] = {"until": now + wait, "at": now, "strikes": strikes,
+                        "why": (why or "")[:200]}
         data["cooldown"] = cooling
         _save_pace(data)
         return now + wait
 
 
-def cooldown_left(site: str) -> float:
-    """Seconds until this site may be asked again. 0 when it is free."""
-    entry = (load_pace().get("cooldown") or {}).get(site) or {}
-    return max(0.0, float(entry.get("until") or 0) - time.time())
+def cooldown_left(site: str, account: int = 0) -> float:
+    """
+    Seconds until this may be asked again. 0 when it is free.
+
+    A site-wide rest covers every account: it is what a refusal with no
+    session attached leaves behind, and that one was not about any account.
+    """
+    cooling = load_pace().get("cooldown") or {}
+    now = time.time()
+    left = 0.0
+    for key in {cool_key(site, 0), cool_key(site, account)}:
+        entry = cooling.get(key) or {}
+        left = max(left, float(entry.get("until") or 0) - now)
+    return max(0.0, left)
 
 
-def clear_cooldown(site: str) -> bool:
+def clear_cooldown(site: str, account: int = 0) -> bool:
     """
     The user saying "no, go now".
 
@@ -2469,7 +2500,7 @@ def clear_cooldown(site: str) -> bool:
     with _pace_lock:
         data = load_pace()
         cooling = data.get("cooldown") or {}
-        entry = cooling.get(site)
+        entry = cooling.get(cool_key(site, account))
         if not entry:
             return False
         entry["until"] = 0
@@ -2482,20 +2513,33 @@ def cooling_sites() -> list:
     """Everything currently being left alone, for the screen."""
     now = time.time()
     out = []
-    for site, entry in (load_pace().get("cooldown") or {}).items():
+    for key, entry in (load_pace().get("cooldown") or {}).items():
         left = float(entry.get("until") or 0) - now
-        if left > 0:
-            out.append({"site": site, "left": int(left),
-                        "why": entry.get("why", "")})
+        if left <= 0:
+            continue
+        site, _, account = str(key).partition("#")
+        out.append({"site": site, "account": int(account or 0),
+                    "left": int(left), "why": entry.get("why", "")})
     return sorted(out, key=lambda e: -e["left"])
 
 
-def _strikes(site: str) -> int:
-    """How many times this site has refused recently."""
-    entry = (load_pace().get("cooldown") or {}).get(site) or {}
-    if time.time() - float(entry.get("at") or 0) > STRIKE_WINDOW:
-        return 0
-    return int(entry.get("strikes") or 0)
+def _strikes(site: str, account: int = 0) -> int:
+    """
+    How many times this has refused recently.
+
+    Counted against the site as a whole rather than the account: a second
+    account being refused is the same connection being told to slow down, so
+    the strict pacing that follows belongs to everything using it.
+    """
+    cooling = load_pace().get("cooldown") or {}
+    now, most = time.time(), 0
+    for key, entry in cooling.items():
+        if str(key).partition("#")[0] != (site or ""):
+            continue
+        if now - float(entry.get("at") or 0) > STRIKE_WINDOW:
+            continue
+        most = max(most, int(entry.get("strikes") or 0))
+    return most
 
 
 def pace_requests(site: str, settings: dict = None):
@@ -2512,6 +2556,55 @@ def pace_requests(site: str, settings: dict = None):
     if not strict or not _strikes(site):
         return None
     return strict
+
+
+def _accounts_of(site: str) -> list:
+    """
+    This site's accounts, or [] when it has none Riplox signs into.
+
+    Imported here rather than at the top: cookies.py is built on this module,
+    so the arrow only goes one way and a lazy import is what keeps it that way.
+    """
+    if not site:
+        return []
+    try:
+        import cookies as cookie_store
+        return [a for a in cookie_store.accounts_for(_site_key(site))
+                if a.get("signedIn") and not a.get("paused")]
+    except Exception:                                  # noqa: BLE001
+        return []
+
+
+def _site_key(site: str) -> str:
+    """The cookie store's key for a display name like "Instagram"."""
+    return (site or "").lower()
+
+
+def resting_accounts(site: str) -> set:
+    """Account numbers for this site that are waiting out a refusal."""
+    return {a["n"] for a in _accounts_of(site) if cooldown_left(site, a["n"])}
+
+
+def account_wait(site: str) -> float:
+    """
+    How long this site's downloads must wait, given who could sign them.
+
+    Zero when something can go now: either an account that is not resting, or
+    a site with no accounts at all, where only the site's own rest counts.
+
+    The point of a spare is exactly this - one account being told to slow down
+    should not stop the other one, and before this it stopped everything for
+    that site.
+    """
+    site_rest = cooldown_left(site, 0)
+    accounts = _accounts_of(site)
+    if not accounts:
+        return site_rest
+
+    waits = [cooldown_left(site, a["n"]) for a in accounts]
+    if any(w <= 0 for w in waits):
+        return site_rest                    # somebody is free to take this one
+    return max(site_rest, min(waits))       # everyone is resting; the soonest
 
 
 def note_started(site: str) -> None:
@@ -3047,7 +3140,7 @@ class Job:
                  "speed", "eta", "size", "filepath", "error", "created", "proc",
                  "cancelled", "uploader", "batch", "log", "attempt",
                  "start", "end", "exact", "stage", "paused", "kind", "conv",
-                 "opts", "origin", "streams", "sent_cookies")
+                 "opts", "origin", "streams", "sent_cookies", "account")
 
     def __init__(self, url, title="", thumbnail="", quality="best", uploader="",
                  batch=False, start="", end="", exact=False, opts=None,
@@ -3088,6 +3181,9 @@ class Job:
         # this URL" is a question with several answers and only one of them
         # is what happened.
         self.sent_cookies = False
+        # Which of the site's accounts signed the last attempt. 0 means none -
+        # either the site has no sign-in here or this attempt went signed out.
+        self.account = 0
         # Converting shares the queue with downloading: same progress, same
         # Cancel, same notifications, nothing new to invent.
         self.kind = "download"
@@ -3393,9 +3489,10 @@ class DownloadManager:
                 # moments ago, is skipped rather than the whole queue being
                 # stopped: everything else carries on downloading while one
                 # site waits its turn.
+                # A site whose every account is resting waits; one with a spare
+                # that is free does not, and neither does any other site.
                 site = site_of(job.url) if job.kind != "convert" else ""
-                if site and (cooldown_left(site)
-                             or pace_left(site, settings)):
+                if site and (account_wait(site) or pace_left(site, settings)):
                     continue
 
                 job.status = "starting"
@@ -3447,11 +3544,13 @@ class DownloadManager:
         if job.kind != "convert" and looks_rate_limited(
                 f"{job.error}\n{job.log}"):
             site = site_of(job.url)
-            until = start_cooldown(site, (job.error or "")[:120])
+            account = int(getattr(job, "account", 0) or 0)
+            until = start_cooldown(site, (job.error or "")[:120], account)
+            whose = "that account is" if account else f"{site} is"
             job.error = (f"{job.error}\n\n{site} asked Riplox to slow down, so "
-                         f"it is being left alone until "
+                         f"{whose} being left alone until "
                          f"{time.strftime('%H:%M', time.localtime(until))}. "
-                         f"Other sites carry on as normal.").strip()
+                         f"Everything else carries on as normal.").strip()
 
         record_failure({
             "url": job.url,
@@ -3794,9 +3893,12 @@ class DownloadManager:
 
     def _attempt(self, job: Job, settings: dict, client: str,
                  with_cookies: bool = True) -> bool:
-        cookie_path, temp_cookie = (open_cookies(settings, job.url)
-                                    if with_cookies else (None, False))
+        cookie_path, temp_cookie, account = (open_cookies(settings, job.url)
+                                             if with_cookies else (None, False, 0))
         job.sent_cookies = bool(cookie_path)
+        # Which account signed this attempt, so that a refusal rests the one
+        # that was actually refused rather than the whole site.
+        job.account = account
         try:
             return self._spawn(job, settings, client, cookie_path)
         finally:

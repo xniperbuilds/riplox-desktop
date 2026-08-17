@@ -1209,8 +1209,12 @@ def api_pace_resume():
     site refuses again the next pause is the longer one rather than starting
     over from the beginning.
     """
-    site = (request.json or {}).get("site", "")
-    return jsonify({"ok": engine.clear_cooldown(site)})
+    body = request.json or {}
+    try:
+        account = int(body.get("account") or 0)
+    except (TypeError, ValueError):
+        account = 0
+    return jsonify({"ok": engine.clear_cooldown(body.get("site", ""), account)})
 
 
 @app.get("/api/failed")

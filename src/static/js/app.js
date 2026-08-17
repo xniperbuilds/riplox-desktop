@@ -1544,21 +1544,27 @@
 
     bar.innerHTML = cooling.map(function (c) {
       var mins = Math.max(1, Math.round(c.left / 60));
-      return '<div class="cool-row"><span>' + esc(c.site) +
+      // Which account, when it was an account that was refused: with a spare
+      // signed in, "Instagram is waiting" would be wrong - the other one is
+      // still working.
+      var who = c.account
+        ? esc(c.site) + " (account " + c.account + ")"
+        : esc(c.site);
+      return '<div class="cool-row"><span>' + who +
         " asked Riplox to slow down. Waiting about " + mins +
         (mins === 1 ? " minute" : " minutes") +
         " — everything else carries on.</span>" +
         '<button class="ghost small" data-gonow="' + esc(c.site) +
-        '">Go now anyway</button></div>';
+        '" data-n="' + (c.account || 0) + '">Go now anyway</button></div>';
     }).join("");
   }
 
   $("coolBar").addEventListener("click", function (e) {
     var go = e.target.closest("[data-gonow]");
     if (!go) return;
-    api("/api/pace/resume", { site: go.dataset.gonow }).then(function () {
-      pollJobs();
-    });
+    api("/api/pace/resume", { site: go.dataset.gonow,
+                              account: parseInt(go.dataset.n, 10) || 0 })
+      .then(function () { pollJobs(); });
   });
 
   function pollJobs() {
