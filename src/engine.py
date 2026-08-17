@@ -2469,6 +2469,28 @@ def looks_rate_limited(text: str) -> bool:
     return any(phrase in low for phrase in _REFUSALS)
 
 
+# A refusal that is known to pass on its own, and when to try it again.
+#
+# TikTok answers some requests with a 1.4 KB check page and the same link with
+# the real thing minutes later - measured twice in one evening: four failures
+# at 21:51, the same link handed over at 22:2x, with nothing changed in
+# between. The door already retries six times inside eleven seconds, which is
+# the wrong timescale entirely: what clears this is minutes, not seconds.
+#
+# Two goes, five minutes and then fifteen. Not more: a link that is still
+# refused twenty minutes later is not the kind that clears, and a queue that
+# quietly re-asks for ever is how a machine ends up walled properly.
+AUTO_RETRY_AFTER = (5 * 60, 15 * 60)
+
+_CLEARS_ON_ITS_OWN = ("check page instead of the post", "often clears on its own")
+
+
+def clears_on_its_own(text: str) -> bool:
+    """Is this the kind of refusal that passes if you simply wait?"""
+    low = (text or "").lower()
+    return any(sign in low for sign in _CLEARS_ON_ITS_OWN)
+
+
 def cool_key(site: str, account: int = 0) -> str:
     """
     What is being rested: one account, or the site itself.
@@ -3182,7 +3204,8 @@ class Job:
                  "speed", "eta", "size", "filepath", "error", "created", "proc",
                  "cancelled", "uploader", "batch", "log", "attempt",
                  "start", "end", "exact", "stage", "paused", "kind", "conv",
-                 "opts", "origin", "streams", "sent_cookies", "account")
+                 "opts", "origin", "streams", "sent_cookies", "account",
+                 "retry_at", "auto_retries")
 
     def __init__(self, url, title="", thumbnail="", quality="best", uploader="",
                  batch=False, start="", end="", exact=False, opts=None,
@@ -3226,6 +3249,10 @@ class Job:
         # Which of the site's accounts signed the last attempt. 0 means none -
         # either the site has no sign-in here or this attempt went signed out.
         self.account = 0
+        # When to try this one again on its own, and how many of those goes
+        # have been used. Only ever set for a refusal that is known to pass.
+        self.retry_at = 0.0
+        self.auto_retries = 0
         # Converting shares the queue with downloading: same progress, same
         # Cancel, same notifications, nothing new to invent.
         self.kind = "download"
@@ -3265,6 +3292,10 @@ class Job:
             # Lets the queue offer "Fix this" exactly when the helper would
             # have made a difference, instead of on every failure.
             "botcheck": self.status == "error" and is_botcheck(self.error + self.log),
+            # Seconds until Riplox tries this one again by itself, or 0. Said
+            # out loud because a row that sits there saying "failed" while a
+            # retry is coming is the app keeping a secret.
+            "retryIn": max(0, int(self.retry_at - time.time())) if self.retry_at else 0,
         }
 
 
@@ -3468,6 +3499,10 @@ class DownloadManager:
             job.cancelled = False
             job.paused = False
             job.attempt = 0
+            # Pressed by hand, so the wait Riplox had planned is beside the
+            # point - and the goes it had left are given back, because this is
+            # someone saying "now", not "instead".
+            job.retry_at = 0.0
         self._save()
         self._wake.set()
         return True
@@ -3518,6 +3553,19 @@ class DownloadManager:
 
         want = max(1, min(5, int(settings.get("max_parallel", 2))))
         with self._lock:
+            # Anything whose own wait is up goes back in the queue. Here
+            # rather than on a timer of its own: this runs constantly, and a
+            # second thread to move one field would be a second thing to get
+            # wrong.
+            now = time.time()
+            for job in self._jobs.values():
+                if job.retry_at and job.retry_at <= now and job.status == "error":
+                    job.retry_at = 0.0
+                    job.status = "queued"
+                    job.error = ""
+                    job.percent = 0.0
+                    job.attempt = 0
+
             active = sum(1 for j in self._jobs.values()
                          if j.status in ("downloading", "converting", "starting"))
             if active >= want:
@@ -3578,6 +3626,17 @@ class DownloadManager:
             return
         if job.status != "error":
             return
+
+        # A wall that lifts by itself is worth waiting out rather than making
+        # the user press retry at the right moment. Set before the cooldown
+        # below, which is about the opposite kind of refusal.
+        if (job.kind != "convert" and clears_on_its_own(job.error)
+                and job.auto_retries < len(AUTO_RETRY_AFTER)):
+            wait = AUTO_RETRY_AFTER[job.auto_retries]
+            job.auto_retries += 1
+            job.retry_at = time.time() + wait
+            job.error = (f"{job.error}\n\nRiplox will try this one again in "
+                         f"{wait // 60} minutes on its own.").strip()
 
         # "Too many requests" is not a failure to retry - it is the site
         # asking to be left alone, and the next job in the queue asking again

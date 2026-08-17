@@ -1415,7 +1415,14 @@
       ? "100%" : ((j.status === "done" ? 100 : j.percent) + "%");
 
     if (j.error) {
-      row.error.textContent = j.error;
+      // A countdown rather than a fixed sentence: the message was written
+      // when the job failed, and "in 5 minutes" is wrong four minutes later.
+      var soon = j.retryIn
+        ? "\n\nTrying again on its own in " +
+          (j.retryIn >= 60 ? Math.round(j.retryIn / 60) + " min"
+                           : j.retryIn + "s") + "."
+        : "";
+      row.error.textContent = j.error.split("\n\nRiplox will try this one")[0] + soon;
       row.error.hidden = false;
     } else if (!row.error.hidden) {
       row.error.hidden = true;
