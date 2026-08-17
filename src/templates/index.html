@@ -1273,21 +1273,63 @@
       </div>
       <ul class="roadmap" id="roadmap">
         <li class="done"><b>Riplox's own route</b> — when the engine is refused,
-          Riplox now fetches TikTok and Instagram itself instead of giving up.</li>
+          Riplox now fetches TikTok, Instagram and Facebook itself instead of
+          giving up.</li>
         <li class="done"><b>Pause a sign-in</b> — hold a saved session back
           without deleting it, for when a stale login breaks public links.</li>
         <li class="done"><b>Whole-queue buttons</b> — pause, resume or retry
           everything at once.</li>
-        <li><b>Downloads that tell you why</b> — a health badge and a
-          diagnostics panel, so a failure says what went wrong.</li>
-        <li><b>More at once</b> — several formats from one link, and a search
-          box for a long queue.</li>
-        <li><b>Accounts you download from</b> — a list built from your own
-          history, and a notification when a watched channel posts.</li>
-        <li><b>Browser button</b> — send the page you are on straight to
-          Riplox, without the store.</li>
-        <li><b>The same own-route for Facebook and YouTube</b>, so no single
-          engine failure can take the app down.</li>
+        <li class="done"><b>Downloads that tell you why</b> — a health list, a
+          reason on every failure, and Copy error details on the row.</li>
+        <li class="done"><b>More at once</b> — several formats from one link,
+          and a search box for a long queue.</li>
+        <li class="done"><b>Accounts you download from</b> — a list built from
+          your own history, and a notification when a watched channel posts.</li>
+        <li class="done"><b>Browser button</b> — send the page you are on
+          straight to Riplox, without the store.</li>
+        <li><b>The same own-route for YouTube</b>, so no single engine failure
+          can take the app down.</li>
+        <li><b>A rest that belongs to one account</b> — when a site asks Riplox
+          to slow down, only the account it was asked about waits, rather than
+          everything for that site.</li>
+      </ul>
+    </div>
+
+    <!-- ------------------------------------------------------ What's new -->
+    <!-- Measured against the last release rather than written from memory:
+         everything here is a change someone running the previous version does
+         not have. No version number on purpose - the build carries that, and
+         a number here would be one more thing to keep in step. -->
+    <h3 class="group-head" data-what="What changed since the version you had before">What's new</h3>
+    <div class="panel">
+      <div class="field">
+        <div class="field-text">
+          <label>Since the last release</label>
+          <span>What is different from the version you were running before this
+                one.</span>
+        </div>
+      </div>
+      <ul class="roadmap" id="whatsNew">
+        <li class="done"><b>Failed downloads have a page of their own</b> —
+          with the reason, the log, and a Retry. Nothing on it disappears until
+          you delete it, not even when Riplox is closed and reopened.</li>
+        <li class="done"><b>A link shared once is downloaded once</b> — a phone
+          sending to a switched-off PC could send the same link again while the
+          first copy was still waiting, and both arrived.</li>
+        <li class="done"><b>A site that asks Riplox to slow down is left
+          alone</b> for a while, instead of being asked again by the next
+          download. The rest of the queue carries on, and the screen says which
+          site and for how long.</li>
+        <li class="done"><b>A few seconds between Instagram downloads</b>, so a
+          batch is not refused halfway through. Only Instagram, and there is a
+          switch for it above.</li>
+        <li class="done"><b>A second account for a site</b> — a spare for when a
+          session stops working, or one that can see what the other cannot.
+          Riplox uses whichever has rested longest, one at a time.</li>
+        <li class="done"><b>An age-restricted TikTok post</b> is now tried again
+          with your saved sign-in before it is refused.</li>
+        <li class="done"><b>Instagram answering with nothing</b> no longer reads
+          as a bug in Riplox asking to be reported.</li>
       </ul>
     </div>
 
