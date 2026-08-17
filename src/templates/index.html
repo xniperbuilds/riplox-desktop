@@ -467,6 +467,20 @@
     <p class="conv-note">Kept until you delete them, so a link that would not
       download is still here tomorrow. Retry puts it back in the queue.</p>
 
+    <!-- The one thing this page is allowed to tidy by itself, and only after
+         being told to. Off means a link that downloads in the end stays here
+         with "downloaded later" beside it; on means the page is a list of
+         what is still outstanding. -->
+    <div class="field">
+      <div class="field-text">
+        <label>Remove a row once it downloads</label>
+        <span>Off, a link that works on a later try stays here marked
+              <b>downloaded later</b>. On, it is taken off this page.</span>
+      </div>
+      <button class="toggle {% if settings.failed_clear_on_success %}on{% endif %}"
+              id="setFailedTidy" role="switch"><i></i></button>
+    </div>
+
     <div class="empty" id="failedEmpty">
       <p>Nothing has failed.</p>
       <span>A download that will not finish is listed here, with the reason.</span>

@@ -2715,6 +2715,9 @@
   bindToggle("setHotkey", "hotkey");
   bindToggle("setAutoPaste", "auto_paste");
   bindToggle("setPace", "pace_sites");
+  // On the Failed page rather than in Settings - it is about that page, and
+  // this is where someone is standing when they decide they want it.
+  bindToggle("setFailedTidy", "failed_clear_on_success");
   bindToggle("setThumb", "write_thumbnail");
   bindToggle("setPolite", "polite_mode");
   bindToggle("setUpscale", "allow_ai_upscale");

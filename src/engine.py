@@ -388,6 +388,12 @@ DEFAULT_SETTINGS = {
     # On: the session was captured because someone signed in, so use it. It is
     # already per-site, so a YouTube login never travels to another site.
     "cookies_signin": True,
+    # Off: a link that failed and then downloaded stays on the Failed page
+    # with "downloaded later" beside it. On, the row is cleared away and the
+    # page becomes a list of what is still outstanding. Off by default, because
+    # a page that promises to keep everything has to keep everything until
+    # somebody says otherwise.
+    "failed_clear_on_success": False,
     # On: leave a few seconds between two Instagram downloads. It is the one
     # site with a published request budget, and sharing a dozen reels at once
     # is what runs into it. Nothing else is slowed, and the cooldown after a
@@ -668,16 +674,28 @@ def record_failure(entry: dict) -> None:
 
 def note_failure_fixed(url: str, quality: str) -> None:
     """
-    Mark a remembered failure as having downloaded later.
+    A remembered failure has now downloaded. Mark it, or clear it away.
 
-    Not removed: taking the row away would be this program deciding something
-    on the list should go, which is the one thing this list promises not to do.
-    A row that says it worked in the end is also worth seeing - it is the
-    difference between "that site is broken" and "that day was bad".
+    Marking is the default, and deliberately so: taking a row away is this
+    program deciding something on that list should go, which is the one thing
+    the list promises not to do. A row that says it worked in the end is worth
+    seeing too - it is the difference between "that site is broken" and "that
+    day was bad".
+
+    The setting is for people who want the page to be a to-do list rather than
+    a record. Their call, made once, in plain sight on that page.
     """
     key = _failed_key(url, quality)
+    tidy = bool(load_settings().get("failed_clear_on_success"))
     with _failed_lock:
         items = load_failed()
+        if tidy:
+            kept = [i for i in items
+                    if _failed_key(i.get("url", ""), i.get("quality", "")) != key]
+            if len(kept) != len(items):
+                _write_failed(kept)
+            return
+
         hit = False
         for item in items:
             if _failed_key(item.get("url", ""), item.get("quality", "")) == key:
