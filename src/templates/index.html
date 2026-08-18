@@ -316,6 +316,18 @@
             <p class="more-note" id="subsOnlyNote" hidden></p>
           </div>
 
+          <!-- The cover picture. Sites often lead with a poor default, and
+               until now the only answer was to save all of them and sort it
+               out in the folder. Hidden entirely when the site offers one. -->
+          <div class="more-sec" id="thumbSec" hidden>
+            <div class="more-row between">
+              <label>Cover picture</label>
+              <button type="button" class="ghost small" id="thumbClear">Use the default</button>
+            </div>
+            <div class="thumb-pick" id="thumbPick"></div>
+            <p class="more-note" id="thumbNote"></p>
+          </div>
+
           <div class="more-sec">
             <div class="more-row between">
               <label>The command Riplox will run</label>
@@ -907,10 +919,25 @@
       <div class="field">
         <div class="field-text">
           <label>Subtitles</label>
-          <span>Saved next to the video, automatic ones included.</span>
+          <span>Saved next to the video.</span>
         </div>
         <button class="toggle {% if settings.write_subs %}on{% endif %}"
                 id="setSubs" role="switch"><i></i></button>
+      </div>
+
+      <div class="field sub-field" id="subKindField">
+        <div class="field-text">
+          <label>Which kind</label>
+          <span>Written ones have punctuation and the speaker's own words.
+                Machine-written ones exist on nearly every video and have
+                neither.</span>
+        </div>
+        <select id="setSubKind">
+          {% for value, name in [('both', 'Both'), ('real', 'Written by a person'),
+                                 ('auto', 'Machine-written only')] %}
+          <option value="{{ value }}" {% if (settings.sub_kind or 'both') == value %}selected{% endif %}>{{ name }}</option>
+          {% endfor %}
+        </select>
       </div>
 
       <div class="field sub-field" id="subLangField">
@@ -1171,6 +1198,21 @@
 
         <div class="field">
           <div class="field-text">
+            <label>Proxy</label>
+            <span>For a site that answers a different connection but not this
+                  one. Leave empty to connect directly —
+                  <code class="inline">http://127.0.0.1:8080</code>,
+                  <code class="inline">socks5://127.0.0.1:1080</code>.</span>
+          </div>
+          <input type="text" id="setProxy" class="text-input" spellcheck="false"
+                 placeholder="direct connection"
+                 value="{{ settings.proxy or '' }}" maxlength="200">
+        </div>
+
+        <p class="footnote" id="proxyNote" hidden></p>
+
+        <div class="field">
+          <div class="field-text">
             <label>Tell me about new versions</label>
             <span>Asks GitHub once a day. Never installs anything on its own.</span>
           </div>
@@ -1287,8 +1329,8 @@
       </div>
       <ul class="roadmap" id="roadmap">
         <li class="done"><b>Riplox's own route</b> — when the engine is refused,
-          Riplox now fetches TikTok, Instagram and Facebook itself instead of
-          giving up.</li>
+          Riplox now fetches YouTube, TikTok, Instagram and Facebook itself
+          instead of giving up.</li>
         <li class="done"><b>Pause a sign-in</b> — hold a saved session back
           without deleting it, for when a stale login breaks public links.</li>
         <li class="done"><b>Whole-queue buttons</b> — pause, resume or retry
@@ -1304,8 +1346,21 @@
         <li class="done"><b>A rest that belongs to one account</b> — when a
           site asks Riplox to slow down, only the account it was asked about
           waits; a spare carries on.</li>
-        <li><b>The same own-route for YouTube</b>, so no single engine failure
-          can take the app down.</li>
+        <li class="done"><b>The same own-route for YouTube</b>, so no single
+          engine failure can take the app down. Above 360p YouTube hands the
+          video and its sound over separately, and Riplox joins them.</li>
+        <li class="done"><b>A proxy</b>, for the sites that answer a different
+          connection but not this one. Riplox's own route goes through it too,
+          or refuses to run — it will never go around it.</li>
+        <li class="done"><b>Real subtitles and machine-written ones, chosen
+          separately</b> — asking for subtitles used to take whatever was
+          going.</li>
+        <li class="done"><b>Every dubbed language at once</b>, each as its own
+          file, instead of one language per download.</li>
+        <li class="done"><b>Pick the cover picture</b> from the ones the site
+          offers, rather than always taking its first.</li>
+        <li><b>Riplox's own route to more of the sites that matter</b>, so a
+          bad day for the engine is not a bad day for the app.</li>
       </ul>
     </div>
 
@@ -1324,6 +1379,23 @@
         </div>
       </div>
       <ul class="roadmap" id="whatsNew">
+        <li class="done"><b>Riplox can now fetch YouTube itself</b> when the
+          engine is refused, the way it already could for TikTok, Instagram and
+          Facebook. Above 360p YouTube hands the picture and the sound over as
+          two files; Riplox pulls both and joins them.</li>
+        <li class="done"><b>A proxy</b>, in Settings under Advanced, for a site
+          that answers a different connection but not yours. Everything goes
+          through it — including Riplox's own route, which refuses to run
+          rather than go around it and show the address you were hiding.</li>
+        <li class="done"><b>Subtitles somebody wrote, or a machine did, or
+          both</b>. Until now asking for subtitles took whatever was going, so
+          a video with real ones also got a worse copy beside them.</li>
+        <li class="done"><b>Every dubbed language in one press</b>, each as its
+          own file. The language is in the file name now, which also fixes two
+          dubs of one video quietly landing on top of each other.</li>
+        <li class="done"><b>Choose the cover picture</b> before downloading,
+          from the ones the site offers. It is kept beside the video and put
+          inside it where the file format allows.</li>
         <li class="done"><b>Failed downloads have a page of their own</b> —
           with the reason, the log, and a Retry. Nothing on it disappears until
           you delete it, not even when Riplox is closed and reopened.</li>

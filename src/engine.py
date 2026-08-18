@@ -413,6 +413,14 @@ DEFAULT_SETTINGS = {
     "prefer_h264": True,
     "allow_ai_upscale": False,       # take YouTube's AI-enlarged versions too
     "write_subs": False,             # save subtitles alongside the video
+    # Which kind: both | real | auto. A video can carry subtitles somebody
+    # wrote and subtitles a machine transcribed, and they are not the same
+    # thing - the written ones have punctuation and the speaker's own words,
+    # the machine ones have neither and exist on almost every video. Asking
+    # for both, which is all Riplox could do until now, means a video with
+    # real subtitles quietly gets a worse second copy alongside them.
+    # "both" is the default because it is what every previous version did.
+    "sub_kind": "both",
     "sub_langs": "en",               # which languages, yt-dlp syntax
     "embed_subs": False,             # put them inside the file instead
     "embed_chapters": False,         # chapter marks players can jump between
@@ -423,6 +431,12 @@ DEFAULT_SETTINGS = {
     # Higher looks faster on a fast line and starts being refused on a slow one.
     "fragments": 4,
     "speed_limit": 0,                # KB/s ceiling; 0 means no limit
+    # Empty means a direct connection. A site that answers a different line
+    # but not this one is the case this exists for - and it is not rare: a
+    # TikTok wall here refused every trick for a week and was never about the
+    # request at all. yt-dlp understands http, https, socks4, socks5 and
+    # socks5h; Riplox's own route understands the first two. See _base_args.
+    "proxy": "",
     "check_updates": True,           # ask GitHub once a day if there is a newer build
     # Remembered so the daily check is actually daily. save_settings drops any
     # key it does not know, so these have to be declared or the throttle never
@@ -795,6 +809,52 @@ def close_cookies(path, temporary: bool) -> None:
         pass
 
 
+# The proxy schemes yt-dlp will accept. Anything else is refused at the point
+# it is typed rather than turned into a download that fails an hour later with
+# a message about the site.
+PROXY_SCHEMES = ("http", "https", "socks4", "socks4a", "socks5", "socks5h")
+
+# Of those, the two that Riplox's own route can also speak. urllib handles
+# http and https proxies by itself; SOCKS needs a library that is not bundled,
+# and adding one to reach a fallback route is not a trade worth making.
+DIRECT_PROXY_SCHEMES = ("http", "https")
+
+
+def clean_proxy(raw) -> str:
+    """
+    The proxy address as it will be used, or "" for a direct connection.
+
+    Returns "" for anything unusable rather than raising: a settings file
+    edited by hand should not stop the app from starting. What the user typed
+    is checked where they typed it - see check_proxy.
+    """
+    text = str(raw or "").strip()
+    if not text:
+        return ""
+    scheme, sep, rest = text.partition("://")
+    if not sep or scheme.lower() not in PROXY_SCHEMES or not rest.strip("/"):
+        return ""
+    return f"{scheme.lower()}://{rest}"
+
+
+def check_proxy(raw) -> str:
+    """What is wrong with this proxy address, in a sentence, or ""."""
+    text = str(raw or "").strip()
+    if not text:
+        return ""
+    if "://" not in text:
+        return ("A proxy address needs to start with how to reach it - "
+                "http://, https://, socks5:// - then the host and port. "
+                f"For example http://{text.split('/')[0] or '127.0.0.1:8080'}")
+    scheme = text.split("://", 1)[0].lower()
+    if scheme not in PROXY_SCHEMES:
+        return (f"{scheme}:// is not a kind of proxy the downloader can use. "
+                f"Use one of: {', '.join(PROXY_SCHEMES)}.")
+    if not text.split("://", 1)[1].strip("/"):
+        return "The proxy address is missing its host and port."
+    return ""
+
+
 def _base_args(settings: dict, cookie_path=None, batch: bool = False) -> list:
     exe = ytdlp_path()
     if exe is None:
@@ -811,6 +871,10 @@ def _base_args(settings: dict, cookie_path=None, batch: bool = False) -> list:
     qjs = qjs_path()
     if qjs is not None:
         args += ["--js-runtimes", f"quickjs:{qjs}"]
+
+    proxy = clean_proxy((settings or {}).get("proxy"))
+    if proxy:
+        args += ["--proxy", proxy]
 
     if cookie_path is not None:
         args += ["--cookies", str(cookie_path)]
@@ -962,7 +1026,7 @@ def _resume_key(url: str) -> str:
 
 
 def pull_to_file(url: str, part: Path, headers: dict, deadline: float,
-                 on_progress=None, timed_out: str = "") -> int:
+                 on_progress=None, timed_out: str = "", proxy: str = "") -> int:
     """
     Fetch a URL into a .part file, continuing one that is already there.
 
@@ -1006,8 +1070,16 @@ def pull_to_file(url: str, part: Path, headers: dict, deadline: float,
     if have:
         headers["Range"] = f"bytes={have}-"
 
+    # The bytes have to travel the same way the address was fetched. Resolving
+    # a link through a proxy and then pulling the video around it is the leak
+    # nobody would notice: the download works, and the site was handed the
+    # address the user was hiding.
     request = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(request, timeout=_ENGINE_READ_TIMEOUT) as response:
+    fetch = urllib.request.urlopen
+    if proxy:
+        fetch = urllib.request.build_opener(
+            urllib.request.ProxyHandler({"http": proxy, "https": proxy})).open
+    with fetch(request, timeout=_ENGINE_READ_TIMEOUT) as response:
         # A server that ignores Range answers 200 with the whole file. Appending
         # to what is already there would quietly corrupt the file, so start over.
         if have and getattr(response, "status", 200) != 206:
@@ -1053,8 +1125,13 @@ def _download_engine_zip(url: str, part: Path, deadline: float) -> int:
                     message=(f"Downloading {percent:.0f}%" if total
                              else f"Downloading {human_bytes(done)}"))
 
+    # Through the proxy as well. Somebody who set one did so because this
+    # connection cannot reach something, and the engine update is a download
+    # like any other - leaving it out means the one setting meant to fix a
+    # blocked connection does not apply to the file that fixes broken sites.
     return pull_to_file(
         url, part, {"User-Agent": "Riplox"}, deadline, on_progress=say,
+        proxy=clean_proxy(load_settings().get("proxy")),
         timed_out="Gave up after ten minutes - the connection is too slow or "
                   "keeps dropping. What arrived is kept, so pressing update "
                   "again carries on from there.")
@@ -1303,7 +1380,39 @@ _OPT_KEYS = ("format_id", "audio_lang", "sub_langs", "outtmpl", "dest_dir",
              "player_client", "no_cookies", "max_mb",
              # One download's shape, not a setting: wanting only the subtitles
              # of this video says nothing about the next one.
-             "subs_only", "live_from_start", "thumb_all")
+             "subs_only", "live_from_start", "thumb_all",
+             # Which cover picture to keep, chosen from the ones the site
+             # offers. An address, so it is checked like one - see safe_image.
+             "thumb_url")
+
+
+def safe_image(raw: str) -> str:
+    """
+    An https image address Riplox is willing to fetch, or "".
+
+    These arrive from the page after a round trip through the browser, and
+    whatever comes back is fetched by the app itself - so an address pointing
+    at 127.0.0.1 would have Riplox make a request to its own API on somebody
+    else's behalf. Scheme and host are checked for that reason rather than for
+    tidiness. The same argument, and the same answer, as doors._address_ok.
+    """
+    text = str(raw or "").strip()
+    if not text or len(text) > 1000:
+        return ""
+    try:
+        parts = urlsplit(text)
+    except ValueError:
+        return ""
+    if parts.scheme != "https":
+        return ""
+    host = (parts.hostname or "").lower().rstrip(".")
+    if not host or host == "localhost" or host.endswith(".localhost"):
+        return ""
+    # A bare address is never a thumbnail CDN, and is how everything
+    # interesting on this machine and its network gets reached.
+    if re.fullmatch(r"[\d.]+", host) or ":" in host:
+        return ""
+    return text
 
 
 def clean_opts(opts) -> dict:
@@ -1350,6 +1459,10 @@ def clean_opts(opts) -> dict:
                 out[key] = str(path)
         elif key in ("no_cookies", "subs_only", "live_from_start", "thumb_all"):
             out[key] = True
+        elif key == "thumb_url":
+            address = safe_image(value)
+            if address:
+                out[key] = address
         elif key == "max_mb":
             # A size ceiling for one download. yt-dlp checks this before it
             # starts writing, which is the only place a size limit can be kept
@@ -1692,8 +1805,14 @@ def extra_args(settings: dict, quality: str, trimmed: bool = False) -> list:
 
     if settings.get("write_subs") and not audio_only:
         langs = (settings.get("sub_langs") or "en").strip() or "en"
-        args += ["--write-subs", "--write-auto-subs", "--sub-langs", langs,
-                 "--sub-format", "srt/vtt/best"]
+        kind = str(settings.get("sub_kind") or "both").lower()
+        if kind not in ("both", "real", "auto"):
+            kind = "both"
+        if kind != "auto":
+            args.append("--write-subs")
+        if kind != "real":
+            args.append("--write-auto-subs")
+        args += ["--sub-langs", langs, "--sub-format", "srt/vtt/best"]
         # Converting to srt and embedding are both ffmpeg's work. Without it
         # the subtitle file still lands next to the video in its original
         # format, which is the useful half and arrives either way.
@@ -1828,6 +1947,7 @@ def analyze(url: str, settings: dict) -> dict:
         "formats": _format_rows(info),
         "audio_langs": _audio_langs(info),
         "sub_langs": _sub_langs(info),
+        "thumbs": _thumb_rows(info),
     }
 
 
@@ -2124,6 +2244,52 @@ def _pick_thumb(info: dict) -> str:
     return ""
 
 
+def _thumb_rows(info: dict) -> list:
+    """
+    The cover pictures on offer, biggest first, for the one that is chosen.
+
+    Sites often lead with a poor default - a frame from the first second, or a
+    grey box - while carrying a good one further down the list. Until now the
+    only answer was to save every one of them and sort it out in the folder.
+
+    Deduplicated by size, because a site listing the same picture at the same
+    dimensions three times turns a choice into a guessing game. Capped, so a
+    site that publishes forty storyboard tiles does not become the screen.
+    """
+    # Sorted here rather than trusted from the site. Reversing the list the
+    # site sent looked right - they generally publish smallest first - and put
+    # an entry carrying no dimensions at the top, where it reads as the best
+    # one on offer. Measured, not guessed: it is what the first run did.
+    ordered = sorted((info.get("thumbnails") or []),
+                     key=lambda t: ((t.get("width") or 0) * (t.get("height") or 0)),
+                     reverse=True)
+
+    seen = set()
+    rows = []
+    for entry in ordered:
+        address = safe_image(entry.get("url"))
+        if not address:
+            continue
+        width = entry.get("width") or 0
+        height = entry.get("height") or 0
+        shape = (width, height)
+        if shape in seen:
+            continue
+        seen.add(shape)
+        rows.append({
+            "url": address,
+            "width": width,
+            "height": height,
+            # What to call it when the site gives no dimensions, which happens
+            # more often than the field suggests.
+            "label": (f"{width}×{height}" if width and height
+                      else str(entry.get("id") or "unsized")),
+        })
+        if len(rows) >= 8:
+            break
+    return rows
+
+
 def _is_upscale(f: dict) -> bool:
     """A format YouTube invented with AI rather than one the video was made in."""
     return ("-sr" in str(f.get("format_id") or "")
@@ -2188,7 +2354,7 @@ def _door_verdict(engine_error: str, door_error: str) -> str:
     - is the weaker sentence: it asks for a sign-in that was already tried and
     already refused.
 
-    Measured on one of Nazim's reels rather than reasoned about: 400 with the
+    Measured on a real restricted reel rather than reasoned about: 400 with the
     saved session, "certain audiences" without it, page-but-no-video from the
     door - and an ordinary reel fetched fine on that same session seconds
     later. Three refusals of one post, and a working session.
@@ -3712,13 +3878,23 @@ class DownloadManager:
             clip = " clip " + (job.start or "0").replace(":", ".") + "-" + \
                    (job.end or "end").replace(":", ".")
 
+        # And so does a chosen dub, for exactly the same reason: the Hindi and
+        # the English of one video are the same title at the same height, so
+        # without this the second one lands on top of the first and nothing
+        # says so. Only added when a language was actually chosen, so every
+        # ordinary download keeps the name it has always had.
+        dub = ""
+        lang = (getattr(job, "opts", None) or {}).get("audio_lang") or ""
+        if lang:
+            dub = f" [{_safe_name(lang)[:12]}]"
+
         if job.quality == "mp3":
             # Audio lands as .mp3, so it can never collide with a video file.
-            return str(root / f"%(title).110B [%(id)s]{clip}.%(ext)s")
+            return str(root / f"%(title).110B [%(id)s]{dub}{clip}.%(ext)s")
 
         # Height belongs in the name: without it, grabbing the same video at
         # 720p and then at 1080p silently overwrote the first file.
-        return str(root / f"%(title).100B [%(id)s] %(height)sp{clip}.%(ext)s")
+        return str(root / f"%(title).100B [%(id)s] %(height)sp{dub}{clip}.%(ext)s")
 
     def _run_job(self, job: Job) -> None:
         """
@@ -3870,6 +4046,165 @@ class DownloadManager:
         root.mkdir(parents=True, exist_ok=True)
         return root / f"{name}.{info.get('ext') or 'mp4'}"
 
+    # Containers whose own spec has a place to put a cover picture. Anything
+    # else keeps the picture beside it as a file, which every media library
+    # reads anyway - and is a great deal better than an ffmpeg run that
+    # rewrites a finished download and might not survive it.
+    _COVER_INSIDE = {".mp4", ".m4a", ".mp3", ".m4v", ".mov"}
+
+    def _cover(self, job: Job, address: str, proxy: str = "") -> str:
+        """
+        Keep the cover picture the user chose, beside the file and - where the
+        container allows - inside it.
+
+        The engine has one thumbnail flag and it means "the default one", so a
+        chosen cover cannot be asked for on the command line; it is fetched
+        afterwards. Which is also why nothing here is allowed to fail loudly:
+        the video downloaded, and a cover picture is not worth turning a
+        finished download into a failed one over. Returns a line for the log.
+        """
+        target = Path(job.filepath or "")
+        if not address or not target.exists():
+            return ""
+
+        beside = target.with_suffix(".jpg")
+        try:
+            pull_to_file(address, beside, {"User-Agent": "Riplox"},
+                         time.monotonic() + 60, proxy=proxy)
+        except Exception as exc:                # noqa: BLE001
+            beside.unlink(missing_ok=True)
+            return f"the cover picture could not be fetched: {exc}"
+
+        ffmpeg = ffmpeg_path()
+        if ffmpeg is None or target.suffix.lower() not in self._COVER_INSIDE:
+            return f"cover picture saved as {beside.name}"
+
+        stamped = target.with_suffix(".cover" + target.suffix)
+        try:
+            done = subprocess.run(
+                [str(ffmpeg), "-hide_banner", "-loglevel", "error", "-y",
+                 "-i", str(target), "-i", str(beside),
+                 "-map", "0", "-map", "1", "-c", "copy",
+                 "-disposition:v:1", "attached_pic", str(stamped)],
+                capture_output=True, text=True, encoding="utf-8",
+                errors="replace", creationflags=_NO_WINDOW)
+        except (OSError, subprocess.SubprocessError) as exc:
+            stamped.unlink(missing_ok=True)
+            return f"cover picture saved as {beside.name} (not embedded: {exc})"
+
+        if done.returncode != 0 or not stamped.exists():
+            stamped.unlink(missing_ok=True)
+            return f"cover picture saved as {beside.name} (it would not embed)"
+
+        try:
+            stamped.replace(target)
+        except OSError:
+            stamped.unlink(missing_ok=True)
+            return f"cover picture saved as {beside.name} (it would not embed)"
+        # Kept on disk as well as inside: it costs a few KB and it is what a
+        # media library looks for when it will not open the file itself.
+        return f"cover picture embedded, and saved as {beside.name}"
+
+    def _door_pull(self, address: str, where: Path, headers: dict,
+                   deadline: float, progress, job: Job,
+                   proxy: str = "") -> None:
+        """
+        Fetch one stream, picking the connection back up when it drops.
+
+        pull_to_file already knows how to continue a .part it wrote itself -
+        it stamps the address beside the file and asks for a byte range on the
+        way back in. What it does not do is come back on its own, and for
+        YouTube it has to.
+
+        Measured on 2026-08-18, reading 12 MB off a 1080p stream from this
+        machine: 0.41 MB/s on a plain GET, 0.34 with a whole-file Range, 0.40
+        in 4 MB segments and 0.40 in 10 MB ones. So the rate is the same
+        whatever is asked for - the address is simply served slowly, and a
+        connection held open that long is dropped part-way more often than
+        not. Retrying is the only thing that helps, and because each attempt
+        resumes, three of them are three parts of one download rather than
+        three starts.
+
+        Gives up when an attempt adds nothing: a stream that will not move is
+        a different problem, and hammering it is how a queue slot is wasted
+        all afternoon.
+        """
+        last = ""
+        for attempt in range(6):
+            before = where.stat().st_size if where.exists() else 0
+            try:
+                pull_to_file(address, where, headers, deadline,
+                             on_progress=progress, proxy=proxy,
+                             timed_out="The direct download kept dropping. "
+                                       "What arrived is kept, so retry "
+                                       "carries on.")
+                return
+            except Exception as exc:            # noqa: BLE001
+                last = str(exc)
+                after = where.stat().st_size if where.exists() else 0
+                if job.cancelled or time.monotonic() > deadline or after <= before:
+                    break
+                # A short pause rather than straight back in: the drops arrive
+                # in runs, and the next second is the worst time to ask.
+                time.sleep(min(1.5 * (attempt + 1), 5.0))
+        raise OSError(last or "The direct download stopped and would not resume.")
+
+    def _door_join(self, video: Path, audio: Path, job: Job,
+                   container: str = "mp4") -> str:
+        """
+        Put the two halves YouTube hands out back together.
+
+        Copied, never re-encoded. The streams already carry the codecs the
+        file is meant to hold, and re-encoding a 2160p video to attach its own
+        audio would cost minutes of CPU and some quality to change nothing.
+
+        Returns "" when it worked, or a sentence worth showing when it did not.
+        """
+        ffmpeg = ffmpeg_path()
+        if ffmpeg is None:
+            # Should be unreachable: two streams are only ever requested when
+            # has_ffmpeg() was true. Kept because "unreachable" and "never
+            # happens" are different things, and a silent half-file is the
+            # outcome this whole module exists to prevent.
+            return ("Both halves of that video arrived, but the tool that "
+                    "joins them is missing. Reinstall Riplox.")
+
+        joined = video.with_suffix(video.suffix + ".joined")
+        try:
+            done = subprocess.run(
+                [str(ffmpeg), "-hide_banner", "-loglevel", "error", "-y",
+                 "-i", str(video), "-i", str(audio),
+                 # Named rather than guessed from the name. These are working
+                 # files called .part.joined, and ffmpeg reads the container
+                 # off the extension - which is how this first came back as
+                 # "Error opening output files: Invalid argument".
+                 "-f", container,
+                 "-map", "0:v:0", "-map", "1:a:0", "-c", "copy",
+                 # So the file can start playing before it has all arrived,
+                 # which is what a viewer expects of anything in a folder.
+                 "-movflags", "+faststart", str(joined)],
+                capture_output=True, text=True, encoding="utf-8",
+                errors="replace", creationflags=_NO_WINDOW)
+        except (OSError, subprocess.SubprocessError) as exc:
+            joined.unlink(missing_ok=True)
+            return f"Joining the video and its audio failed: {exc}"
+
+        if done.returncode != 0 or not joined.exists():
+            joined.unlink(missing_ok=True)
+            said = [line for line in (done.stderr or "").splitlines() if line.strip()]
+            return ("Joining the video and its audio failed"
+                    + (f": {said[-1].strip()}" if said else "."))
+
+        try:
+            joined.replace(video)
+        except OSError as exc:
+            joined.unlink(missing_ok=True)
+            return f"Could not save the joined file: {exc}"
+        # Only once the join is safely in place - a half that is deleted before
+        # its replacement exists is a download thrown away.
+        audio.unlink(missing_ok=True)
+        return ""
+
     def _second_door(self, job: Job, settings: dict) -> None:
         """
         Riplox's own way in, once yt-dlp has given up.
@@ -3883,6 +4218,12 @@ class DownloadManager:
         if not doors.handles(job.url) or not settings.get("second_door", True):
             return
 
+        # Told every time rather than once at startup, so that changing the
+        # proxy in Settings takes effect on the next download instead of the
+        # next launch.
+        proxy = clean_proxy(settings.get("proxy"))
+        doors.configure(proxy)
+
         engine_error = job.error                # kept: it may be the truer one
         job.status = "downloading"
         job.error = ""
@@ -3890,7 +4231,14 @@ class DownloadManager:
         job.percent = 0.0
 
         try:
-            info = doors.resolve(job.url)
+            # YouTube is the one door with a choice of streams, so it is told
+            # what was asked for. The others ignore all three and take the one
+            # file they are handed.
+            info = doors.resolve(
+                job.url,
+                quality=job.quality,
+                prefer_h264=bool(settings.get("prefer_h264", True)),
+                can_merge=has_ffmpeg())
         except doors.DoorError as exc:
             # The door usually knows something worth saying - a removed post,
             # an age-gate - so its answer beats yt-dlp's stack trace. Usually.
@@ -3908,22 +4256,34 @@ class DownloadManager:
 
         target = self._door_path(settings, job, info)
         part = target.with_suffix(target.suffix + ".part")
+        audio_part = target.with_suffix(target.suffix + ".audio.part")
+        two_streams = bool(info.get("audio_url"))
         started = time.monotonic()
 
-        def progress(done, total):
-            job.percent = round(done / total * 100.0, 1) if total else 0.0
-            job.size = human_bytes(done)
-            elapsed = max(time.monotonic() - started, 0.001)
-            job.speed = human_bytes(done / elapsed) + "/s"
+        # A slice of the bar per stream rather than one bar restarting at zero
+        # when the audio begins. Video is far the larger of the two, so it gets
+        # nearly all of the room and the join gets the last of it.
+        def span(low, high):
+            def progress(done, total):
+                share = (done / total) if total else 0.0
+                job.percent = round(low + (high - low) * share, 1)
+                job.size = human_bytes(done)
+                elapsed = max(time.monotonic() - started, 0.001)
+                job.speed = human_bytes(done / elapsed) + "/s"
+            return progress
+
+        streams = [(info["url"], part, span(0.0, 90.0 if two_streams else 100.0))]
+        if two_streams:
+            streams.append((info["audio_url"], audio_part, span(90.0, 98.0)))
 
         try:
-            if job.cancelled:
-                job.status = "paused" if job.paused else "cancelled"
-                return
-            pull_to_file(info["url"], part, info.get("headers") or {},
-                         time.monotonic() + self._DOOR_CAP, on_progress=progress,
-                         timed_out="The direct download kept dropping. What "
-                                   "arrived is kept, so retry carries on.")
+            for address, where, progress in streams:
+                if job.cancelled:
+                    job.status = "paused" if job.paused else "cancelled"
+                    return
+                self._door_pull(address, where, info.get("headers") or {},
+                                time.monotonic() + self._DOOR_CAP,
+                                progress, job, proxy=proxy)
         except Exception as exc:                # noqa: BLE001
             job.status = "error"
             job.stage = ""
@@ -3934,6 +4294,16 @@ class DownloadManager:
         if job.cancelled:
             job.status = "paused" if job.paused else "cancelled"
             return
+
+        if two_streams:
+            job.stage = "joining"
+            problem = self._door_join(part, audio_part, job,
+                                      container=info.get("ext") or "mp4")
+            if problem:
+                job.status = "error"
+                job.stage = ""
+                job.error = problem
+                return
 
         try:
             part.replace(target)
@@ -3958,7 +4328,10 @@ class DownloadManager:
             job.uploader = info["uploader"]
         job.log = (f"{job.log}\n\nyt-dlp could not fetch this link, so Riplox "
                    f"used its own route to {info['site']} instead.\n"
-                   f"saved    {target}")
+                   + (f"{info['note']}\n" if info.get("note") else "")
+                   + ("video and audio arrived separately and were joined.\n"
+                      if two_streams else "")
+                   + f"saved    {target}")
         add_history({
             "title": job.title,
             "url": job.url,
@@ -4227,6 +4600,14 @@ class DownloadManager:
             job.speed = job.eta = ""
             if job.filepath and job.title in (job.url, ""):
                 job.title = Path(job.filepath).stem
+
+            # A chosen cover has to wait until the file exists, and it changes
+            # the file, so it happens before the size below is read.
+            if job.opts.get("thumb_url"):
+                said = self._cover(job, job.opts["thumb_url"],
+                                   clean_proxy(settings.get("proxy")))
+                if said:
+                    job.log = f"{job.log}\n{said}"
 
             # Progress reports one stream at a time, so the running total is
             # only the last stream. The finished file on disk is the truth.

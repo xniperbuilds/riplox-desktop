@@ -900,10 +900,46 @@
 
   var pickedFormat = "";
   var onceDir = "";
+  /* The dubs the video that is open actually has. Kept because "all of them"
+     has to send the list, and the dropdown's own options are the only other
+     place it exists. */
+  var audioLangs = [];
+  var thumbChoices = [];
+  var pickedThumb = "";
+
+  function markThumb() {
+    document.querySelectorAll("#thumbPick .thumb-opt").forEach(function (b) {
+      var t = thumbChoices[+b.dataset.thumb];
+      b.classList.toggle("is-on", !!t && t.url === pickedThumb);
+    });
+    var chosen = thumbChoices.filter(function (t) { return t.url === pickedThumb; })[0];
+    $("thumbNote").textContent = chosen
+      ? "Kept beside the video, and put inside it where the file format allows."
+      : "";
+  }
+
+  $("thumbPick").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-thumb]");
+    if (!btn) return;
+    var t = thumbChoices[+btn.dataset.thumb];
+    // Clicking the one already chosen turns it off, which is the only way
+    // back to the default without hunting for the button that says so.
+    pickedThumb = (t && t.url === pickedThumb) ? "" : (t ? t.url : "");
+    markThumb();
+    refreshCommand();
+  });
+
+  $("thumbClear").addEventListener("click", function () {
+    pickedThumb = "";
+    markThumb();
+    refreshCommand();
+  });
 
   function resetMore() {
     pickedFormat = "";
     onceDir = "";
+    pickedThumb = "";
+    markThumb();
     $("optName").value = "";
     $("optDir").dataset.dir = "";
     $("optDir").textContent = "Default folder";
@@ -930,7 +966,10 @@
     if (!$("moreBox").open) return {};
     var o = {};
     if (pickedFormat) o.format_id = pickedFormat;
-    if ($("optAudioLang").value) o.audio_lang = $("optAudioLang").value;
+    /* The star is not a language, so it never goes out as one - it becomes the
+       list of every language, which the server turns into one job apiece. */
+    if ($("optAudioLang").value === "*") o.audio_langs = audioLangs.slice();
+    else if ($("optAudioLang").value) o.audio_lang = $("optAudioLang").value;
     if ($("optSubLang").value) o.sub_langs = $("optSubLang").value;
     if ($("optName").value.trim()) o.outtmpl = $("optName").value.trim();
     if (onceDir) o.dest_dir = onceDir;
@@ -938,6 +977,7 @@
     if ($("optCookies").value === "off") o.no_cookies = true;
     if ($("optSubsOnly").checked) o.subs_only = true;
     if ($("optThumbAll").checked) o.thumb_all = true;
+    if (pickedThumb) o.thumb_url = pickedThumb;
     if ($("optLiveFromStart").checked) o.live_from_start = true;
     return o;
   }
@@ -1031,8 +1071,29 @@
         }).join("") + "</tbody>";
     }
 
+    /* Cover pictures. Offered only when there is a real choice: one picture is
+       not a choice, and none means the site published nothing to choose. */
+    var thumbs = info.thumbs || [];
+    pickedThumb = "";
+    $("thumbSec").hidden = thumbs.length < 2;
+    $("thumbNote").textContent = "";
+    $("thumbPick").innerHTML = thumbs.map(function (t, i) {
+      return '<button type="button" class="thumb-opt" data-thumb="' + i + '">' +
+        '<img loading="lazy" src="' + esc(t.url) + '" alt="">' +
+        "<span>" + esc(t.label) + "</span></button>";
+    }).join("");
+    thumbChoices = thumbs;
+
+    /* "All of them" is offered only when there is more than one, because on a
+       video with a single audio track it would queue one job and call it a
+       set. It carries a star rather than a language code so nothing downstream
+       can mistake it for one. */
     var langs = info.audio_langs || [];
+    audioLangs = langs;
     $("optAudioLang").innerHTML = '<option value="">Default</option>' +
+      (langs.length > 1
+        ? '<option value="*">All ' + langs.length + " — one file each</option>"
+        : "") +
       langs.map(function (l) { return '<option value="' + esc(l) + '">' + esc(l) + "</option>"; }).join("");
     $("audioLangField").hidden = langs.length === 0;
 
@@ -1136,6 +1197,14 @@
     if (!items.length) { toast("Nothing selected.", "bad"); return; }
 
     var body = { items: items, quality: quality, opts: moreOpts() };
+    /* Every-language belongs to the request, not to one job's options: the
+       server turns it into a job per language, each with its own audio_lang.
+       Moved out here rather than left in opts, where it would be dropped as
+       an option nobody recognises. */
+    if (body.opts.audio_langs) {
+      body.audio_langs = body.opts.audio_langs;
+      delete body.opts.audio_langs;
+    }
     // The extras ride along with the main choice rather than replacing it,
     // so the video is still what the row says it is.
     if (quality !== "mp3" && $("alsoAudio").checked) body.also = ["mp3"];
@@ -2770,16 +2839,56 @@
   // The two subtitle details are meaningless with subtitles off.
   function syncSubFields() {
     var on = $("setSubs").classList.contains("on");
+    $("subKindField").hidden = !on;
     $("subLangField").hidden = !on;
     $("embedSubField").hidden = !on;
   }
   $("setSubs").addEventListener("click", syncSubFields);
   syncSubFields();
 
+  $("setSubKind").addEventListener("change", function (e) {
+    saveSetting({ sub_kind: e.target.value }).then(function () {
+      toast(e.target.selectedOptions[0].text, "good");
+    });
+  });
+
   $("setSubLangs").addEventListener("change", function (e) {
     var value = (e.target.value || "").trim() || "en";
     e.target.value = value;
     saveSetting({ sub_langs: value }).then(function () { toast("Saved"); });
+  });
+
+  /* A proxy is the one setting here that can be typed wrong in a way nothing
+     else notices: everything keeps working, slower, out of the connection the
+     user meant to hide. So it is checked on the way in, and the one thing it
+     does not cover - the fallback route, which cannot speak SOCKS - is said
+     on screen rather than discovered later. */
+  function syncProxyNote(value) {
+    var note = $("proxyNote");
+    var scheme = (value || "").split("://")[0].toLowerCase();
+    if (value && scheme.indexOf("socks") === 0) {
+      note.textContent = "Downloads will go through this proxy. Riplox's own "
+        + "route — the one that runs when the engine is refused — cannot use "
+        + "a SOCKS proxy, and will not go around it, so it stays off while "
+        + "this is set. An http:// proxy works for both.";
+      note.hidden = false;
+    } else {
+      note.hidden = true;
+    }
+  }
+  syncProxyNote($("setProxy").value);
+
+  $("setProxy").addEventListener("change", function (e) {
+    var value = (e.target.value || "").trim();
+    e.target.value = value;
+    saveSetting({ proxy: value }).then(function (res) {
+      if (res && res.ok === false) {
+        toast(res.error || "That proxy address cannot be used.", "bad");
+        return;
+      }
+      syncProxyNote(value);
+      toast(value ? "Going out through " + value : "Connecting directly", "good");
+    });
   });
 
   bindToggle("setCheckUpdates", "check_updates");

@@ -11,6 +11,10 @@ thousand other sites.
   Windows Media Player, WhatsApp and on phones without extra codecs.
 - **Updates itself.** Sites change how they serve video; the download engine
   can be updated from inside the app without waiting for a new release.
+- **Keeps working when the engine does not.** Every desktop downloader is built
+  on the same engine, so when a site refuses it they all fail on the same day.
+  Riplox has a second way in for YouTube, TikTok, Instagram and Facebook, and
+  takes it on its own.
 
 ## Features
 
@@ -24,7 +28,9 @@ thousand other sites.
 | Shortcut | A global hotkey downloads whatever link you just copied, without switching windows |
 | Drag and paste | Drop a link on the window, or paste twenty at once |
 | Trim | Cut a section out by timestamp, with exact-cut frames when you need them |
-| Subtitles | Download or embed them, keep chapters, or skip sponsor segments |
+| Subtitles | Download or embed them — the ones somebody wrote, the machine-written ones, or both — keep chapters, or skip sponsor segments |
+| Dubbed audio | Take one language, or every dub the video has, each as its own file |
+| Cover picture | Choose from the ones the site offers instead of taking its default; kept beside the file and put inside it where the format allows |
 | Convert | Turn anything already on the disk into MP3, M4A, OPUS, FLAC or WAV — remuxed rather than re-encoded when the codec already fits |
 | Watch | Follow a channel or playlist and be told what is new. It never downloads on its own |
 | Find on a page | Point it at a page and it lists every media link on it, in the same screen playlists use |
@@ -35,7 +41,34 @@ thousand other sites.
 | Sign-in | Sign in through your own browser for private, members-only and age-gated videos |
 | Library | Every finished file, with search, sort, a filter per site, play and show-in-folder |
 | Backup | Export and import your settings; export your links as txt, csv or json |
+| Proxy | http, https or SOCKS. With SOCKS the second route stands aside rather than go around it |
 | Themes | Light and dark, or whichever the system is using |
+
+### When a site refuses
+
+Almost every desktop downloader is a front end for the same engine, so a site
+that starts refusing it breaks all of them at once, and the usual advice — try
+a different connection — is not a fix.
+
+Riplox has a second route of its own for the four sites that matter most:
+YouTube, TikTok, Instagram and Facebook. It runs only after the engine has
+actually failed, so an ordinary download never goes through it and it cannot
+quietly take over a site the engine handles better. It uses no browser, no
+signing and no impersonation — a plain request with the headers a browser would
+send, and a cookie jar that keeps what the site hands back.
+
+Above 360p, YouTube hands the picture and the sound over as separate files;
+Riplox fetches both and joins them. Without `ffmpeg` it says so and takes the
+single combined stream instead, rather than dropping to 360p silently.
+
+An address a site publishes is checked before anything is fetched from it: it
+must be https and belong to that site's own network. These pages carry text
+other people wrote, and a caption can contain something shaped exactly like a
+video address.
+
+If a proxy is set, this route uses it too — and where it cannot, it refuses to
+run rather than going around it. The whole point of setting one is that
+requests do not leave any other way.
 
 ### Send to Riplox
 
@@ -184,6 +217,22 @@ python src\app.py --dev
 This serves the UI at `http://127.0.0.1:5010` in a normal browser instead of
 the app window.
 
+### Tests
+
+```
+python tests
+un.py            everything, including the tests that go online
+python tests
+un.py --offline  only the ones that need no network
+python tests	est_proxy.py     any one of them, on its own
+```
+
+Each file is a plain script that prints its checks and exits non-zero if any
+failed; no test framework is needed or installed. The ones that go online are
+slower and are also the only ones that mean anything about a door — a route
+that passes against a recorded answer proves nothing about the day the site
+changes. `--offline` leaves them out and names what it skipped.
+
 ### The senders
 
 Both are separate programs with no dependency on Riplox itself. Each seals the
@@ -222,7 +271,9 @@ copy back instead of starting a second one, and a starting copy cannot know the
 token. That endpoint only shows a window.
 
 Downloads are handled by `yt-dlp`, and merging and audio conversion by
-`ffmpeg`. Both ship with the app.
+`ffmpeg`. Both ship with the app. When `yt-dlp` is refused on YouTube, TikTok,
+Instagram or Facebook, `src/doors.py` takes over — standard library only, no
+extra dependency.
 
 Settings, history and the updatable engine live in
 `%LOCALAPPDATA%\RiploxDesktop`. Pairing keys are kept in their own file there,

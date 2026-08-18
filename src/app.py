@@ -274,6 +274,21 @@ def api_add():
         if extra in engine.QUALITY_LABELS and extra not in wanted:
             wanted.append(extra)
 
+    # Every dubbed language at once, each as its own file. The browser sends
+    # the list because it already has it - it is what filled the dropdown - so
+    # this needs no second look at the video.
+    #
+    # One video only, for the same reason a picked format is: the languages
+    # belong to the video that was read, and the next one in a playlist has
+    # its own set. Silently applying this list to all of them would ask for
+    # dubs that do not exist.
+    dubs = []
+    if not batch:
+        for lang in (body.get("audio_langs") or [])[:12]:
+            lang = str(lang).strip()
+            if re.fullmatch(r"[A-Za-z0-9\-]{1,20}", lang) and lang not in dubs:
+                dubs.append(lang)
+
     added = set()
     for item in items[:200]:
         url = (item.get("url") or "").strip()
@@ -285,21 +300,33 @@ def api_add():
             # would ask for a video stream and quietly produce the wrong file.
             this_opts = opts if index == 0 else {
                 k: v for k, v in opts.items() if k != "format_id"}
-            job = manager.add(
-                url=url,
-                title=item.get("title", ""),
-                thumbnail=item.get("thumbnail", ""),
-                uploader=item.get("uploader", ""),
-                quality=want,
-                batch=batch,
-                start=start,
-                end=end,
-                exact=exact,
-                opts=this_opts,
-            )
-            # add() returns the running job for a duplicate, so a set keeps the
-            # count honest instead of claiming we queued the same thing twice.
-            added.add(job.id)
+
+            # One job per language, or the single job there has always been.
+            # A picked format id names one stream, and that stream carries one
+            # language, so it cannot describe the others - it is dropped for
+            # this, the same way it is dropped for the extra qualities above.
+            shapes = [this_opts]
+            if dubs:
+                shapes = [dict({k: v for k, v in this_opts.items()
+                                if k != "format_id"}, audio_lang=lang)
+                          for lang in dubs]
+
+            for shape in shapes:
+                job = manager.add(
+                    url=url,
+                    title=item.get("title", ""),
+                    thumbnail=item.get("thumbnail", ""),
+                    uploader=item.get("uploader", ""),
+                    quality=want,
+                    batch=batch,
+                    start=start,
+                    end=end,
+                    exact=exact,
+                    opts=shape,
+                )
+                # add() returns the running job for a duplicate, so a set keeps
+                # the count honest instead of claiming we queued it twice.
+                added.add(job.id)
 
     if not added:
         return jsonify({"ok": False, "error": "No usable links found."}), 400
@@ -730,6 +757,15 @@ def api_potoken_remove():
 @app.post("/api/settings")
 def api_set_settings():
     patch = request.json or {}
+
+    # Checked here and not only in the browser. A proxy that is accepted and
+    # then quietly ignored is the worst of the three possible outcomes: the
+    # user believes their connection is going out through it, and it is not.
+    if "proxy" in patch:
+        trouble = engine.check_proxy(patch.get("proxy"))
+        if trouble:
+            return jsonify({"ok": False, "error": trouble}), 400
+
     saved = engine.save_settings(patch)
     # Turning Sharing on or off has to take effect now, not at the next start.
     if "sharing" in patch or "share_lan_only" in patch or "share_relay" in patch:

@@ -23,6 +23,7 @@ header names are facts about the sites; the code is Riplox's own.
 import html
 import json
 import re
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -48,6 +49,63 @@ _MAX_PAGE = 8 * 1024 * 1024          # a video page is under 1 MB; this is a cap
 
 class DoorError(Exception):
     """Something this door can say to the user as it stands."""
+
+
+# --------------------------------------------------------------------------
+# Going out through a proxy
+# --------------------------------------------------------------------------
+# Set by the engine before this module is asked for anything, because a proxy
+# that the rest of the app obeys and this one does not is worse than no proxy
+# at all: the user believes every request is going out through it, and then
+# the fallback route - the one that runs precisely when a site is refusing
+# this connection - goes straight out and shows them the address they were
+# hiding. So the rule here is all or nothing.
+#
+# SOCKS is deliberately not attempted. urllib speaks http and https proxies on
+# its own and needs a third-party library for SOCKS; rather than add one to
+# reach a fallback, a SOCKS proxy switches this module off and says why.
+
+# Per thread, not per module. Several downloads run at once, each in its own
+# worker thread, and each configures this before it resolves. A single shared
+# value means one thread can overwrite another's a moment before it is read -
+# and the case that loses is a download that was meant to go through a proxy
+# quietly going out direct, which is the one failure this whole section exists
+# to prevent. Thread-local costs nothing and removes the race entirely.
+_local = threading.local()
+
+
+def configure(proxy: str = "") -> None:
+    """Tell this module which proxy the rest of the app is using."""
+    _local.proxy = str(proxy or "").strip()
+
+
+def _proxy() -> str:
+    return getattr(_local, "proxy", "")
+
+
+def proxy_problem() -> str:
+    """Why this module cannot honour the configured proxy, or ""."""
+    current = _proxy()
+    if not current:
+        return ""
+    scheme = current.split("://", 1)[0].lower() if "://" in current else ""
+    if scheme in ("http", "https"):
+        return ""
+    return (f"Riplox's own route cannot go out through a {scheme or 'that'} "
+            f"proxy, and it will not go around one. Use an http:// or "
+            f"https:// proxy if you want the fallback route as well.")
+
+
+def _proxy_handler() -> list:
+    """The handler list that sends this module's requests the same way."""
+    current = _proxy()
+    if not current:
+        return []
+    if proxy_problem():
+        # Unreachable in normal use - resolve() refuses first. Belt and braces,
+        # because the failure it guards against is a leaked address.
+        raise DoorError(proxy_problem())
+    return [urllib.request.ProxyHandler({"http": current, "https": current})]
 
 
 # --------------------------------------------------------------------------
@@ -84,6 +142,7 @@ _CDN = {
         r"|akamaized\.net)$"),
     "instagram": re.compile(r"(cdninstagram\.com|instagram\.com|fbcdn\.net)$"),
     "facebook": re.compile(r"(fbcdn\.net|facebook\.com|fbsbx\.com)$"),
+    "youtube": re.compile(r"(googlevideo\.com|youtube\.com|ytimg\.com)$"),
 }
 # akamaized.net is a shared CDN rather than TikTok's own, and it is here
 # because TikTok genuinely serves from it. It is the weakest entry in the
@@ -154,6 +213,8 @@ def site_of(url: str) -> str:
         return "instagram"
     if root in ("facebook.com", "fb.watch", "fb.com"):
         return "facebook"
+    if root in ("youtube.com", "youtu.be", "youtube-nocookie.com"):
+        return "youtube"
     return ""
 
 
@@ -184,7 +245,8 @@ def _opener(session_for: str = "") -> urllib.request.OpenerDirector:
     jar = CookieJar()
     if session_for:
         _load_session(jar, session_for)
-    return urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+    return urllib.request.build_opener(
+        urllib.request.HTTPCookieProcessor(jar), *_proxy_handler())
 
 
 def _session_jar(url: str):
@@ -756,21 +818,336 @@ def _facebook(url: str) -> dict:
 
 
 # --------------------------------------------------------------------------
+# YouTube
+# --------------------------------------------------------------------------
+# The one that matters most and was the last to get a door, because YouTube is
+# the site yt-dlp handles best - so a second way in here is insurance rather
+# than a fix for something failing today.
+#
+# What it is insurance against is named and public: YouTube is moving its
+# streams onto SABR, its own delivery protocol, and yt-dlp's downloader for it
+# has been an open pull request for over a year. The day the remaining clients
+# are pushed across, every downloader built on yt-dlp stops at the same hour.
+#
+# The route here is the app's own player endpoint. Measured on 2026-08-18 from
+# this machine, no sign-in, standard library only:
+#
+#   IOS      27 adaptive formats, every one with a plain url, up to 2160p
+#   ANDROID  1 muxed (itag 18, 360p) + 29 adaptive, all plain, up to 2160p
+#   WEB      UNPLAYABLE  - "Video unavailable"
+#   MWEB     UNPLAYABLE  - "The page needs to be reloaded"
+#   TVHTML5  ERROR       - "no longer supported in this application or device"
+#
+# The two that answer hand the addresses over directly: nothing has to be
+# deciphered, no proof-of-origin token is needed, and no JavaScript runs. That
+# is the whole reason this door can exist in a module with no dependencies.
+#
+# Signed-in YouTube is deliberately not attempted. This endpoint does not take
+# a cookie jar the way the other three doors do - it wants a SAPISIDHASH
+# authorisation header computed per request - so a private or members-only
+# video is refused here and says so.
+# lazy: signed-out only. If members-only videos ever need this route, the
+# upgrade is the SAPISIDHASH header built from the saved SAPISID cookie.
+
+_YT_PLAYER = "https://www.youtube.com/youtubei/v1/player?prettyPrint=false"
+
+# An id is eleven characters and appears in five different shapes of link.
+_YT_ID = re.compile(r"[A-Za-z0-9_-]{11}")
+_YT_IN_PATH = re.compile(r"/(?:shorts|live|embed|v)/([A-Za-z0-9_-]{11})")
+
+# Order matters and it is not the same in both cases - see _youtube. IOS is
+# the richer answer; ANDROID is the only one of the two that still offers a
+# muxed stream, which is all there is to work with when ffmpeg is absent.
+_YT_CLIENTS = {
+    "IOS": {
+        "context": {"client": {
+            "clientName": "IOS", "clientVersion": "20.10.4",
+            "deviceMake": "Apple", "deviceModel": "iPhone16,2",
+            "osName": "iPhone", "osVersion": "18.3.2.22D82",
+            "hl": "en", "gl": "US"}},
+        "ua": ("com.google.ios.youtube/20.10.4 (iPhone16,2; U; "
+               "CPU iOS 18_3_2 like Mac OS X;)"),
+    },
+    "ANDROID": {
+        "context": {"client": {
+            "clientName": "ANDROID", "clientVersion": "20.10.38",
+            "androidSdkVersion": 34, "osName": "Android", "osVersion": "14",
+            "hl": "en", "gl": "US"}},
+        "ua": "com.google.android.youtube/20.10.38 (Linux; U; Android 14) gzip",
+    },
+}
+
+
+def _yt_id(url: str) -> str:
+    """The video id out of any of the shapes YouTube hands out."""
+    parts = urlsplit(url)
+    host = (parts.hostname or "").lower()
+
+    if host.endswith("youtu.be"):
+        tail = parts.path.strip("/").split("/")[0]
+        if _YT_ID.fullmatch(tail):
+            return tail
+
+    for pair in parts.query.split("&"):
+        if pair.startswith("v=") and _YT_ID.fullmatch(pair[2:]):
+            return pair[2:]
+
+    found = _YT_IN_PATH.search(parts.path)
+    if found:
+        return found.group(1)
+
+    raise DoorError("That does not look like a link to one YouTube video. A "
+                    "channel or a playlist page has to be opened first - a "
+                    "page can hold hundreds, and Riplox will not guess.")
+
+
+def _post_json(url: str, body: dict, user_agent: str) -> dict:
+    """A plain JSON POST. Its own helper because _get only speaks GET."""
+    request = urllib.request.Request(
+        url, data=json.dumps(body).encode(),
+        headers={
+            "User-Agent": user_agent,
+            "Content-Type": "application/json",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Origin": "https://www.youtube.com",
+        })
+    opener = urllib.request.build_opener(
+        urllib.request.HTTPCookieProcessor(CookieJar()), *_proxy_handler())
+    with opener.open(request, timeout=_TIMEOUT) as response:
+        return json.loads(response.read(_MAX_PAGE))
+
+
+def _yt_ask(video_id: str, client: str) -> dict:
+    """What one client is told about this video."""
+    spec = _YT_CLIENTS[client]
+    return _post_json(_YT_PLAYER, {
+        "context": spec["context"],
+        "videoId": video_id,
+        # Both of these say "yes, show it anyway" to content YouTube would
+        # otherwise interrupt with a confirmation the app answers on the
+        # viewer's behalf. Without them an ordinary flagged video comes back
+        # unplayable for no stated reason.
+        "contentCheckOk": True,
+        "racyCheckOk": True,
+    }, spec["ua"])
+
+
+def _yt_refusal(status: dict) -> str:
+    """YouTube's own words for why not, turned into one readable line."""
+    reason = (status.get("reason") or "").strip()
+    if not reason:
+        # Sometimes the sentence is only in the panel behind the reason.
+        renderer = ((status.get("errorScreen") or {})
+                    .get("playerErrorMessageRenderer") or {})
+        reason = ((renderer.get("reason") or {}).get("simpleText") or "").strip()
+
+    state = status.get("status") or "refused"
+    if state == "LOGIN_REQUIRED":
+        return ("YouTube wants an account signed in for that video, and "
+                "Riplox's own route to YouTube is signed out by design. "
+                + (reason or "It is usually private, members-only, or age-restricted."))
+    return f"YouTube says: {reason or state.lower().replace('_', ' ')}."
+
+
+def _yt_kind(entry: dict) -> str:
+    mime = entry.get("mimeType") or ""
+    return mime.split("/", 1)[0]
+
+
+def _yt_is_mp4(entry: dict) -> bool:
+    """An mp4 container carrying H.264 - the pair that merges with -c copy."""
+    mime = entry.get("mimeType") or ""
+    return "mp4" in mime and ("avc1" in mime or "mp4a" in mime)
+
+
+def _yt_pick_video(entries: list, cap: int, prefer_h264: bool) -> dict:
+    """
+    The best video stream at or under the height that was asked for.
+
+    Sorted rather than filtered down to one rule so that a request for 1080p
+    on a video that only has 720p still comes back with the 720p, which is
+    what somebody asking for "1080p or the best you have" means.
+    """
+    usable = [e for e in entries
+              if _yt_kind(e) == "video" and e.get("url")
+              and (not cap or (e.get("height") or 0) <= cap)]
+    if not usable:
+        return {}
+    usable.sort(key=lambda e: (
+        e.get("height") or 0,
+        1 if (_yt_is_mp4(e) if prefer_h264 else not _yt_is_mp4(e)) else 0,
+        e.get("bitrate") or 0,
+    ), reverse=True)
+    return usable[0]
+
+
+def _yt_pick_audio(entries: list, want_mp4: bool) -> dict:
+    """The best audio stream, in the container that will merge cleanly."""
+    usable = [e for e in entries if _yt_kind(e) == "audio" and e.get("url")]
+    if not usable:
+        return {}
+    usable.sort(key=lambda e: (
+        1 if _yt_is_mp4(e) == want_mp4 else 0,
+        e.get("bitrate") or 0,
+    ), reverse=True)
+    return usable[0]
+
+
+def _yt_details(data: dict, video_id: str) -> dict:
+    details = data.get("videoDetails") or {}
+    thumbs = ((details.get("thumbnail") or {}).get("thumbnails")) or []
+    best = ""
+    if thumbs:
+        best = max(thumbs, key=lambda t: t.get("width") or 0).get("url", "")
+    try:
+        seconds = int(details.get("lengthSeconds") or 0)
+    except (TypeError, ValueError):
+        seconds = 0
+    return {
+        "title": (details.get("title") or f"YouTube {video_id}").strip()[:120],
+        "uploader": details.get("author") or "",
+        "thumbnail": best if _address_ok(best, "youtube") else "",
+        "duration": seconds,
+    }
+
+
+def _youtube(url: str, quality: str = "", prefer_h264: bool = True,
+             can_merge: bool = True) -> dict:
+    """
+    Riplox's own route to one YouTube video.
+
+    With ffmpeg present this returns two addresses - a video stream and an
+    audio one - because that is the only way YouTube offers anything above
+    360p. Without it there is a single muxed stream and it is 360p, which the
+    caller is told in as many words rather than left to wonder about.
+    """
+    video_id = _yt_id(url)
+
+    # Without a merger the muxed stream is the only usable answer, and only
+    # ANDROID still carries one - so that is the client worth asking first.
+    order = ("IOS", "ANDROID") if can_merge else ("ANDROID", "IOS")
+
+    data = {}
+    answered = ""
+    refusal = ""
+    trouble = ""
+    for client in order:
+        try:
+            answer = _yt_ask(video_id, client)
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            trouble = str(exc)
+            continue
+
+        status = answer.get("playabilityStatus") or {}
+        if status.get("status") == "OK" and answer.get("streamingData"):
+            data, answered = answer, client
+            break
+        # Kept, but not returned yet: the other client may still be allowed
+        # to play it, and a refusal from one is not a verdict from YouTube.
+        refusal = refusal or _yt_refusal(status)
+
+    if not data:
+        if refusal:
+            raise DoorError(refusal)
+        raise DoorError("YouTube did not answer Riplox's own route"
+                        + (f" - {trouble}" if trouble else "") + ".")
+
+    streaming = data.get("streamingData") or {}
+    adaptive = streaming.get("adaptiveFormats") or []
+    muxed = streaming.get("formats") or []
+    info = _yt_details(data, video_id)
+    cap = 0 if quality in ("", "best", "mp3") else int(quality)
+    note = ""
+
+    chosen = {}
+    audio = {}
+    if can_merge:
+        chosen = _yt_pick_video(adaptive, cap, prefer_h264)
+        audio = _yt_pick_audio(adaptive, want_mp4=_yt_is_mp4(chosen))
+    if quality == "mp3":
+        # Audio only: there is nothing to merge and nothing to pick a height
+        # for. The engine's own converter turns it into mp3 afterwards.
+        chosen, audio = _yt_pick_audio(adaptive, want_mp4=True), {}
+
+    if not chosen or (can_merge and quality != "mp3" and not audio):
+        # Falling back to the muxed stream is a real downgrade, so it is said
+        # out loud rather than quietly handed over as if it were the best on
+        # offer. Silence here is the failure this whole module exists to stop.
+        chosen = next((e for e in sorted(
+            muxed, key=lambda e: e.get("height") or 0, reverse=True)
+            if e.get("url")), {})
+        audio = {}
+        if chosen:
+            note = (f"Only YouTube's combined {chosen.get('qualityLabel') or 'low'} "
+                    f"stream was available on this route"
+                    + ("" if can_merge else ", because ffmpeg is not installed "
+                                            "and the higher ones arrive as "
+                                            "separate video and audio") + ".")
+
+    if not chosen:
+        # The shape the SABR switch would take, so it is named here rather
+        # than arriving as an empty list nobody can interpret.
+        raise DoorError(
+            "YouTube offered no directly fetchable stream for that video. "
+            "This is what it looks like when YouTube moves a client onto its "
+            "own streaming protocol, which Riplox's route does not speak.")
+
+    result = {
+        "url": _checked(chosen.get("url", ""), "youtube"),
+        "id": video_id,
+        "ext": "m4a" if quality == "mp3" else "mp4",
+        # The user agent of the client that was actually answered, not a
+        # browser's. These addresses are issued to a particular app and the
+        # CDN checks that the fetch looks like it came from the same one.
+        "headers": {
+            "User-Agent": _YT_CLIENTS[answered]["ua"],
+            "Accept": "*/*",
+            "Accept-Language": "en-US,en;q=0.9",
+        },
+        "site": "YouTube",
+        "note": note,
+    }
+    if audio:
+        result["audio_url"] = _checked(audio.get("url", ""), "youtube")
+    result.update(info)
+    return result
+
+
+# --------------------------------------------------------------------------
 # The one entry point
 # --------------------------------------------------------------------------
 
-_DOORS = {"tiktok": _tiktok, "instagram": _instagram, "facebook": _facebook}
+_DOORS = {"tiktok": _tiktok, "instagram": _instagram, "facebook": _facebook,
+          "youtube": _youtube}
 
 
-def resolve(url: str) -> dict:
+def resolve(url: str, quality: str = "", prefer_h264: bool = True,
+            can_merge: bool = True) -> dict:
     """
     Work out the direct address for a link this module handles.
 
     Returns the details, or raises DoorError with something worth showing.
     Callers should treat any other exception as "this door did not work" and
     keep yt-dlp's own error, which is the one the user was already told.
+
+    The three extra arguments are only meaningful where a site offers a choice
+    of streams, which today is YouTube alone - the other doors are handed one
+    file and take it. They are optional so that every existing caller, and any
+    test written against the old shape, keeps working unchanged.
+
+    A returned "audio_url" means the video arrives as two streams and the
+    caller has to merge them; "note" is a sentence to show the user when what
+    came back is not the best the site has.
     """
     door = _DOORS.get(site_of(url))
     if door is None:
         raise DoorError("Riplox has no direct route for that site.")
+    # Before anything is fetched, not after: the whole point is that no
+    # request leaves by a route the user did not agree to.
+    trouble = proxy_problem()
+    if trouble:
+        raise DoorError(trouble)
+    if door is _youtube:
+        return _youtube(url, quality=quality, prefer_h264=prefer_h264,
+                        can_merge=can_merge)
     return door(url)
