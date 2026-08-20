@@ -24,6 +24,23 @@ const MAX_BODY = 4096;             // an envelope is a few hundred bytes
 const MAX_HOLD = 30;               // seconds a /wait request is held open
 const KEEP = 7 * 24 * 60 * 60 * 1000;
 const MAX_QUEUE = 100;
+
+/* A room's own pace limit.
+ *
+ * Not about bandwidth - about storage rows. Every accepted send writes, and
+ * the free plan allows 100,000 rows a day across the whole relay. One room
+ * left in a loop would spend that in minutes and the relay would then refuse
+ * everybody, which is the failure worth preventing.
+ *
+ * 30 a minute is far above anything a person does. Sharing twenty links in one
+ * go - the busiest thing this app is actually used for - passes untouched.
+ *
+ * Honest about its ceiling: this bounds one room. Somebody willing to pair
+ * many PCs could still push past it, and stopping that needs an account, which
+ * this relay deliberately does not have. It closes the loop-in-a-script case,
+ * which is the one that costs nothing to attempt. */
+const SEND_WINDOW = 60 * 1000;
+const SEND_PER_WINDOW = 30;
 const ACK_KEEP = 3 * 60 * 1000;    // a verdict nobody collected
 const MAX_ACKS = 200;
 
@@ -253,6 +270,19 @@ export class Room {
     this.ackWaiters = new Map();
     this.seen = 0;           // when a PC last asked for anything
 
+    /* How many sends this room has made in the current minute.
+     *
+     * Kept in memory and never written down, which is the whole point: every
+     * accepted send costs storage rows, and the free plan's daily budget for
+     * those is what the relay runs on. A limiter that wrote a row of its own
+     * on every check would spend the thing it exists to protect.
+     *
+     * Losing the count when the object hibernates is fine. Hibernation only
+     * happens after a quiet spell, and a flood is by definition not quiet -
+     * the counter is awake for exactly as long as it is needed. */
+    this.sentAt = 0;         // start of the current window
+    this.sentIn = 0;         // sends inside it
+
     state.blockConcurrencyWhile(async () => {
       this.queue = (await state.storage.get("queue")) || [];
       this.flight = (await state.storage.get("flight")) || [];
@@ -414,6 +444,21 @@ export class Room {
       // so shape is the only thing it can check.
       if (!NONCE_RE.test(n) || !/^[A-Za-z0-9_-]{8,4000}$/.test(c)) {
         return json({ ok: false }, 400);
+      }
+
+      /* Too fast for a person, so it is not one.
+       *
+       * Checked before anything is stored and before the room is even looked
+       * at, so a refusal costs nothing - which is what makes it worth having.
+       * The count lives in memory; see the constructor for why. */
+      const now = Date.now();
+      if (now - this.sentAt > SEND_WINDOW) {
+        this.sentAt = now;
+        this.sentIn = 0;
+      }
+      this.sentIn += 1;
+      if (this.sentIn > SEND_PER_WINDOW) {
+        return json({ ok: false, tooFast: true }, 429);
       }
 
       /* Nothing is kept for a room no PC has ever watched.

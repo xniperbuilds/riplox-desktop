@@ -101,6 +101,61 @@ console.log("\n-- a PC that watched long ago still works --------------------");
   check("still accepted", res.status === 200, "status " + res.status);
 }
 
+console.log("\n-- a room of its own cannot be hammered ----------------------");
+{
+  // The cost of a send is storage rows, and the free plan's daily budget for
+  // those is what the whole relay runs on. One room left in a loop would spend
+  // it and the relay would then refuse everybody.
+  const state = makeState({ seen: Date.now(), queue: [], flight: [] });
+  const room = new Room(state);
+  await new Promise((r) => setImmediate(r));
+
+  let accepted = 0, refused = 0, tooFast = 0;
+  for (let i = 0; i < 200; i++) {
+    const res = await room.fetch(new Request("https://room/send", {
+      method: "POST",
+      body: JSON.stringify({ n: "nonce" + String(i).padStart(8, "0"),
+                             c: "Zm9vYmFyYmF6cXV4" }),
+    }));
+    if (res.status === 200) accepted++;
+    else if (res.status === 429) { refused++; if ((await res.json()).tooFast) tooFast++; }
+  }
+  check("a burst is capped", accepted <= 30, "accepted " + accepted);
+  check("the rest are refused", refused === 200 - accepted, "refused " + refused);
+  check("and told why", tooFast === refused, "tooFast " + tooFast);
+
+  // The part that matters for the bill: a refusal must not cost a row.
+  const writesAtCap = state.writes.length;
+  for (let i = 0; i < 50; i++) {
+    await room.fetch(new Request("https://room/send", {
+      method: "POST",
+      body: JSON.stringify({ n: "extra" + String(i).padStart(8, "0"),
+                             c: "Zm9vYmFyYmF6cXV4" }),
+    }));
+  }
+  check("50 refused sends wrote 0 further rows",
+        state.writes.length === writesAtCap,
+        "rows before " + writesAtCap + ", after " + state.writes.length);
+}
+
+console.log("\n-- a normal batch is untouched -------------------------------");
+{
+  // Twenty links in one go is the busiest thing this app is really used for.
+  const state = makeState({ seen: Date.now(), queue: [], flight: [] });
+  const room = new Room(state);
+  await new Promise((r) => setImmediate(r));
+  let ok = 0;
+  for (let i = 0; i < 20; i++) {
+    const res = await room.fetch(new Request("https://room/send", {
+      method: "POST",
+      body: JSON.stringify({ n: "batch" + String(i).padStart(8, "0"),
+                             c: "Zm9vYmFyYmF6cXV4" }),
+    }));
+    if (res.status === 200) ok++;
+  }
+  check("all twenty go through", ok === 20, "accepted " + ok);
+}
+
 console.log("\n-- the flood, counted ----------------------------------------");
 {
   let writes = 0;
