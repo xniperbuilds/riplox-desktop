@@ -36,6 +36,21 @@ final class Outbox {
         return new File(context.getFilesDir(), FILE);
     }
 
+    /**
+     * How much text one message can carry, in bytes.
+     *
+     * Not a preference: the relay accepts a ciphertext field of at most 4000
+     * base64 characters, which is 3000 bytes, less the AES-GCM tag and the
+     * JSON around it. 2,900 leaves a margin and still carries an SSH private
+     * key. The PC applies the same number, so the two ends agree about what is
+     * too big.
+     *
+     * Bytes rather than characters because a 22 character Urdu sentence is 39
+     * bytes, and a limit that counts characters would be a lie to anyone not
+     * typing English.
+     */
+    static final int TEXT_MAX = 2900;
+
     static void add(Context context, String url) {
         put(context, "url", url);
     }

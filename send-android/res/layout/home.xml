@@ -196,8 +196,11 @@
                 android:textColor="@color/ink"
                 android:textColorHint="@color/idle"
                 android:textSize="14sp"
-                android:inputType="textUri"
-                android:maxLines="3"
+                android:gravity="top|start"
+                android:minLines="4"
+                android:maxLines="10"
+                android:scrollbars="vertical"
+                android:inputType="textMultiLine|textNoSuggestions"
                 android:padding="14dp"
                 android:background="@drawable/field"
                 android:imeOptions="actionSend" />

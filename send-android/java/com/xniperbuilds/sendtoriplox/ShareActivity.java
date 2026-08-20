@@ -26,17 +26,9 @@ public class ShareActivity extends Activity {
 
     private static final Pattern LINK = Pattern.compile("https?://\\S+");
 
-    /**
-     * Bytes, not characters, and matched to what the relay will carry: its
-     * ciphertext field holds 4000 base64 characters, which is 3000 bytes, less
-     * the AES-GCM tag and the JSON around it. An SSH private key is about
-     * 1,700 and fits comfortably.
-     *
-     * Counting characters would be wrong for anybody not typing English - a
-     * 22 character Urdu sentence is 39 bytes - and the PC applies the same
-     * number, so the two ends agree about what is too big.
-     */
-    private static final int TEXT_MAX = 2900;
+    // One definition, in Outbox, because the Home screen sends text too and
+    // two copies of a limit eventually disagree about what is too big.
+    private static final int TEXT_MAX = Outbox.TEXT_MAX;
 
     @Override
     protected void onCreate(Bundle state) {

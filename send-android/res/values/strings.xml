@@ -5,13 +5,16 @@
     <string name="tagline">Your PC does the downloading</string>
 
     <!-- home -->
-    <string name="send_a_link">Send a link</string>
-    <string name="send_a_link_why">Paste one here, or share it from any app.</string>
-    <string name="link_hint">https://…</string>
+    <string name="send_a_link">Send a link, or some text</string>
+    <string name="send_a_link_why">A link gets downloaded on your PC. Anything else — a key, a password, a Wi-Fi code — waits there until you copy it.</string>
+    <string name="link_hint">https://…  or any text you need on your PC</string>
     <string name="send_now">Send to my PC</string>
-    <string name="or_share">Wherever you are — YouTube, TikTok, a browser — use <b>Share → Riplox Send</b>. Nothing opens; the link is on its way.</string>
+    <string name="or_share">Wherever you are — YouTube, TikTok, a browser, a notes app — use <b>Share → Riplox Send</b>. Nothing opens; it is on its way.</string>
     <string name="pairing_screen">Pairing and setup</string>
-    <string name="privacy">Only the link travels — never a video, and never anything else on this phone.</string>
+    <!-- This used to say only a link ever travels. Text can be sent now, so
+         that sentence had become untrue - and a privacy claim that is no
+         longer true is worse than none at all. -->
+    <string name="privacy">Only a link or the text you type travels — never a video, and never anything else on this phone. Text is encrypted before it leaves, and only your PC can open it.</string>
 
     <!-- status -->
     <string name="checking">Checking…</string>
@@ -70,6 +73,10 @@
     <string name="sending">Sending to your PC…</string>
     <string name="left_for_pc">Left for your PC. It starts as soon as Riplox is running.</string>
     <string name="no_link">There was no link in that.</string>
+    <!-- The box takes text now, so the only thing left to refuse is an empty
+         one. "There was no link in that" was the old message and it is the
+         wrong complaint entirely. -->
+    <string name="nothing_to_send">Type a link or some text first.</string>
     <string name="sending_text">Sending that text to your PC…</string>
     <!-- Says the size plainly, because the alternative was shortening it
          quietly - and half a licence key looks whole until it fails. -->

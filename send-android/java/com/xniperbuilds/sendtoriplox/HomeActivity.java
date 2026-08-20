@@ -14,6 +14,7 @@ import android.widget.Toast;
 
 import org.json.JSONObject;
 
+import java.nio.charset.StandardCharsets;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -310,12 +311,25 @@ public class HomeActivity extends Activity {
             return;
         }
 
-        Matcher found = LINK.matcher(link.getText().toString());
-        if (!found.find()) {
-            Toast.makeText(this, R.string.no_link, Toast.LENGTH_SHORT).show();
+        final String typed = link.getText().toString();
+        Matcher found = LINK.matcher(typed);
+        // A link, wherever there is one, wins - that is what this app is for.
+        // Anything else that is not empty is text: a licence key, a Wi-Fi
+        // code, a password. Refusing it was the old behaviour and there is no
+        // reason for the box to be fussier than the share sheet.
+        final String url = found.find() ? found.group() : "";
+        final String text = url.length() > 0 ? "" : typed.trim();
+
+        if (url.length() == 0 && text.length() == 0) {
+            Toast.makeText(this, R.string.nothing_to_send, Toast.LENGTH_SHORT).show();
             return;
         }
-        final String url = found.group();
+        if (text.length() > 0
+                && text.getBytes(StandardCharsets.UTF_8).length > Outbox.TEXT_MAX) {
+            // Refused, never shortened. Half a licence key looks whole.
+            Toast.makeText(this, R.string.text_too_long, Toast.LENGTH_LONG).show();
+            return;
+        }
 
         send.setEnabled(false);
         send.setText(R.string.sending);
@@ -327,8 +341,14 @@ public class HomeActivity extends Activity {
                 boolean ok = false;
                 try {
                     JSONObject body = new JSONObject();
-                    body.put("url", url);
-                    body.put("quality", "");      // whatever the PC is set to
+                    if (text.length() > 0) {
+                        // No quality: there is nothing to download. The PC
+                        // keeps it sealed until somebody presses Copy.
+                        body.put("text", text);
+                    } else {
+                        body.put("url", url);
+                        body.put("quality", "");  // whatever the PC is set to
+                    }
                     String said = Relay.deliver(store.room(), store.key(), body);
                     String words = Relay.words(said);
                     ok = said.length() == 0 || "queued".equals(said) || "held".equals(said);
