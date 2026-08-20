@@ -143,7 +143,30 @@ def index():
         # The Library uses these to tell a folder name that is really a site
         # from one that is just where a file happened to land.
         sites=engine.known_sites(),
+        whats_new=whats_new(),
     )
+
+
+def whats_new() -> list:
+    """
+    The What's new lines, written by build/make_whatsnew.py from the commits.
+
+    Empty is a normal answer, not a failure: the file is absent when running
+    from a source tree nobody has built, and it holds nothing until commits
+    start carrying a Whats-new: trailer. The template falls back to its own
+    list in that case, so an empty return changes nothing on screen.
+
+    Nothing here may raise. This is the least important thing on the page and
+    it must never be the reason the window does not open.
+    """
+    try:
+        raw = (resource_dir() / "whatsnew.json").read_text(encoding="utf-8")
+        items = json.loads(raw).get("items")
+    except (OSError, ValueError, AttributeError):
+        return []
+    if not isinstance(items, list):
+        return []
+    return [str(line) for line in items if isinstance(line, str) and line.strip()]
 
 
 # --------------------------------------------------------------------------

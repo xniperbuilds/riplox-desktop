@@ -1391,6 +1391,14 @@
         </div>
       </div>
       <ul class="roadmap" id="whatsNew">
+        {#- Written by build/make_whatsnew.py from the commits that carried a
+            Whats-new: trailer. The hand-written list below is what shows until
+            commits start carrying them - so this can be added without emptying
+            the panel for a release whose commits predate it. -#}
+        {% for line in whats_new %}
+        <li class="done">{{ line }}</li>
+        {% endfor %}
+        {% if not whats_new %}
         <li class="done"><b>Instagram refusals now say which one it is</b> — and
           the commonest one is not the post at all. When Instagram is holding a
           reel back from your account rather than from everybody, Riplox names
@@ -1453,6 +1461,7 @@
           with your saved sign-in before it is refused.</li>
         <li class="done"><b>Instagram answering with nothing</b> no longer reads
           as a bug in Riplox asking to be reported.</li>
+        {% endif %}
       </ul>
     </div>
 

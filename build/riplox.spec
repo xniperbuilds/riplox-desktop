@@ -26,6 +26,16 @@ datas = [
     (str(SRC / "static"), "static"),
 ] + webview_datas
 
+# What's new, written from the commits by build/make_whatsnew.py. Listed here
+# one file at a time rather than by folder, because src/ also holds the source
+# and bundling that would ship the whole program twice.
+#
+# Conditional on purpose: a checkout that has never run the generator still
+# builds, and app.whats_new() answers with an empty list, which the template
+# already handles by showing its own list instead.
+if (SRC / "whatsnew.json").exists():
+    datas.append((str(SRC / "whatsnew.json"), "."))
+
 # Anything pulled in transitively that this app never touches. Left in, these
 # add hundreds of MB and have repeatedly caused boot crashes in past builds.
 excludes = [
