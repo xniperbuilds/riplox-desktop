@@ -1,6 +1,6 @@
 RIPLOX DESKTOP - TERMS AND CONDITIONS
 XniperBuilds
-Version 1.0 - please read before installing.
+Terms version 1.1, for Riplox Desktop 1.4.0 - please read before installing.
 
 
 1. WHAT RIPLOX IS
@@ -90,6 +90,16 @@ Riplox makes network connections only for these purposes:
 If you turn on the optional sponsor-segment feature, Riplox asks a public
 community database about the video you are downloading. If you would rather
 nothing was asked, leave that feature off.
+
+Your settings, your saved sign-ins, your download history and anything still
+waiting in the queue are kept in your own user folder on this computer, and
+they are yours. Uninstalling Riplox does not delete them. The uninstaller asks
+whether you want them removed as well, and the answer it assumes is no - so
+uninstalling and installing again, which is the usual way of fixing something,
+leaves everything exactly as you left it. Only if you deliberately answer yes
+is that folder erased. Files you have already downloaded are never touched
+either way, because they are saved wherever you chose and are not Riplox's to
+remove.
 
 
 6. THIRD-PARTY COMPONENTS

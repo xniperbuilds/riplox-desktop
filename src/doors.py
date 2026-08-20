@@ -28,7 +28,7 @@ import time
 import urllib.error
 import urllib.request
 from http.cookiejar import CookieJar, MozillaCookieJar
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
 CHROME_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
              "(KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36")
@@ -316,6 +316,28 @@ def _get(opener, url: str, headers: dict = None, referer: str = "") -> str:
     return raw.decode("utf-8", "replace")
 
 
+def _post_form(opener, url: str, fields: dict, headers: dict = None,
+               referer: str = "") -> str:
+    """
+    The same as _get, for the one route that has to send a form.
+
+    Through the caller's opener rather than a fresh one, so that it keeps the
+    cookie jar it has been given and goes out through the same proxy as
+    everything else here. _post_json below does not, because it belongs to a
+    door that has no page to carry cookies from.
+    """
+    sent = dict(PAGE_HEADERS)
+    sent["Content-Type"] = "application/x-www-form-urlencoded"
+    if referer:
+        sent["Referer"] = referer
+    sent.update(headers or {})
+    request = urllib.request.Request(
+        url, data=urlencode(fields).encode(), headers=sent)
+    with opener.open(request, timeout=_TIMEOUT) as response:
+        raw = response.read(_MAX_PAGE)
+    return raw.decode("utf-8", "replace")
+
+
 # --------------------------------------------------------------------------
 # TikTok
 # --------------------------------------------------------------------------
@@ -544,6 +566,40 @@ _IG_WALLED = ("is_content_restricted", "restricted_content",
               "certain audiences", "age_restricted", "login_required")
 
 
+def _ig_walled(body: str) -> bool:
+    """
+    Whether the API said, in as many words, that this post is being withheld.
+
+    Read out of the parsed answer, never searched for in the raw text. The
+    comment above explains why for the reel page; the sharper version is that
+    the page is now a JavaScript bundle of well over half a megabyte which
+    Instagram serves for the front page, a profile and a post alike, and it
+    carries plenty of these words for reasons of its own. Searching it for a
+    verdict finds one every time, whatever the post is - which is exactly how
+    an ordinary failure gets reported as a restriction.
+
+    A refusal, by contrast, is a small JSON object that says so in a field.
+    """
+    try:
+        answer = json.loads(body)
+    except ValueError:
+        return False                     # not JSON: this route has no verdict
+    if not isinstance(answer, dict):
+        return False
+
+    # Flags the API sets on the item itself.
+    for key in ("is_content_restricted", "age_restricted"):
+        if answer.get(key) is True:
+            return True
+
+    # Otherwise only a refusal counts, and a refusal is not an "ok".
+    if answer.get("status") == "ok" and "message" not in answer:
+        return False
+    said = " ".join(value.lower() for value in answer.values()
+                    if isinstance(value, str))
+    return any(mark in said for mark in _IG_WALLED)
+
+
 def _unescape_url(raw: str) -> str:
     return (raw.replace("\\u0026", "&").replace("\\/", "/")
             .replace("&amp;", "&").replace("\\", ""))
@@ -598,21 +654,23 @@ def _ig_details(text: str, code: str) -> dict:
     }
 
 
-def _ig_page(opener, code: str) -> str:
+def _ig_page(opener, code: str, page: str = "") -> str:
     """The reel's own page. Signed out, this is the route that works."""
+    if page:
+        return page                      # fetched once by the caller already
     return _get(opener, f"https://www.instagram.com/reel/{code}/",
                 headers={"x-ig-app-id": _IG_APP_ID},
                 referer="https://www.instagram.com/")
 
 
-def _ig_embed(opener, code: str) -> str:
+def _ig_embed(opener, code: str, page: str = "") -> str:
     """The embed Instagram publishes for other sites to use."""
     return _get(opener, f"https://www.instagram.com/p/{code}/embed/captioned/",
                 headers={"x-ig-app-id": _IG_APP_ID},
                 referer="https://www.instagram.com/")
 
 
-def _ig_mobile(opener, code: str) -> str:
+def _ig_mobile(opener, code: str, page: str = "") -> str:
     """
     The app's own API, reached through the id oEmbed hands out.
 
@@ -643,6 +701,131 @@ def _ig_mobile(opener, code: str) -> str:
         })
 
 
+# The logged-out query Instagram's own web app runs for a post page. Its id
+# moves when Meta redeploys, so a miss here is "this route is out" and the
+# next one is tried - never a hard failure.
+_IG_DOC_ID = "27130156389949648"
+_IG_B64 = ("ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+           "abcdefghijklmnopqrstuvwxyz0123456789-_")
+
+
+def _ig_media_id(code: str) -> str:
+    """
+    The numeric id behind a shortcode, which is what the query wants.
+
+    Measured, not guessed: passing the shortcode itself comes back as
+    "missing_required_variable_value", and the same call with this number
+    returns the post. Longer codes carry 28 characters of extra addressing on
+    the end that are not part of the number.
+    """
+    if len(code) > 28:
+        code = code[:-28]
+    if not code:
+        # Nothing in, nothing out. The loop below would otherwise hand back
+        # "0" for an empty code, which is a real-looking id for somebody
+        # else's post. _IG_CODE will not match an empty code today, so this
+        # is a guard rather than a fix - but a wrong id is a bad enough
+        # answer to be worth one line.
+        return ""
+    number = 0
+    for letter in code:
+        position = _IG_B64.find(letter)
+        if position < 0:
+            return ""
+        number = number * 64 + position
+    return str(number)
+
+
+def _ig_graphql(opener, code: str, page: str = "") -> str:
+    """
+    The query the web app itself runs, with the page's own tokens attached.
+
+    Without those tokens this endpoint answers with the web page - the same
+    half-megabyte bundle it serves for everything - and with them it answers
+    in JSON. That single difference is what makes this route worth having:
+    it is the only one that returns something a verdict can be read out of.
+    """
+    media_id = _ig_media_id(code)
+    if not media_id:
+        return ""
+
+    where = f"https://www.instagram.com/reel/{code}/"
+    # The caller normally hands the page in, because _ig_page wants the same
+    # one and Instagram is not worth asking twice for half a megabyte. Fetched
+    # here only when this route is used on its own.
+    if not page:
+        page = _get(opener, where, referer="https://www.instagram.com/")
+
+    def token(pattern: str, fallback: str = "") -> str:
+        found = re.search(pattern, page)
+        return found.group(1) if found else fallback
+
+    lsd = (token(r'"LSD",\[\],\{"token":"([^"]+)"')
+           or token(r'"lsd"\s*:\s*"([^"]+)"'))
+    if not lsd:
+        return ""                        # no tokens, no JSON: not worth asking
+
+    return _post_form(
+        opener, "https://www.instagram.com/api/graphql",
+        {
+            "av": "0", "__d": "www", "__user": "0", "__a": "1", "__req": "1",
+            "lsd": lsd, "doc_id": _IG_DOC_ID,
+            "variables": json.dumps({"media_id": media_id},
+                                    separators=(",", ":")),
+        },
+        headers={
+            "X-IG-App-ID": _IG_APP_ID,
+            "X-FB-LSD": lsd,
+            "X-CSRFToken": token(r'"csrf_token"\s*:\s*"([^"]+)"'),
+            "X-IG-WWW-Claim": token(r'"claim"\s*:\s*"([^"]+)"', "0"),
+            "X-ASBD-ID": "129477",
+            "Origin": "https://www.instagram.com",
+            "Accept": "*/*",
+            "Sec-Fetch-Site": "same-origin",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Dest": "empty",
+        },
+        referer=where)
+
+
+def _ig_gating(body: str) -> str:
+    """
+    Instagram's own sentence for why it is withholding a post, or "".
+
+    This is the best signal there is, and it is worth saying why. Everything
+    else in this file has to work out the reason from the shape of a failure -
+    which is guesswork, and guessing wrong is how someone spends three days
+    fixing the thing that was never broken. Here Instagram states it outright,
+    in a field of its own, in words meant to be shown to a person:
+
+        "gating_ruling": {"gating_type": 3,
+                          "title": "Age-restricted content",
+                          "description": "This content is age-restricted
+                                          based on your age or account
+                                          settings."}
+
+    Read out of the parsed answer, and only from that field. No matching on
+    the raw text, for the reason _ig_walled gives at length.
+    """
+    try:
+        answer = json.loads(body)
+    except ValueError:
+        return ""
+    if not isinstance(answer, dict):
+        return ""
+    data = answer.get("data")
+    media = data.get("xig_polaris_media") if isinstance(data, dict) else None
+    ruling = media.get("gating_ruling") if isinstance(media, dict) else None
+    if not isinstance(ruling, dict):
+        return ""
+
+    title = ruling.get("title")
+    description = ruling.get("description")
+    said = " ".join(part.strip() for part in (title, description)
+                    if isinstance(part, str) and part.strip())
+    return said[:300]
+
+
 def _instagram(url: str) -> dict:
     found = _IG_CODE.search(urlsplit(url).path)
     if not found:
@@ -651,10 +834,51 @@ def _instagram(url: str) -> dict:
 
     opener = _opener()
     walled = False
-    for route in (_ig_page, _ig_embed, _ig_mobile):
+    reason = ""
+    # Which routes get a say in the verdict, and it is only the ones that
+    # answer in JSON. The other two return the web page, and a page cannot
+    # refuse anything - it is the same bundle whatever was asked for. Routes
+    # therefore do not vote equally: a JSON refusal decides the matter and an
+    # HTML body decides nothing, which is the rule that was missing when two
+    # routes disagreed and whichever ran first won.
+    #
+    # The query goes first because it is the only one that can come back with
+    # Instagram's own reason attached. It fetches the post page on the way, so
+    # _ig_page below repeats that one request in the failing case - worth it
+    # for a diagnosis nobody has to guess at.
+    # The post page, fetched once here and then shared. Two routes want it -
+    # the query needs the tokens embedded in it, and _ig_page reads it
+    # directly - and it is over half a megabyte. Asking Instagram for the same
+    # page twice, on a link that has already failed, on a site that answers
+    # too many requests with a block, is how a refusal turns into a rate
+    # limit. Measured before this: four requests per failing link, two of them
+    # identical.
+    try:
+        page = _ig_page(opener, code)
+    except DoorError:
+        raise
+    except Exception:                    # noqa: BLE001
+        page = ""
+
+    for route, speaks_json in ((_ig_graphql, True), (_ig_page, False),
+                               (_ig_embed, False), (_ig_mobile, True)):
         try:
-            body = route(opener, code)
-        except (urllib.error.URLError, OSError):
+            # Every route takes the same three arguments, so there is no
+            # dispatch here to get wrong. The two that do not want the page
+            # ignore it; _ig_page hands it straight back rather than asking
+            # Instagram for it a second time.
+            body = route(opener, code, page)
+        except DoorError:
+            raise                        # a route that knows why: say so
+        except Exception:                # noqa: BLE001
+            # Any failure at all is this route's failure, not the door's. Two
+            # of these are not OSError and used to escape: http.client raises
+            # HTTPException for a truncated or malformed reply, and a page
+            # whose shape has changed can raise from the parsing rather than
+            # the fetch. Either one killed the remaining routes without ever
+            # trying them - and the query now runs first and is the most
+            # elaborate of the four, so it is the likeliest to raise and the
+            # worst one to lose the others to.
             continue                     # this route is out; the next may not be
         if not body:
             continue
@@ -675,13 +899,31 @@ def _instagram(url: str) -> dict:
             })
             return info
 
-        low = body.lower()
-        walled = walled or any(mark in low for mark in _IG_WALLED)
+        if speaks_json:
+            reason = reason or _ig_gating(body)
+            walled = walled or bool(reason) or _ig_walled(body)
+
+    if reason:
+        # Instagram's own words first, because they are the specific ones, and
+        # then the two things the person reading this can actually do about it.
+        return_to = ("in Instagram, Settings -> Suggested content -> "
+                     "Sensitive Content Control -> \"More\"")
+        raise DoorError(
+            f"Instagram says: {reason} That is about the account asking "
+            f"rather than the post itself, so it is worth opening "
+            f"{return_to}. If that choice is not offered, Instagram has not "
+            f"age-verified the account, and a birthday on the profile is not "
+            f"enough on its own. Signing in here with an account that can "
+            f"already see the post works too.")
 
     if walled:
         raise DoorError(
-            "Instagram says this one is restricted, so no signed-out route can "
-            "reach it. Sign in to Instagram in Settings and try again.")
+            "Instagram is withholding this one rather than serving it to "
+            "everybody, so no signed-out route can reach it. An account that "
+            "can already see the post will get it - and if you are signed in "
+            "here and it still refuses, the block is on that account rather "
+            "than on the post: in Instagram, Settings -> Suggested content -> "
+            "Sensitive Content Control -> \"More\".")
     # Deliberately not guessing which of these it is. Instagram gives no
     # signal that separates them from outside, and naming the wrong one sends
     # someone off to fix something that was never the problem.

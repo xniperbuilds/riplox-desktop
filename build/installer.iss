@@ -2,7 +2,7 @@
 ; Build the app first:  pyinstaller build\riplox.spec --noconfirm
 
 #define AppName      "Riplox"
-#define AppVersion   "1.3.0"
+#define AppVersion   "1.4.0"
 #define AppPublisher "XniperBuilds"
 #define AppURL       "https://xniperbuilds.com"
 #define AppExe       "Riplox.exe"
@@ -116,7 +116,13 @@ Root: HKA; Subkey: "Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\{#
 Filename: "{app}\{#AppExe}"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
-Type: filesandordirs; Name: "{localappdata}\RiploxDesktop"
+; Only what this installer wrote. The user's own folder is deliberately NOT
+; listed here - it used to be, and that meant uninstalling took their sign-ins,
+; settings, download history and unfinished queue with it, silently. People
+; uninstall to fix something and reinstall a minute later; losing all of that
+; at exactly that moment is the worst possible time for it. It is now offered
+; as a choice at the end of the uninstall instead, and the default is to keep
+; it. See CurUninstallStepChanged below.
 Type: files; Name: "{app}\native-host.json"
 
 [Code]
@@ -157,6 +163,29 @@ procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then
     WriteNativeHostManifest();
+end;
+
+{ Uninstalling is not the same as wanting rid of everything. The commonest
+  reason anyone uninstalls this is to fix something and put it back a minute
+  later - and doing that used to cost them every sign-in, every setting, their
+  download history and any unfinished queue, without a word of warning. So it
+  is asked for plainly at the end, and No is the default: a silent uninstall,
+  or anyone pressing Enter, keeps their data. Only someone who deliberately
+  says yes loses it. }
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  DataDir: String;
+begin
+  if CurUninstallStep <> usPostUninstall then
+    Exit;
+  DataDir := ExpandConstant('{localappdata}\RiploxDesktop');
+  if not DirExists(DataDir) then
+    Exit;
+  if MsgBox('Remove your Riplox settings, sign-ins, download history and unfinished queue as well?' + #13#10 + #13#10 +
+            'Choose No if you are reinstalling or upgrading - everything will be exactly where you left it when Riplox starts again.' + #13#10 + #13#10 +
+            'Choose Yes only if you want no trace of Riplox left on this PC. Downloaded files are never touched either way.',
+            mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
+    DelTree(DataDir, True, True, True);
 end;
 
 function InitializeSetup(): Boolean;

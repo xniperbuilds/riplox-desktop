@@ -758,9 +758,14 @@
       <label class="sr-only" for="setSearch">Search settings</label>
       <input type="search" id="setSearch" class="text-input" autocomplete="off"
              spellcheck="false" placeholder="Search settings…">
-      <label class="set-level">
+      <!-- A button rather than a tick box, and it says how many rows are
+           behind it. As a quiet checkbox this was missed entirely - the app's
+           own author spent two days believing the settings it hides had been
+           removed from the program. Something nobody can see is something
+           nobody can go looking for, so the count does the telling. -->
+      <label class="set-adv" id="setAdvChip">
         <input type="checkbox" id="setShowAdvanced">
-        <span>Show advanced</span>
+        <span id="setAdvText">Show advanced</span>
       </label>
       <span class="set-found" id="setFound"></span>
     </div>

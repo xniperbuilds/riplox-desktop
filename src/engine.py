@@ -2342,10 +2342,40 @@ _IG_WALLED = ("certain audiences", "not available to everyone",
               "empty media response", "http error 400",
               "instagram turned this one down", "limits who can see this one")
 
+# The subset that means something narrower and far more useful: Instagram is
+# withholding this post from *the account asking*, not from everybody. Measured
+# on Nazim's own four failing reels - the API answered 400 with both "certain
+# audiences" and "inappropriate" in the body, on the mobile and the web route
+# alike, while the same posts played normally in the phone app on that same
+# account and downloaded immediately once a second account with its sensitive
+# content setting open was used instead.
+#
+# This distinction is the whole point of the function below. Told "this is the
+# post, not you", someone re-signs-in for three days and gets nowhere; told
+# which setting to open, they fix it in a minute.
+_IG_AUDIENCE = ("certain audiences", "not available to everyone",
+                "inappropriate")
 
-def _door_verdict(engine_error: str, door_error: str) -> str:
+# Two more that look exactly like the one above from a distance and need the
+# opposite advice, which is the whole reason they are separated out. Sending
+# someone to the sensitive-content setting when Instagram is challenging their
+# login, or when the post is blocked in their country, is the same class of
+# wrong turning as the sentence this function used to end with.
+_IG_CHECKPOINT = ("checkpoint_required", "challenge_required",
+                  "suspicious login", "confirm it's you", "checkpoint")
+_IG_GEO = ("not available in your country", "not available from your location",
+           "geo restrict", "geo-restrict", "blocked in your country")
+
+# Private and removed are deliberately not separated. doors.py already says
+# why in its own words: Instagram gives no signal that tells them apart from
+# outside, and naming the wrong one sends someone off to fix something that was
+# never the problem. Guessing here would undo the point of this whole function.
+
+
+def _door_verdict(engine_error: str, door_error: str,
+                  tried_signed_in: bool = False) -> str:
     """
-    Which of the two refusals to show the user.
+    Which of the two refusals to show the user, and what to tell them to do.
 
     The door's answer is normally the better one - it names a removed post or
     an age gate where yt-dlp leaves a stack trace. Not here. When the engine
@@ -2354,20 +2384,60 @@ def _door_verdict(engine_error: str, door_error: str) -> str:
     - is the weaker sentence: it asks for a sign-in that was already tried and
     already refused.
 
-    Measured on a real restricted reel rather than reasoned about: 400 with the
-    saved session, "certain audiences" without it, page-but-no-video from the
-    door - and an ordinary reel fetched fine on that same session seconds
-    later. Three refusals of one post, and a working session.
+    What this must never do again is guess at the cause and sound certain about
+    it. The sentence that used to live here said the refusal was "the post
+    rather than anything on this end", which was exactly backwards: the cause
+    was a setting on the asking account, and the person reading it was the only
+    one who could fix it. So the specific advice is given only on the specific
+    signal, and what is claimed about the attempts is only ever what the job
+    actually recorded doing - hence tried_signed_in, which is the job's history
+    rather than its last attempt's state.
     """
     low_engine = (engine_error or "").lower()
     low_door = (door_error or "").lower()
-    if ("page but no video" in low_door
-            and any(sign in low_engine for sign in _IG_WALLED)):
-        return ("Instagram limits who can see this one. Riplox tried it signed "
-                "in, signed out, and by its own route - all three were refused, "
-                "so this is the post rather than anything on this end. Only an "
-                "account that can already see it will get it.")
-    return door_error
+    # Checkpoint and geo join the gate rather than sitting behind it: neither
+    # is guaranteed to arrive with one of the _IG_WALLED wordings, and a
+    # challenged login that fell through to the door's list of maybes is
+    # exactly the case worth catching.
+    if ("page but no video" not in low_door
+            or not any(sign in low_engine
+                       for sign in _IG_WALLED + _IG_CHECKPOINT + _IG_GEO)):
+        return door_error
+
+    # Checked before the audience gate, because a challenged login can answer
+    # with the audience wording too and the advice for it is different.
+    if any(sign in low_engine for sign in _IG_CHECKPOINT):
+        return ("Instagram is challenging the sign-in Riplox has saved rather "
+                "than refusing the post. Open Instagram in your browser, "
+                "confirm it is you when it asks, then sign in again under "
+                "Settings. Nothing about the post needs changing.")
+
+    if any(sign in low_engine for sign in _IG_GEO):
+        return ("Instagram is not serving this one to your part of the world. "
+                "No setting and no sign-in changes that - only reaching it "
+                "from somewhere it is available will, which is what the proxy "
+                "in Settings is for.")
+
+    if any(sign in low_engine for sign in _IG_AUDIENCE):
+        return ("Instagram is holding this one back from your account rather "
+                "than from everyone - it says the post is meant for certain "
+                "audiences. In Instagram, open Settings -> Suggested content "
+                "-> Sensitive Content Control and choose \"More\". If that "
+                "choice is not there, Instagram has not age-verified the "
+                "account, and a birthday on the profile is not enough on its "
+                "own. Signing in here with an account that can already see the "
+                "post works too.")
+
+    if tried_signed_in:
+        return ("Instagram refused this one signed in, signed out, and by "
+                "Riplox's own route. That usually means the account is "
+                "private, or the post was removed. An account that follows "
+                "them is the only thing that would reach it.")
+
+    return ("Instagram refused this one, and there is no Instagram sign-in "
+            "saved here to try it with. Sign in under Settings and try again - "
+            "if it still fails after that, the account is private or the post "
+            "is gone.")
 
 
 def _clean_error(stderr: str) -> str:
@@ -3388,8 +3458,8 @@ class Job:
                  "speed", "eta", "size", "filepath", "error", "created", "proc",
                  "cancelled", "uploader", "batch", "log", "attempt",
                  "start", "end", "exact", "stage", "paused", "kind", "conv",
-                 "opts", "origin", "streams", "sent_cookies", "account",
-                 "retry_at", "auto_retries")
+                 "opts", "origin", "streams", "sent_cookies", "tried_signed_in",
+                 "account", "retry_at", "auto_retries")
 
     def __init__(self, url, title="", thumbnail="", quality="best", uploader="",
                  batch=False, start="", end="", exact=False, opts=None,
@@ -3430,6 +3500,14 @@ class Job:
         # this URL" is a question with several answers and only one of them
         # is what happened.
         self.sent_cookies = False
+        # Whether a saved session was carried at any point in this job's life,
+        # which is a different question from the one above and the only one an
+        # error message may speak for. The signed-out retry deliberately runs a
+        # second attempt without cookies, and that attempt overwrites both
+        # sent_cookies and log - so by the time anyone reads the record, a job
+        # that really was tried signed in looks as though it never was. Sticky
+        # once set: this is the job's history, not the last attempt's state.
+        self.tried_signed_in = False
         # Which of the site's accounts signed the last attempt. 0 means none -
         # either the site has no sign-in here or this attempt went signed out.
         self.account = 0
@@ -4004,6 +4082,9 @@ class DownloadManager:
             return False
 
         refused = job.error
+        # Kept because the attempt below overwrites job.log wholesale, and that
+        # log is the only record that a session was ever sent.
+        signed_in_log = job.log
         job.status = "starting"
         job.error = ""
         job.percent = 0.0
@@ -4019,6 +4100,17 @@ class DownloadManager:
         # showing - it is the one that says a session was rejected.
         if job.status != "done" and refused:
             job.error = refused
+            # And the log has to match the error. _spawn assigns job.log rather
+            # than adding to it, so by now the signed-out attempt has replaced
+            # the record of the signed-in one - leaving an error that speaks of
+            # a rejected session next to a log with no session in it. Anyone
+            # reading that record afterwards concludes the session was never
+            # sent, which is exactly the wrong turning this whole diagnosis
+            # took once already.
+            if signed_in_log:
+                job.log = (f"{signed_in_log}\n\n"
+                           f"--- signed in was refused, so this was retried "
+                           f"signed out ---\n\n{job.log}")
         return job.status == "done"
 
     # ----------------------------------------------------------------------
@@ -4244,7 +4336,8 @@ class DownloadManager:
             # an age-gate - so its answer beats yt-dlp's stack trace. Usually.
             job.status = "error"
             job.stage = ""
-            job.error = _door_verdict(engine_error, str(exc))
+            job.error = _door_verdict(engine_error, str(exc),
+                                      job.tried_signed_in)
             return
         except Exception:                       # noqa: BLE001
             # It simply did not work. The user keeps the error they can act
@@ -4388,6 +4481,10 @@ class DownloadManager:
         cookie_path, temp_cookie, account = (open_cookies(settings, job.url)
                                              if with_cookies else (None, False, 0))
         job.sent_cookies = bool(cookie_path)
+        # Sticky, unlike the line above: the signed-out retry runs a second
+        # attempt with cookies deliberately left out, and without this the job
+        # would end up claiming it had never been tried signed in at all.
+        job.tried_signed_in = job.tried_signed_in or bool(cookie_path)
         # Which account signed this attempt, so that a refusal rests the one
         # that was actually refused rather than the whole site.
         job.account = account

@@ -1965,17 +1965,49 @@ button { font-family: var(--body); }
   min-width: 190px;
   font-family: var(--body);
 }
-.set-level {
+/* Built on .chip, because that is already this app's word for "a small thing
+   you can switch on". It was a bare checkbox before and read as decoration -
+   which is how twelve settings came to look as though they had been deleted.
+   The tick box is still in there, unseen, so the label, the keyboard and the
+   saved setting all keep working exactly as they did. */
+.set-adv {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
   flex: none;
-  font-size: 12.5px;
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: transparent;
   color: var(--ink-dim);
+  font-size: 12.5px;
   cursor: pointer;
+  user-select: none;
+  transition: all .18s var(--ease);
 }
-.set-level input { cursor: pointer; }
-.set-level:hover { color: var(--ink); }
+.set-adv input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.set-adv:hover {
+  color: var(--ink);
+  border-color: rgba(var(--cyan-rgb), .4);
+}
+/* Focus has to be visible on its own, since the input it belongs to is not. */
+.set-adv:focus-within {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 3px rgba(var(--cyan-rgb), .22);
+}
+.set-adv.is-on {
+  background: var(--cyan);
+  border-color: var(--cyan);
+  color: var(--on-cyan);
+  font-weight: 600;
+  box-shadow: 0 6px 18px -10px var(--cyan);
+}
+.set-adv.is-on:hover { color: var(--on-cyan); }
 .set-found {
   flex: none;
   font-size: 11.5px;

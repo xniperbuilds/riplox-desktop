@@ -3557,6 +3557,18 @@
         if (term && live) setGroupOpen(head, panel, true);
       });
 
+    // The toggle carries its own count, because "Show advanced" on its own
+    // never told anyone that twelve settings were sitting behind it - and a
+    // row nobody knows exists is indistinguishable from a row that was taken
+    // out of the program. While a search is running these are on show anyway,
+    // so it says that instead of offering to reveal what is already revealed.
+    var advTotal = document.querySelectorAll(
+      "#view-settings .field[data-adv]").length;
+    $("setAdvChip").classList.toggle("is-on", advanced);
+    $("setAdvText").textContent =
+      advanced ? "Hide advanced"
+               : (term ? "Show advanced" : "Show " + advTotal + " advanced");
+
     $("setFound").textContent = term
       ? (hits ? hits + (hits === 1 ? " setting" : " settings") + " match"
               : "Nothing matches that")
