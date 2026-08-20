@@ -416,6 +416,28 @@ export class Room {
         return json({ ok: false }, 400);
       }
 
+      /* Nothing is kept for a room no PC has ever watched.
+       *
+       * An address only has to look like a room id to reach this far - the
+       * router checks its shape, not that it belongs to anybody. So a stranger
+       * posting to a few thousand invented room ids would have had a few
+       * thousand rooms writing to storage, and on the free plan the daily
+       * budgets for rows written and for requests are what this relay runs on.
+       * Spend them and it stops for everyone. No account, no password and no
+       * guessing were needed for that - only a loop.
+       *
+       * `seen` is only written when a PC asks this room for something, so a
+       * zero here means no PC has ever been on the other end of it. A real
+       * sender cannot be in that position: pairing starts on the PC, and the
+       * PC is already waiting before a phone is ever shown the room. The
+       * object is still created by the lookup in fetch(), but it leaves
+       * without writing anything and hibernates - and the writing is the part
+       * that costs.
+       */
+      if (!this.seen) {
+        return json({ ok: false, unknown: true }, 404);
+      }
+
       this.sweep();
 
       // The same nonce twice is the same message twice - a sender that could

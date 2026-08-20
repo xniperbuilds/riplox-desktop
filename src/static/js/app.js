@@ -2484,6 +2484,24 @@
       // but "waiting" on its own would look like Riplox simply had not got to
       // it. The reason is what turns the Approve button into a choice.
       var why = waiting && e.why ? " · " + esc(WHY[e.why] || e.why) : "";
+
+      // Sent text is shown as dots and a length, never as itself. What
+      // arrives this way is usually a key or a password, and a window is a
+      // thing other people can see over your shoulder, screen-share, or
+      // screenshot. Copy is the only way it comes out, and it is gone after.
+      if (e.kind === "text") {
+        return '<div class="in-row' + (waiting ? " waiting" : "") + '">' +
+          '<div class="what"><b>' + esc(e.from || "A device") + " · text" +
+          why + "</b><span>" + "•".repeat(Math.min(e.chars || 8, 24)) +
+          " · " + (e.chars || 0) + " characters</span></div>" +
+          (waiting
+            ? '<button class="primary small" data-ok="' + esc(e.id) + '">Approve</button>' +
+              '<button class="ghost small" data-no="' + esc(e.id) + '">No</button>'
+            : '<button class="primary small" data-copytext="' + esc(e.id) + '">Copy</button>' +
+              '<span class="in-state">' + ago(e.at) + "</span>") +
+          "</div>";
+      }
+
       return '<div class="in-row' + (waiting ? " waiting" : "") + '">' +
         '<div class="what"><b>' + esc(e.from || "A device") + " · " +
         esc(e.quality || "default") + why + "</b><span>" + esc(e.url) + "</span></div>" +
@@ -2667,6 +2685,30 @@
   });
 
   $("incomingList").addEventListener("click", function (e) {
+    // Sent text: fetched only now, put straight on the clipboard, and gone
+    // from the PC afterwards. It is never in the page before this press, so
+    // there is nothing to read off the screen and nothing left to press twice.
+    var copy = e.target.closest("[data-copytext]");
+    if (copy) {
+      api("/api/share/take-text", { id: copy.dataset.copytext })
+        .then(function (res) {
+          if (res.state) renderSharing(res.state);
+          if (!res.ok || !res.text) {
+            toast("That text is gone - it expires, and copying takes it", "bad");
+            return;
+          }
+          navigator.clipboard.writeText(res.text).then(function () {
+            toast("Copied - and removed from this PC", "good");
+          }, function () {
+            // Clipboard refused (no focus, or the browser said no). The text
+            // has already been taken, so saying "copied" would be a lie and
+            // losing it silently would be worse.
+            toast("Could not reach the clipboard. Send it again.", "bad");
+          });
+        });
+      return;
+    }
+
     var yes = e.target.closest("[data-ok]");
     var no = e.target.closest("[data-no]");
     if (!yes && !no) return;

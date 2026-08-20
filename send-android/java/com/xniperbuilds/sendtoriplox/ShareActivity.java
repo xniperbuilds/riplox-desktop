@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.widget.Toast;
 
+import java.nio.charset.StandardCharsets;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -24,6 +25,18 @@ import java.util.regex.Pattern;
 public class ShareActivity extends Activity {
 
     private static final Pattern LINK = Pattern.compile("https?://\\S+");
+
+    /**
+     * Bytes, not characters, and matched to what the relay will carry: its
+     * ciphertext field holds 4000 base64 characters, which is 3000 bytes, less
+     * the AES-GCM tag and the JSON around it. An SSH private key is about
+     * 1,700 and fits comfortably.
+     *
+     * Counting characters would be wrong for anybody not typing English - a
+     * 22 character Urdu sentence is 39 bytes - and the PC applies the same
+     * number, so the two ends agree about what is too big.
+     */
+    private static final int TEXT_MAX = 2900;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -55,7 +68,26 @@ public class ShareActivity extends Activity {
         }
 
         if (link.length() == 0) {
-            Toast.makeText(this, R.string.no_link, Toast.LENGTH_SHORT).show();
+            // No link, but there may still be something worth sending: a
+            // licence key, a Wi-Fi code, a password. One share entry handles
+            // both, so nobody has to decide which kind of thing they have -
+            // a link, wherever there is one, always wins above.
+            String text = shared.trim();
+            if (text.length() == 0) {
+                Toast.makeText(this, R.string.no_link, Toast.LENGTH_SHORT).show();
+                finish();
+                return;
+            }
+            if (text.getBytes(StandardCharsets.UTF_8).length > TEXT_MAX) {
+                // Refused, never shortened. Half a licence key looks whole and
+                // fails somewhere far away from here.
+                Toast.makeText(this, R.string.text_too_long, Toast.LENGTH_LONG).show();
+                finish();
+                return;
+            }
+            Outbox.addText(this, text);
+            SendService.start(this);
+            Toast.makeText(this, R.string.sending_text, Toast.LENGTH_SHORT).show();
             finish();
             return;
         }

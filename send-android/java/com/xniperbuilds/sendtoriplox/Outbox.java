@@ -37,11 +37,26 @@ final class Outbox {
     }
 
     static void add(Context context, String url) {
+        put(context, "url", url);
+    }
+
+    /**
+     * Text that is not a link - a licence key, a password, a line to paste.
+     *
+     * Its own entry point rather than a flag on add(), so that nothing about
+     * the link path changes shape. A share that works today must still take
+     * exactly the same route tomorrow.
+     */
+    static void addText(Context context, String text) {
+        put(context, "text", text);
+    }
+
+    private static void put(Context context, String field, String value) {
         synchronized (LOCK) {
             JSONArray items = read(context);
             try {
                 JSONObject item = new JSONObject();
-                item.put("url", url);
+                item.put(field, value);
                 item.put("at", System.currentTimeMillis());
                 items.put(item);
                 while (items.length() > CAP) {
@@ -84,6 +99,7 @@ final class Outbox {
     static JSONObject envelope(Context context, JSONObject item, byte[] key) throws Exception {
         synchronized (LOCK) {
             String url = item.optString("url");
+            String text = item.optString("text");
             long at = item.optLong("at");
 
             JSONObject kept = new JSONObject();
@@ -97,14 +113,25 @@ final class Outbox {
             }
 
             JSONObject body = new JSONObject();
-            body.put("url", url);
-            body.put("quality", "");           // whatever the PC is set to
+            if (text.length() > 0) {
+                // No quality: there is nothing to download. The PC keeps this
+                // sealed until somebody presses Copy.
+                body.put("text", text);
+            } else {
+                body.put("url", url);
+                body.put("quality", "");       // whatever the PC is set to
+            }
             JSONObject sealed = Relay.envelope(key, body);
 
             JSONArray items = read(context);
             for (int i = 0; i < items.length(); i++) {
                 JSONObject stored = items.optJSONObject(i);
+                // Matched on the text as well as the link. Text entries carry
+                // no url, so two of them would both look like "" and the wrong
+                // one could be given this envelope - the timestamp alone is a
+                // thin thing to rest that on.
                 if (stored == null || !url.equals(stored.optString("url"))
+                        || !text.equals(stored.optString("text"))
                         || at != stored.optLong("at")) {
                     continue;
                 }
@@ -117,8 +144,14 @@ final class Outbox {
         }
     }
 
-    /** Drop one that has been delivered, leaving the rest alone. */
-    static void done(Context context, String url, long at) {
+    /**
+     * Drop one that has been delivered, leaving the rest alone.
+     *
+     * Identified by its text as well as its link, for the same reason the
+     * envelope cache is: getting this wrong deletes somebody else's pending
+     * share, which is a message that silently never arrives.
+     */
+    static void done(Context context, String url, String text, long at) {
         synchronized (LOCK) {
             JSONArray items = read(context);
             JSONArray kept = new JSONArray();
@@ -127,7 +160,9 @@ final class Outbox {
                 if (item == null) {
                     continue;
                 }
-                if (url.equals(item.optString("url")) && at == item.optLong("at")) {
+                if (url.equals(item.optString("url"))
+                        && text.equals(item.optString("text"))
+                        && at == item.optLong("at")) {
                     continue;
                 }
                 kept.put(item);

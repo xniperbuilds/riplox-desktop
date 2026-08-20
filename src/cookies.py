@@ -488,6 +488,40 @@ def _write_encrypted(path: Path, payload: dict) -> None:
     tmp.replace(path)
 
 
+# --------------------------------------------------------------------------
+# Sealing a single string, for anyone else who needs it
+# --------------------------------------------------------------------------
+# The two below are the only public part of this file's encryption, and they
+# exist because sharing.py now receives text that people send deliberately -
+# licence keys and passwords among it. That must not be written to disk in the
+# clear, and the machinery for not doing so already lives here. Copying it into
+# another module would be two implementations of the same thing, and the second
+# one is always the one that gets it wrong.
+#
+# Same guarantee as the sign-in store: readable only by this Windows account on
+# this machine. Copy the file elsewhere and it is nothing.
+
+
+def seal(text: str) -> str:
+    """Encrypt a string for storage. Returns base64, or "" if it cannot."""
+    try:
+        return base64.b64encode(_crypt(str(text).encode("utf-8"), True)).decode()
+    except (OSError, ValueError, TypeError):
+        return ""
+
+
+def unseal(blob: str) -> str:
+    """The other direction. Returns "" for anything it cannot open."""
+    try:
+        return _crypt(base64.b64decode(str(blob).encode()), False).decode("utf-8")
+    except (OSError, ValueError, TypeError):
+        # binascii.Error, which bad base64 raises, is a ValueError - so it is
+        # already caught here. Naming it as well would have needed an import
+        # that was not there, and the failure would have been a NameError
+        # raised while handling the real error, which py_compile cannot see.
+        return ""
+
+
 def _dropped() -> list:
     try:
         data = json.loads((store_dir() / _DROPPED_FILE).read_text("utf-8"))

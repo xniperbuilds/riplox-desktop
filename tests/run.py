@@ -53,7 +53,10 @@ def main() -> int:
     picks = [a for a in sys.argv[1:] if not a.startswith("-")]
     offline = "--offline" in sys.argv
 
-    files = sorted(p for p in HERE.glob("test_*.py"))
+    # .mjs as well as .py: the relay is JavaScript, and a test that only runs
+    # when somebody remembers to type "node tests/..." is a test that does not
+    # exist. Its runner is chosen from the suffix a few lines below.
+    files = sorted(list(HERE.glob("test_*.py")) + list(HERE.glob("test_*.mjs")))
     held = [p for p in files if p.name in NEEDS_A_SERVICE and not picks]
     files = [p for p in files if p not in held]
     if offline:
@@ -71,7 +74,8 @@ def main() -> int:
 
     for path in files:
         started = time.monotonic()
-        done = subprocess.run([sys.executable, str(path)],
+        runner = "node" if path.suffix == ".mjs" else sys.executable
+        done = subprocess.run([runner, str(path)],
                               capture_output=True, text=True,
                               encoding="utf-8", errors="replace",
                               env=CHILD_ENV)

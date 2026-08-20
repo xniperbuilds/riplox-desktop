@@ -71,6 +71,7 @@ final class Sender {
                     break;
                 }
                 String url = item.optString("url");
+                String text = item.optString("text");
                 long at = item.optLong("at");
 
                 JSONObject envelope;
@@ -79,7 +80,7 @@ final class Sender {
                 } catch (Exception exc) {
                     // A link that cannot even be sealed will never be sendable
                     // - keeping it would only circle forever.
-                    Outbox.done(context, url, at);
+                    Outbox.done(context, url, text, at);
                     continue;
                 }
 
@@ -95,7 +96,7 @@ final class Sender {
                 // It is in the postbox. Off the list now, before the wait
                 // below - a link still on the list is a link something else
                 // can pick up and send again.
-                Outbox.done(context, url, at);
+                Outbox.done(context, url, text, at);
 
                 // Only for what the toast says. A short wait while more links
                 // are queued, because the PC answers in a moment when it is

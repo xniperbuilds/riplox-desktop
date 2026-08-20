@@ -45,6 +45,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
+import cookies
 import engine
 
 try:
@@ -740,6 +741,72 @@ def _already_here(url: str, device_id: str) -> bool:
         return False
 
 
+# Text, not a link
+# --------------------------------------------------------------------------
+# What people actually send this way is a licence key, a password, a Wi-Fi
+# code - something awkward to retype and worth protecting. That shapes every
+# decision below far more than the feature name does.
+
+# Bytes, not characters, and measured rather than picked: the relay accepts a
+# ciphertext field of at most 4000 base64 characters, which is 3000 bytes,
+# less 16 for the AES-GCM tag and a little for the JSON around it. 2,900 bytes
+# leaves a margin and still carries an SSH private key (about 1,700). Counting
+# characters would have been wrong for anyone not typing English - a 22
+# character Urdu sentence is 39 bytes.
+TEXT_MAX = 2900
+
+# Long enough to still be there when somebody gets to their desk, short enough
+# that a password is not left lying about. Taking it removes it either way.
+TEXT_TTL = 24 * 3600
+
+
+def _take_text(text: str, device) -> str:
+    """
+    Keep a piece of sent text until its owner comes to collect it.
+
+    Three things this deliberately does not do, each for a reason:
+
+    It is never truncated. Half a licence key that looks whole is worse than
+    a refusal - it would be pasted, and it would fail somewhere confusing. Too
+    long is answered as too long.
+
+    It is never written to disk in the clear. It goes through the same DPAPI
+    sealing the saved sign-ins use, so share.json holds ciphertext that only
+    this Windows account on this machine can open.
+
+    It never reaches the clipboard on its own. Writing another machine's
+    clipboard unprompted is how a paste turns into something the user did not
+    choose; collecting it is a deliberate press, and it disappears afterwards.
+    """
+    raw = text.encode("utf-8")
+    if len(raw) > TEXT_MAX:
+        return "text-too-long"
+
+    sealed = cookies.seal(text)
+    if not sealed:
+        # Sealing failing means it cannot be stored safely, and storing it
+        # unsafely is not the fallback. Better to refuse and say so.
+        return "text-unsealable"
+
+    settings = engine.load_settings()
+    limits = (device or {}).get("limits") or {}
+    hold = bool(settings.get("share_approve") or limits.get("approve"))
+
+    _note({
+        "id": secrets.token_hex(6),
+        "kind": "text",
+        "sealed": sealed,
+        # For the screen: enough to recognise it by, never the thing itself.
+        "chars": len(text),
+        "from": (device or {}).get("name", "a paired device"),
+        "device": (device or {}).get("id", ""),
+        "at": time.time(),
+        "expires": time.time() + TEXT_TTL,
+        "state": "waiting" if hold else "ready",
+    })
+    return "held" if hold else "queued"
+
+
 def _accept(device, body: dict) -> str:
     """
     Apply this device's rules, then queue it. Returns what to tell the phone.
@@ -754,6 +821,13 @@ def _accept(device, body: dict) -> str:
     """
     url = str(body.get("url") or "").strip()
     if not url.lower().startswith(("http://", "https://")) or len(url) > 2000:
+        # No usable link. It may still be a piece of text somebody meant to
+        # send - a licence key, a password, a line to paste. A link always
+        # wins where there is one: that is what this app is for, and an
+        # existing share must not change shape because of this branch.
+        text = str(body.get("text") or "")
+        if text.strip():
+            return _take_text(text, device)
         return "bad-link"          # never going to work; nothing to keep
 
     settings = engine.load_settings()
@@ -1460,8 +1534,68 @@ def state() -> dict:
              "used": _summary(d, written)}
             for d in data.get("devices", [])
         ],
-        "log": data.get("log", [])[:20],
+        "log": _for_screen(data.get("log", []))[:20],
     }
+
+
+def _for_screen(log: list) -> list:
+    """
+    The log as the window may see it: no sealed text, nothing expired.
+
+    The sealed blob is useless without this Windows account, but there is no
+    reason for it to travel to the page at all - the screen shows that text
+    arrived and how long it was, and the text itself is fetched only when
+    somebody presses Copy. Expired entries are hidden here and swept from disk
+    by _sweep_text; hiding first means an expired secret cannot be shown even
+    if the sweep has not run yet.
+    """
+    now = time.time()
+    out = []
+    for entry in log:
+        if entry.get("kind") == "text":
+            if float(entry.get("expires") or 0) <= now:
+                continue
+            entry = {k: v for k, v in entry.items() if k != "sealed"}
+        out.append(entry)
+    return out
+
+
+def _sweep_text() -> None:
+    """Drop text whose time is up. Called where the log is already being read."""
+    data = load()
+    log = data.get("log", [])
+    now = time.time()
+    kept = [e for e in log
+            if e.get("kind") != "text" or float(e.get("expires") or 0) > now]
+    if len(kept) != len(log):
+        data["log"] = kept
+        save(data)
+
+
+def take_text(entry_id: str) -> str:
+    """
+    Hand over one piece of sent text, once, and forget it.
+
+    Removed as it is handed over rather than left with a "collected" mark: the
+    point of the expiry is that a password does not sit around, and the moment
+    it has been taken is the earliest it can stop sitting around.
+    """
+    data = load()
+    log = data.get("log", [])
+    for i, entry in enumerate(log):
+        if entry.get("id") != entry_id or entry.get("kind") != "text":
+            continue
+        if entry.get("state") == "waiting":
+            return ""                    # not approved yet; nothing to give
+        if float(entry.get("expires") or 0) <= time.time():
+            break                        # too late; fall through to the sweep
+        text = cookies.unseal(entry.get("sealed") or "")
+        del log[i]
+        data["log"] = log
+        save(data)
+        return text
+    _sweep_text()
+    return ""
 
 
 def _summary(device, written) -> dict:

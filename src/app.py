@@ -1025,6 +1025,22 @@ def api_share_pending():
     return jsonify(sharing.pending())
 
 
+@app.post("/api/share/take-text")
+def api_share_take_text():
+    """
+    Hand over one piece of sent text so the page can put it on the clipboard.
+
+    A POST rather than a GET, and it is the only route by which the text
+    leaves storage: it is removed as it is handed over, so pressing Copy twice
+    gives nothing the second time. That is the intent - what people send this
+    way is usually a key or a password, and the shortest life it can have is
+    the right one.
+    """
+    body = request.json or {}
+    text = sharing.take_text(str(body.get("id", ""))[:24])
+    return jsonify({"ok": bool(text), "text": text, "state": sharing.state()})
+
+
 @app.post("/api/share/limits")
 def api_share_limits():
     body = request.json or {}

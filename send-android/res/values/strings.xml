@@ -70,5 +70,9 @@
     <string name="sending">Sending to your PC…</string>
     <string name="left_for_pc">Left for your PC. It starts as soon as Riplox is running.</string>
     <string name="no_link">There was no link in that.</string>
+    <string name="sending_text">Sending that text to your PC…</string>
+    <!-- Says the size plainly, because the alternative was shortening it
+         quietly - and half a licence key looks whole until it fails. -->
+    <string name="text_too_long">That is too long to send. Keep it under about 2,900 characters.</string>
     <string name="not_paired">Pair this phone with your PC first.</string>
 </resources>
