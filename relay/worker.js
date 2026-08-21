@@ -67,12 +67,30 @@ const NONCE_RE = /^[A-Za-z0-9_-]{8,64}$/;
 
 const APP_PAGE = "https://xniperbuilds.com/riplox-desktop/";
 
+/* Answers are readable by this origin's own page, and by nobody else's.
+ *
+ * This used to be "*", which let any website in the world call these routes
+ * from a visitor's browser and read what came back. It could not read a
+ * message - that is ciphertext and the key never comes here - but it could
+ * take one: /wait then /done removes a message its owner is still waiting for,
+ * and to them it simply never arrives.
+ *
+ * Reaching that needs the room id, which is 256 bits and only ever appears in
+ * the address of /p/:room. Not impossible to leak, which is why that page now
+ * sends no referrer - but the point of this line is that leaking it should not
+ * also hand over a browser to use it with.
+ *
+ * Nothing legitimate loses anything. The pairing page is served from this same
+ * origin, and the desktop and phone apps are not browsers, so none of them is
+ * subject to this header at all. */
+const ORIGIN = "https://relay.xniperbuilds.com";
+
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: {
       "content-type": "application/json; charset=utf-8",
-      "access-control-allow-origin": "*",
+      "access-control-allow-origin": ORIGIN,
       "access-control-allow-headers": "content-type",
       "cache-control": "no-store",
     },
@@ -115,6 +133,16 @@ export default {
         headers: {
           "content-type": "text/html; charset=utf-8",
           "cache-control": "no-store",
+          /* The room id is in this page's own address. The key is not - it is
+           * in the fragment, which a browser never sends anywhere. But a
+           * Referer header carries the path, so following any link from this
+           * page would hand somebody else the room id, and a room id is enough
+           * to take a waiting message away from its owner even without being
+           * able to read it. Nothing here needs a referrer to work. */
+          "referrer-policy": "no-referrer",
+          /* This page is the only thing that should be framing itself. */
+          "x-frame-options": "DENY",
+          "x-content-type-options": "nosniff",
         },
       });
     }

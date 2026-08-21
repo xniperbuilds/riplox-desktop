@@ -3,6 +3,13 @@ main = "worker.js"
 compatibility_date = "2026-08-01"
 workers_dev = true
 
+# Without this, nothing about a live request is recorded anywhere, and the only
+# way to learn the relay is refusing everybody is for somebody to say so.
+# Included on the free plan: 200,000 events a day, kept for three days - far
+# more than a postbox this size produces.
+[observability]
+enabled = true
+
 # The pairing URL is printed into a QR code and shipped as the app's default,
 # so it has to be a brand address. The generated workers.dev subdomain carries
 # the account owner's email in it, which is not something to hand to every
