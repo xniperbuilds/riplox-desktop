@@ -43,6 +43,11 @@ excludes = [
     "tkinter", "PyQt5", "PyQt6", "PySide2", "PySide6", "wx",
     "notebook", "IPython", "pytest", "sqlite3", "test", "unittest",
     "pydoc_data", "lib2to3", "distutils",
+    # Pillow's AVIF codec: 7.6 MB, which is 69% of Pillow and 15% of the whole
+    # build. The only thing this app asks Pillow for is the tray icon, and that
+    # is a PNG. Pillow imports this codec inside a try/except and simply sets
+    # SUPPORTED = False when it is absent, so dropping it costs nothing here.
+    "PIL._avif",
 ]
 
 a = Analysis(

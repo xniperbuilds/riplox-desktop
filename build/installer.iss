@@ -36,6 +36,11 @@ Compression=lzma2/ultra64
 SolidCompression=yes
 ArchitecturesInstallIn64BitMode=x64compatible
 ArchitecturesAllowed=x64compatible
+; The build carries Python 3.11, which does not run on Windows 8.1 or older.
+; Without this, setup finishes happily on such a machine and the app then dies
+; on launch with an error nobody can act on - the user is left thinking Riplox
+; is broken. Saying no here, in words, is the kinder failure.
+MinVersion=10.0
 ; Per-user install by default: no admin prompt, and the app can update its
 ; own download engine afterwards.
 PrivilegesRequired=lowest
