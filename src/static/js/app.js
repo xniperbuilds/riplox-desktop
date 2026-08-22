@@ -2114,6 +2114,30 @@
     });
   });
 
+  /* ------------------------------------------------------------- browser
+   *
+   * The extension has been copied onto every PC that installed Riplox since
+   * v1.3.0, and until now nothing in the app mentioned it. This shows where it
+   * is and opens the folder, so "Load unpacked" is a paste rather than a hunt.
+   */
+  api("/api/extension").then(function (res) {
+    var where = $("extPath");
+    if (!where || !res || !res.ok) return;
+    where.textContent = res.there
+      ? res.path
+      : "Not found on this PC - reinstall Riplox to get it back.";
+  });
+
+  var extBtn = $("openExtFolder");
+  if (extBtn) {
+    extBtn.addEventListener("click", function () {
+      api("/api/extension/open", {}).then(function (res) {
+        if (res && res.ok) toast("Opened the extension folder", "good");
+        else toast((res && res.error) || "Could not open it", "bad");
+      });
+    });
+  }
+
   $("clearHistory").addEventListener("click", function () {
     api("/api/history/clear", {}).then(function () {
       loadHistory();
@@ -4138,6 +4162,16 @@
           if (label) label.textContent = "unavailable";
         } else if (label && res.hotkeyLabel) {
           label.textContent = res.hotkeyLabel;
+        }
+
+        /* Settings names this shortcut too, and it is not always Ctrl+Shift+D:
+           if another program owns those keys Riplox takes a different pair, and
+           printing the wrong one would send somebody pressing keys that do
+           nothing. */
+        var browserKeys = $("browserHotkey");
+        if (browserKeys) {
+          if (res.hotkey === "taken") browserKeys.textContent = "unavailable";
+          else if (res.hotkeyLabel) browserKeys.textContent = res.hotkeyLabel;
         }
 
         // The shortcut is the fastest way to use Riplox, so the first screen

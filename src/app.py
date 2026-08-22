@@ -1195,6 +1195,54 @@ def api_open_url():
     return jsonify({"ok": True})
 
 
+def extension_dir() -> Path:
+    """
+    Where the browser extension was installed.
+
+    ⚠️ Not resource_dir(). When Riplox is frozen that returns the temporary
+    folder PyInstaller unpacks into, which is emptied when the app closes - a
+    path that exists while you are looking at it and is gone by the time you
+    paste it into the browser. The installer puts the extension beside the
+    executable, so that is where this looks.
+    """
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent / "browser-extension"
+    return Path(__file__).resolve().parent.parent / "browser-extension"
+
+
+@app.get("/api/extension")
+def api_extension():
+    """
+    Where the browser extension is, so Settings can point at it.
+
+    Every install has put it on the disk since v1.3.0 and nothing has ever
+    said so. A folder nobody can find is a feature nobody has.
+    """
+    folder = extension_dir()
+    return jsonify({"ok": True, "path": str(folder), "there": folder.is_dir()})
+
+
+@app.post("/api/extension/open")
+def api_extension_open():
+    """
+    Open that folder in Explorer.
+
+    Deliberately takes no path from the caller. /api/open is for files and is
+    fenced inside the download folder for good reason; rather than widen that
+    fence to reach the install directory, this route knows the one place it is
+    allowed to open and accepts nothing at all.
+    """
+    folder = extension_dir()
+    if not folder.is_dir():
+        return jsonify({"ok": False,
+                        "error": "The extension folder is not where it should be."}), 404
+    try:
+        os.startfile(str(folder))  # noqa: S606 - Windows shell open
+    except OSError as exc:
+        return jsonify({"ok": False, "error": str(exc)[:120]}), 500
+    return jsonify({"ok": True, "path": str(folder)})
+
+
 @app.post("/api/open")
 def api_open():
     body = request.json or {}

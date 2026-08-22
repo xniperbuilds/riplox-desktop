@@ -12,10 +12,12 @@
   --accent-hot: #7c7ff5;
   --ok: #22c55e;
   --bad: #f87171;
+  --warn: #f59e0b;
 }
 
 @media (prefers-color-scheme: light) {
   :root {
+    --warn: #b45309;
     --bg: #ffffff;
     --card: #f6f7fa;
     --line: #e3e6ee;
@@ -133,6 +135,28 @@ button:focus-visible {
 
 .said.ok { color: var(--ok); }
 .said.bad { color: var(--bad); }
+
+/* What Riplox is doing with what it already has. Quiet by default - it is
+   context, not the answer to anything the person is doing right now - and it
+   only raises its voice when something is actually waiting. */
+.state {
+  margin: 9px 0 0;
+  padding: 7px 9px;
+  font-size: 12px;
+  line-height: 1.35;
+  border-radius: 7px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--dim);
+}
+
+.state.ok { color: var(--ok); }
+.state.bad { color: var(--bad); }
+.state.warn {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+.state.plain { color: var(--dim); }
 
 /* Folded away by default. The popup's one job is still the button above; all
    of this is for the second visit, and it must not push that button down. */

@@ -32,7 +32,12 @@
   const button = document.createElement("button");
   button.id = ID;
   button.type = "button";
-  button.textContent = "Send to Riplox";
+  /* The words live in their own element rather than on the button.
+   * The click handler rewrites them to say what happened, and doing that with
+   * button.textContent would delete the dismiss cross sitting beside them. */
+  const label = document.createElement("span");
+  label.textContent = "Send to Riplox";
+  button.appendChild(label);
   button.setAttribute("aria-label", "Send this page to Riplox. Drag to move it.");
   button.title = "Send this page to Riplox — drag to move";
 
@@ -175,23 +180,144 @@
     }
     if (busy) return;
     busy = true;
-    const original = button.textContent;
-    button.textContent = "Sending…";
+    const original = label.textContent;
+    label.textContent = "Sending…";
     try {
       const answer = await chrome.runtime.sendMessage({
         kind: "send", url: location.href,
       });
       // Says what actually happened, and never claims a download: handing the
       // address over is all this can know about.
-      button.textContent = !answer ? "Riplox did not answer"
+      label.textContent = !answer ? "Riplox did not answer"
         : answer.ok ? (answer.via === "host" ? "Sent" : "Allow it in the new tab")
         : (answer.error || "Could not send");
     } catch (e) {
-      button.textContent = "Riplox is not reachable";
+      label.textContent = "Riplox is not reachable";
     }
-    setTimeout(() => { button.textContent = original; busy = false; }, 2600);
+    setTimeout(() => { label.textContent = original; busy = false; }, 2600);
   });
 
-  document.documentElement.appendChild(button);
-  restore();
+  /* ------------------------------------------------------- when to be here
+   *
+   * The button used to appear on every page it was injected into - a bank, an
+   * inbox, a blank tab. It is only useful where there is something to
+   * download, so it now waits until there is.
+   *
+   * The check is deliberately simple. A cleverer one that is wrong in ways
+   * nobody can predict is worse than a plain one that is wrong predictably,
+   * and guessing low costs very little: the toolbar icon works on every page,
+   * and so does the right-click menu. A missing button costs a shortcut, not
+   * a download.
+   *
+   * Two things it will not see, written down so nobody has to rediscover them:
+   *   - video inside a cross-origin iframe. This runs in the top frame only,
+   *     and injecting into every frame would put the button inside small
+   *     embedded players, which is worse than not having it there.
+   *   - video that does not exist until something is clicked. It appears the
+   *     moment the element does - that is what the observer below is for.
+   */
+
+  const MIN_SIDE = 200;            // below this it is a thumbnail, not a video
+
+  function worthIt(media) {
+    // Something to play: a source of some kind, and either loaded metadata or
+    // a real duration. An empty <video> placeholder has neither.
+    if (!(media.currentSrc || media.src || media.querySelector("source"))) return false;
+    if (!(media.readyState > 0 || (media.duration > 0 && isFinite(media.duration)))) return false;
+    if (media.tagName === "AUDIO") return true;
+    const box = media.getBoundingClientRect();
+    const wide = Math.max(media.videoWidth || 0, box.width);
+    const tall = Math.max(media.videoHeight || 0, box.height);
+    return wide >= MIN_SIDE && tall >= MIN_SIDE;
+  }
+
+  function hasMedia() {
+    for (const media of document.querySelectorAll("video, audio")) {
+      if (worthIt(media)) return true;
+    }
+    return false;
+  }
+
+  let shown = false;
+  let refused = false;             // this site is on the never list
+
+  function show() {
+    if (shown || refused) return;
+    document.documentElement.appendChild(button);
+    shown = true;
+    restore();
+  }
+
+  function hide() {
+    if (!shown) return;
+    button.remove();
+    shown = false;
+  }
+
+  /* A page can go from a video to no video without ever loading again - that
+   * is an ordinary minute on any video site. Leaving the button behind would
+   * be the same bug facing the other way, so this takes it away too. */
+  function review() {
+    if (refused || !hasMedia()) hide();
+    else show();
+  }
+
+  let pending = 0;
+  function reviewSoon() {
+    clearTimeout(pending);
+    pending = setTimeout(review, 300);        // pages mutate in bursts
+  }
+
+  new MutationObserver(reviewSoon)
+    .observe(document.documentElement, { childList: true, subtree: true });
+
+  // Captured at the document, because none of these bubble.
+  for (const name of ["loadedmetadata", "durationchange", "play", "emptied"]) {
+    document.addEventListener(name, reviewSoon, true);
+  }
+
+  /* -------------------------------------------------- not on this site again
+   *
+   * The alternative to this is somebody turning the whole feature off because
+   * of one site where it sits in the way. A cross costs one press, and it is
+   * why the rest of the setting survives.
+   */
+  const dismiss = document.createElement("span");
+  dismiss.textContent = "×";
+  dismiss.title = "Do not show this on " + location.hostname;
+  dismiss.setAttribute("role", "button");
+  dismiss.setAttribute("aria-label", "Do not show this button on this site");
+  Object.assign(dismiss.style, {
+    marginLeft: "9px", opacity: "0.6", fontWeight: "700", cursor: "pointer",
+  });
+  // The thing it sits on is a drag handle. Without this, dismissing it would
+  // start a drag instead.
+  dismiss.addEventListener("pointerdown", (event) => event.stopPropagation());
+  dismiss.addEventListener("click", (event) => {
+    event.stopPropagation();
+    event.preventDefault();
+    refused = true;
+    hide();
+    try {
+      chrome.storage.sync.get({ neverSites: [] }, (saved) => {
+        const list = Array.isArray(saved.neverSites) ? saved.neverSites : [];
+        if (!list.includes(location.hostname)) list.push(location.hostname);
+        chrome.storage.sync.set({ neverSites: list.slice(-200) });
+      });
+    } catch (e) {
+      // Storage refused. It is gone from this page, which is what was asked
+      // for; it will just come back on the next one.
+    }
+  });
+  button.appendChild(dismiss);
+
+  try {
+    chrome.storage.sync.get({ neverSites: [] }, (saved) => {
+      const list = Array.isArray(saved.neverSites) ? saved.neverSites : [];
+      refused = list.includes(location.hostname);
+      review();
+    });
+  } catch (e) {
+    review();
+  }
 })();

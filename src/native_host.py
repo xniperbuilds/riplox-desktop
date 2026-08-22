@@ -115,6 +115,38 @@ def running() -> int:
                if isinstance(j, dict) and j.get("status") in live)
 
 
+def waiting() -> dict:
+    """
+    What has been handed over and not collected yet.
+
+    Riplox drains this file every 1.5 seconds while it runs, so a link sitting
+    here with an old timestamp means nothing is draining it. That is the only
+    thing the browser actually needs to know: the difference between "sent, it
+    is downloading" and "sent, and it will download when you open Riplox".
+    Until now the extension could say neither, and the loudest complaint about
+    every tool of this shape is not knowing which one happened.
+
+    Worked out from the inbox alone, on purpose. The obvious alternatives were
+    a file Riplox touches every few seconds, or the port in instance.json - and
+    an instance.json five days stale once pointed at a dead port while Riplox
+    ran happily on another. A file that claims to be fresh and is not is worse
+    than no answer at all; an old timestamp cannot lie in that direction.
+    """
+    try:
+        items = json.loads((data_dir() / "inbox.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"waiting": 0, "oldest": 0.0}
+    if not isinstance(items, list) or not items:
+        return {"waiting": 0, "oldest": 0.0}
+
+    now = time.time()
+    ages = [now - float(item.get("at") or now)
+            for item in items if isinstance(item, dict)]
+    # A clock that stepped backwards would otherwise report a negative age,
+    # which reads as "collected in the future".
+    return {"waiting": len(items), "oldest": max(0.0, max(ages, default=0.0))}
+
+
 def main() -> None:
     while True:
         message = read_message()
@@ -128,7 +160,7 @@ def main() -> None:
         # A question rather than a link. Answered without touching the inbox,
         # so asking can never queue anything by accident.
         if message.get("ask") == "status":
-            send_message({"ok": True, "active": running()})
+            send_message({"ok": True, "active": running(), **waiting()})
             continue
 
         url = str(message.get("url") or "").strip()

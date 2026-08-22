@@ -135,6 +135,28 @@ async function send(url, quality) {
  * The right-click menu
  * ---------------------------------------------------------------------- */
 
+/**
+ * Does this address point at a list rather than one video?
+ *
+ * By shape, not by site: a "list" parameter or a /playlist path are used the
+ * same way across the web, and a table of site names here would go stale the
+ * first time one of them changed its addresses.
+ *
+ * Riplox already downloads a whole playlist from exactly this address - it has
+ * since before the extension existed. Nothing new happens because of this
+ * function; it only lets the menu SAY so, which is the difference between
+ * somebody using that and never knowing it was there.
+ */
+function looksLikeList(url) {
+  try {
+    const at = new URL(url);
+    if (at.searchParams.has("list")) return true;
+    return /\/playlist(\/|$)/i.test(at.pathname);
+  } catch (e) {
+    return false;
+  }
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
@@ -147,12 +169,26 @@ chrome.runtime.onInstalled.addListener(() => {
       title: "Send this link to Riplox",
       contexts: ["link"],
     });
+    /* Audio-only, without opening the popup to change the quality and then
+     * having to change it back. Riplox has always accepted this; it was simply
+     * unreachable from a right-click. */
+    chrome.contextMenus.create({
+      id: "riplox-page-mp3",
+      title: "Send this page to Riplox as MP3",
+      contexts: ["page", "video", "audio"],
+    });
+    chrome.contextMenus.create({
+      id: "riplox-link-mp3",
+      title: "Send this link to Riplox as MP3",
+      contexts: ["link"],
+    });
   });
 });
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  const id = String(info.menuItemId || "");
   // A right-click on a link means the link; anywhere else means the page.
-  const url = info.menuItemId === "riplox-link" ? info.linkUrl : (info.pageUrl || tab?.url);
+  const url = id.startsWith("riplox-link") ? info.linkUrl : (info.pageUrl || tab?.url);
   if (!usable(url)) {
     await note("That address cannot be downloaded.");
     return;
@@ -164,9 +200,17 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     await note("Not one of your chosen sites.");
     return;
   }
-  const via = await send(url, quality);
-  await note(via === "host" ? "Sent to Riplox."
-                            : "Allow Riplox in the tab that opened.");
+  // The MP3 entries say what they will do, so they do that rather than
+  // whatever the popup was last set to.
+  const wanted = id.endsWith("-mp3") ? "mp3" : quality;
+  const via = await send(url, wanted);
+
+  // Naming the playlist matters: "sent" for one video and "sent" for ninety
+  // read the same, and only one of them is worth going to look at.
+  const what = looksLikeList(url) ? "Playlist sent to Riplox."
+             : wanted === "mp3" ? "Sent to Riplox as MP3."
+             : "Sent to Riplox.";
+  await note(via === "host" ? what : "Allow Riplox in the tab that opened.");
 });
 
 /* -------------------------------------------------------------------------
@@ -180,26 +224,66 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
 const SCRIPT_ID = "riplox-in-page";
 
+/**
+ * Where the in-page button may be injected at all.
+ *
+ * This used to be "every site" no matter what the site list said, because the
+ * list was only consulted when somebody pressed the button. So a person who
+ * had chosen one site still got the button everywhere, and only learned it was
+ * never going to work after pressing it. The rule belongs here, before
+ * anything is injected - not there, after the fact.
+ */
+function buttonMatches(sites) {
+  if (!sites || !sites.length) return ["*://*/*"];
+  const patterns = [];
+  for (const name of sites) {
+    for (const host of SITE_HOSTS[name] || []) {
+      patterns.push(`*://${host}/*`, `*://*.${host}/*`);
+    }
+  }
+  // A list naming nothing this knows would otherwise register an empty set,
+  // which Chrome rejects - leaving no button and no reason why, which is the
+  // exact failure this change exists to remove.
+  return patterns.length ? patterns : ["*://*/*"];
+}
+
 async function syncInPageButton() {
-  const { inPageButton } = await settings();
+  const { inPageButton, sites } = await settings();
   const granted = await chrome.permissions.contains({ origins: ["*://*/*"] });
   const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [SCRIPT_ID] })
     .catch(() => []);
 
   if (inPageButton && granted) {
-    if (!existing.length) {
-      await chrome.scripting.registerContentScripts([{
-        id: SCRIPT_ID,
-        js: ["content.js"],
-        matches: ["*://*/*"],
-        runAt: "document_idle",
-      }]).catch(() => {});
+    const matches = buttonMatches(sites);
+    const unchanged = existing.length
+      && JSON.stringify((existing[0].matches || []).slice().sort())
+         === JSON.stringify(matches.slice().sort());
+    if (unchanged) return;
+    // Registering over an existing id fails, so the old one goes first. The
+    // site list can change at any moment and the injection has to follow it.
+    if (existing.length) {
+      await chrome.scripting.unregisterContentScripts({ ids: [SCRIPT_ID] })
+        .catch(() => {});
     }
+    await chrome.scripting.registerContentScripts([{
+      id: SCRIPT_ID,
+      js: ["content.js"],
+      matches,
+      runAt: "document_idle",
+    }]).catch(() => {});
   } else if (existing.length) {
     await chrome.scripting.unregisterContentScripts({ ids: [SCRIPT_ID] })
       .catch(() => {});
   }
 }
+
+/* The site list is edited in the popup, which is a different context. Without
+ * this the changed list would not reach the injection until the browser was
+ * restarted: the setting would look applied and quietly not be. */
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "sync") return;
+  if (changes.sites || changes.inPageButton) syncInPageButton();
+});
 
 chrome.runtime.onStartup.addListener(syncInPageButton);
 chrome.runtime.onInstalled.addListener(syncInPageButton);
@@ -290,6 +374,35 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   if (msg?.kind === "sites") {
     reply({ ok: true, names: Object.keys(SITE_HOSTS) });
     return false;
+  }
+
+  /* What Riplox is doing with what it has been given.
+   *
+   * The one thing this extension could never say was which of two things had
+   * happened: Riplox took the link and is downloading it, or Riplox is closed
+   * and the link is sitting in a file waiting for it. Both are fine - the
+   * second one has always worked - but not knowing which is which is the
+   * loudest complaint about every tool of this shape.
+   *
+   * A host that does not answer means the host is not installed or is broken.
+   * That is a third state and it is reported as itself rather than being
+   * folded into "not running", because the two need different fixing. */
+  if (msg?.kind === "status") {
+    (async () => {
+      try {
+        const answer = await chrome.runtime.sendNativeMessage(HOST, { ask: "status" });
+        if (!answer || !answer.ok) throw new Error("no answer");
+        reply({
+          ok: true,
+          active: Number(answer.active) || 0,
+          waiting: Number(answer.waiting) || 0,
+          oldest: Number(answer.oldest) || 0,
+        });
+      } catch (e) {
+        reply({ ok: false, noHost: true });
+      }
+    })();
+    return true;
   }
   return false;
 });

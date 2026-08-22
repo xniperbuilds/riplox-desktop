@@ -1138,6 +1138,45 @@
       </div>
     </div>
 
+    <!-- ---------------------------------------------------- Browser -->
+    <!-- The extension has shipped inside every install since v1.3.0 and this
+         is the first thing anywhere in Riplox that admits it exists. It leads
+         with the shortcut on purpose: that already works, is already on, and
+         is what most people should use instead. -->
+    <h3 class="group-head" data-what="Sending a link straight from your browser - the shortcut, and the optional extension">Browser</h3>
+    <div class="panel">
+      <div class="field">
+        <div class="field-text">
+          <label>Straight from any browser</label>
+          <span>Copy a link anywhere and press <b id="browserHotkey">Ctrl+Shift+D</b>.
+                Riplox picks it up without you switching windows. This is
+                already on, and it is all most people need.</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="field-text">
+          <label>The browser extension</label>
+          <span>Already on this PC - it came with Riplox. It adds a right-click
+                menu for links you have not opened, and lets you choose a
+                quality before sending. <b>You do not need it</b> if the
+                shortcut above suits you.</span>
+          <span class="hint" id="extPath"></span>
+        </div>
+        <button class="ghost small" id="openExtFolder">Open its folder</button>
+      </div>
+
+      <div class="field">
+        <div class="field-text">
+          <label>Adding it, once</label>
+          <span>1. Open the folder above. 2. In Chrome or Edge, go to the
+                Extensions page and turn on <b>Developer mode</b>.
+                3. Choose <b>Load unpacked</b>. 4. Pick that folder.
+                Riplox does the rest - there is nothing else to install.</span>
+        </div>
+      </div>
+    </div>
+
     <!-- ------------------------------------------------------- Backup -->
     <h3 class="group-head" data-what="Save your links and settings to a file, or load them back">Backup</h3>
     <div class="panel">

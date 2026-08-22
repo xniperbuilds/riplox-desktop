@@ -23,6 +23,65 @@ function say(text, good) {
   saidEl.hidden = false;
 }
 
+/* ------------------------------------------------------------------ state
+ *
+ * The one thing this popup could never say was which of two things had
+ * happened: Riplox took the link and is downloading it, or Riplox is closed
+ * and the link is sitting in a file waiting for it. Both are fine - the second
+ * has always worked - but not knowing which is which is the loudest complaint
+ * about every tool built this way.
+ *
+ * It is worked out from the inbox: Riplox empties that file every 1.5 seconds
+ * while it runs, so a link still sitting there means nothing is emptying it.
+ * Nothing here asks Riplox anything, and nothing can claim to be fresh while
+ * being stale.
+ */
+
+const stateEl = document.getElementById("state");
+
+// Comfortably longer than the 1.5s drain, so a slow moment is never called
+// "closed". Being late with the truth beats being early with a guess.
+const NOT_COLLECTING = 30;
+
+const count = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+function describe(status) {
+  if (!status || !status.ok) {
+    // A third state, and its own thing: the extension is fine, Riplox's helper
+    // is not answering. Folding it into "not running" would send somebody off
+    // to open an app that is already open.
+    return ["Riplox is not installed here, or its helper is not answering.", "bad"];
+  }
+  if (status.waiting > 0 && status.oldest > NOT_COLLECTING) {
+    return [`Riplox is not open — ${count(status.waiting, "link is", "links are")}`
+            + " waiting for it.", "warn"];
+  }
+  if (status.active > 0) {
+    return [`Riplox is downloading ${status.active}.`, "ok"];
+  }
+  if (status.waiting > 0) {
+    return [`${count(status.waiting, "link", "links")} just handed over.`, "ok"];
+  }
+  // Nothing waiting and nothing running looks identical whether Riplox is open
+  // or closed, so this claims neither. Saying "ready" would be a guess, and a
+  // guess is the thing the rest of this is written to avoid.
+  return ["Anything you send goes to Riplox, or waits for it if it is closed.",
+          "plain"];
+}
+
+async function showState() {
+  let status = null;
+  try {
+    status = await chrome.runtime.sendMessage({ kind: "status" });
+  } catch (e) {
+    status = null;
+  }
+  const [text, tone] = describe(status);
+  stateEl.textContent = text;
+  stateEl.className = "state " + tone;
+  stateEl.hidden = false;
+}
+
 async function fill() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   current = tab?.url || "";
@@ -136,7 +195,11 @@ sendEl.addEventListener("click", async () => {
       // "Handed to Riplox", not "downloading". Riplox does the rest, and a
       // popup that claimed the download had started would be guessing.
       say("Handed to Riplox.", true);
-      setTimeout(() => window.close(), 900);
+      // And say what became of it, rather than closing on a claim nobody can
+      // check. The inbox has just changed, so this is the moment it is worth
+      // asking again.
+      await showState();
+      setTimeout(() => window.close(), 1400);
     }
   } else {
     say(answer?.error || "Could not hand it over.", false);
@@ -146,3 +209,4 @@ sendEl.addEventListener("click", async () => {
 
 fill();
 fillOptions();
+showState();
