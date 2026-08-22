@@ -1,0 +1,32 @@
+{
+    "version": "1.3.0",
+    "description": "A free video downloader for Windows. Paste a link, pick a quality, keep the file.",
+    "homepage": "https://xniperbuilds.com/riplox-desktop/",
+    "license": "GPL-3.0-only",
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/xniperbuilds/riplox-desktop/releases/download/v1.3.0/Riplox_Setup_v1.3.0.exe",
+            "hash": "eb1d19d1bee69ae28f1988ad5c8f30ccf45bb502cea5debed8f1df142b7e86c4"
+        }
+    },
+    "innosetup": true,
+    "shortcuts": [
+        [
+            "Riplox.exe",
+            "Riplox"
+        ]
+    ],
+    "persist": [
+        "cookies"
+    ],
+    "checkver": {
+        "github": "https://github.com/xniperbuilds/riplox-desktop"
+    },
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/xniperbuilds/riplox-desktop/releases/download/v$version/Riplox_Setup_v$version.exe"
+            }
+        }
+    }
+}

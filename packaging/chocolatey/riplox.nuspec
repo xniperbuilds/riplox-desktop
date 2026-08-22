@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>riplox</id>
+    <version>1.3.0</version>
+    <packageSourceUrl>https://github.com/xniperbuilds/riplox-desktop/tree/main/packaging/chocolatey</packageSourceUrl>
+    <owners>XniperBuilds</owners>
+    <title>Riplox</title>
+    <authors>XniperBuilds</authors>
+    <projectUrl>https://xniperbuilds.com/riplox-desktop/</projectUrl>
+    <iconUrl>https://raw.githubusercontent.com/xniperbuilds/riplox-desktop/main/src/static/img/riplox.png</iconUrl>
+    <copyright>Copyright (c) XniperBuilds</copyright>
+    <licenseUrl>https://github.com/xniperbuilds/riplox-desktop/blob/main/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <projectSourceUrl>https://github.com/xniperbuilds/riplox-desktop</projectSourceUrl>
+    <docsUrl>https://github.com/xniperbuilds/riplox-desktop#readme</docsUrl>
+    <bugTrackerUrl>https://github.com/xniperbuilds/riplox-desktop/issues</bugTrackerUrl>
+    <tags>riplox video-downloader youtube tiktok instagram yt-dlp ffmpeg mp3 playlist free open-source foss</tags>
+    <summary>A free video downloader for Windows. Paste a link, pick a quality, keep the file.</summary>
+    <description><![CDATA[
+Riplox downloads video and audio from YouTube, TikTok, Instagram, Facebook, X, Reddit and around a thousand other sites. Paste a link, choose 4K, 1440p, 1080p, 720p, 480p, 360p or MP3, and the file is yours.
+
+There are no download caps, no daily quota and no paid tier, and the installer carries the app and nothing else - no bundled software and no ads. Files come out as H.264 MP4 by default so they play in Windows Media Player, WhatsApp and on phones without extra codecs.
+
+Whole playlists and channel sections download in one click, several at a time, and the queue survives a restart.
+
+### Bundled software
+
+Riplox uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) (Unlicense) and [FFmpeg](https://ffmpeg.org/) (LGPL/GPL) as its download engine. That engine can be updated from inside the app when a site changes how it serves video, without waiting for a new release of Riplox itself.
+
+### Notes
+
+* Installs per user, so no administrator prompt is needed.
+* Requires Windows 10 or newer, 64-bit.
+]]></description>
+    <releaseNotes>https://github.com/xniperbuilds/riplox-desktop/releases/tag/v1.3.0</releaseNotes>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>
