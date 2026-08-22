@@ -17,6 +17,13 @@ AppId={{9C2F41B7-6E4A-4C58-9B21-7D3E5A0F81C4}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
+; Without this, Inno leaves the setup binary's own FileVersion empty - the app
+; inside carries its version, but the installer people actually download does
+; not. Riplox is unsigned, so it already has to win an argument with
+; SmartScreen; a setup.exe whose Properties page shows a blank version is one
+; more reason for a scanner, or for a directory reviewer who right-clicks it,
+; to hold back.
+VersionInfoVersion={#AppVersion}
 AppPublisher={#AppPublisher}
 AppPublisherURL={#AppURL}
 AppSupportURL={#AppURL}
