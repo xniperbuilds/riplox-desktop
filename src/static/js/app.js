@@ -2257,7 +2257,7 @@
 
   $("watchHours").addEventListener("change", function (e) {
     saveSetting({ watch_hours: parseInt(e.target.value, 10) })
-      .then(function () { toast("Saved"); loadWatch(); });
+      .then(function (res) { if (!res.ok) return; toast("Saved"); loadWatch(); });
   });
 
   function watchAdd(url, kind) {
@@ -2541,7 +2541,8 @@
   $("setSharing").addEventListener("click", function () {
     var on = !$("setSharing").classList.contains("on");
     $("setSharing").classList.toggle("on", on);
-    saveSetting({ sharing: on }).then(function () {
+    saveSetting({ sharing: on }).then(function (res) {
+      if (!res.ok) { loadSharing(); return; }   // put the switch back where it really is
       if (!on) { $("qrBox").hidden = true; }
       loadSharing();
     });
@@ -2723,25 +2724,47 @@
 
   /* ------------------------------------------------------------ settings */
 
+  /* Save, and say so honestly when it did not happen.
+
+     This used to return the answer and leave it at that, and most callers
+     said "Saved" from a .then that never looked at it - so a refused save was
+     reported to the user as a successful one, and the setting was back to its
+     old value at the next launch with nothing having said a word. A message
+     that tells you the opposite of what happened is worse than no message.
+
+     Reported here, once, so every caller is covered whether or not it checks;
+     callers must still not claim success themselves - `res.ok` decides that. */
   function saveSetting(patch) {
     return api("/api/settings", patch).then(function (res) {
-      if (res.ok) settings = res.settings;
-      return res;
+      if (res && res.ok) {
+        settings = res.settings;
+        return res;
+      }
+      toast((res && res.error) || "That could not be saved", "bad");
+      return res || { ok: false };
+    }, function () {
+      // The request itself did not complete - no answer at all is still a
+      // failure, and silence here would be the same lie by another route.
+      toast("That could not be saved", "bad");
+      return { ok: false };
     });
   }
 
   $("setQuality").addEventListener("change", function (e) {
     quality = e.target.value;
-    saveSetting({ default_quality: e.target.value }).then(function () { toast("Saved"); });
+    saveSetting({ default_quality: e.target.value })
+      .then(function (res) { if (res.ok) toast("Saved"); });
   });
 
   $("setParallel").addEventListener("change", function (e) {
-    saveSetting({ max_parallel: parseInt(e.target.value, 10) }).then(function () { toast("Saved"); });
+    saveSetting({ max_parallel: parseInt(e.target.value, 10) })
+      .then(function (res) { if (res.ok) toast("Saved"); });
   });
 
   $("setCookies").addEventListener("change", function (e) {
     var value = e.target.value;
-    saveSetting({ cookies_browser: value }).then(function () {
+    saveSetting({ cookies_browser: value }).then(function (res) {
+      if (!res.ok) return;
       toast(value === "none" ? "Cookies off" : "Using " + value + " cookies", "good");
     });
   });
@@ -2798,7 +2821,8 @@
   });
 
   $("clearCookies").addEventListener("click", function () {
-    saveSetting({ cookies_files: [], cookies_file: "" }).then(function () {
+    saveSetting({ cookies_files: [], cookies_file: "" }).then(function (res) {
+      if (!res.ok) return;             // the files are still there; do not redraw as if they went
       renderCookieFiles([]);
       toast("Cookie files cleared");
     });
@@ -2813,7 +2837,8 @@
       var on = !$(id).classList.contains("on");
       $(id).classList.toggle("on", on);
       var patch = {}; patch[key] = on;
-      saveSetting(patch).then(function () {
+      saveSetting(patch).then(function (res) {
+        if (!res.ok) return;
         if (NEEDS_TOOLS.indexOf(key) >= 0) loadEngineVersion();
       });
       if (key === "auto_paste" && !on) $("clipHint").hidden = true;
@@ -2874,7 +2899,7 @@
     }
     saveSetting({ share_relay: value }).then(function (res) {
       e.target.value = (res.settings || settings).share_relay || "";
-      toast("Saved");
+      if (res.ok) toast("Saved");
     });
   });
 
@@ -2889,7 +2914,8 @@
   syncSubFields();
 
   $("setSubKind").addEventListener("change", function (e) {
-    saveSetting({ sub_kind: e.target.value }).then(function () {
+    saveSetting({ sub_kind: e.target.value }).then(function (res) {
+      if (!res.ok) return;
       toast(e.target.selectedOptions[0].text, "good");
     });
   });
@@ -2897,7 +2923,7 @@
   $("setSubLangs").addEventListener("change", function (e) {
     var value = (e.target.value || "").trim() || "en";
     e.target.value = value;
-    saveSetting({ sub_langs: value }).then(function () { toast("Saved"); });
+    saveSetting({ sub_langs: value }).then(function (res) { if (res.ok) toast("Saved"); });
   });
 
   /* A proxy is the one setting here that can be typed wrong in a way nothing
@@ -2952,7 +2978,8 @@
 
   $("setSpeedLimit").addEventListener("change", function (e) {
     var kb = parseInt(e.target.value, 10) || 0;
-    saveSetting({ speed_limit: kb }).then(function () {
+    saveSetting({ speed_limit: kb }).then(function (res) {
+      if (!res.ok) return;
       toast(kb ? "Limited to " + e.target.selectedOptions[0].text : "No limit", "good");
     });
   });
@@ -2969,7 +2996,7 @@
 
   $("setFragments").addEventListener("change", function (e) {
     saveSetting({ fragments: parseInt(e.target.value, 10) })
-      .then(function () { toast("Saved"); });
+      .then(function (res) { if (res.ok) toast("Saved"); });
   });
 
   /* ------------------------------------------------------------- schedule */
@@ -3685,6 +3712,21 @@
         // stays useful during a search instead of going inert.
         g.btn.classList.toggle("has-hit", !!term && !g.box.hidden);
       }
+
+      // The number has to be the number you will actually see.
+      //
+      // It was the total, which is only right while advanced is on - and
+      // advanced is off by default. So the list said "Sign-in 3" and the panel
+      // gave you one row, with nothing on screen to explain the other two.
+      // That is the exact shape of a bug that already cost two days here: a
+      // hidden row and a removed feature look identical, so a count that
+      // over-promises is not a cosmetic problem, it is the app telling you
+      // something untrue. The toggle still says how many are hidden overall.
+      var tally = g.btn && g.btn.querySelector(".set-cat-count");
+      if (tally) {
+        var shown = g.panel.querySelectorAll(".field:not([hidden])").length;
+        tally.textContent = g.count ? shown : "";
+      }
     });
 
     // The toggle carries its own count, because "Show advanced" on its own
@@ -3707,8 +3749,16 @@
 
   $("setSearch").addEventListener("input", applySettingsFilter);
   $("setShowAdvanced").addEventListener("change", function () {
-    applySettingsFilter();
-    saveSetting({ show_advanced: $("setShowAdvanced").checked });
+    var wanted = $("setShowAdvanced").checked;
+    applySettingsFilter();                     // answer the click at once
+    saveSetting({ show_advanced: wanted }).then(function (res) {
+      // If it was not saved, the switch has to go back. Left where the user
+      // put it, the screen would show one thing now and the opposite at the
+      // next launch, with nothing in between to explain it.
+      if (res.ok || $("setShowAdvanced").checked !== wanted) return;
+      $("setShowAdvanced").checked = !wanted;
+      applySettingsFilter();
+    });
   });
 
   $("setShowAdvanced").checked = !!settings.show_advanced;
@@ -3942,7 +3992,8 @@
     var btn = $("setPotoken");
     var on = !btn.classList.contains("on");
     btn.classList.toggle("on", on);
-    saveSetting({ potoken: on }).then(function () {
+    saveSetting({ potoken: on }).then(function (res) {
+      if (!res.ok) return;
       if (!on) { toast("YouTube helper off"); return; }
       api("/api/potoken/install", {}).then(function (res) {
         if (!res.ok) { toast(res.error || "Could not start the download.", "bad"); return; }
@@ -3961,7 +4012,8 @@
   });
 
   $("setChannel").addEventListener("change", function (e) {
-    saveSetting({ engine_channel: e.target.value }).then(function () {
+    saveSetting({ engine_channel: e.target.value }).then(function (res) {
+      if (!res.ok) return;
       toast("Press Update to switch to " + e.target.value, "good");
     });
   });
