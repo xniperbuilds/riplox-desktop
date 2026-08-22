@@ -68,3 +68,8 @@ venv/
 .idea/
 Thumbs.db
 desktop.ini
+
+# Internal audit working files - ledgers, factor models, UI mockups.
+# Kept on disk so a later session can resume them; never part of the product,
+# and the models quote real conversations by name.
+audits/
