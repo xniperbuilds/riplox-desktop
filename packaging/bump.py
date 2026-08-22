@@ -19,6 +19,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import urllib.error
 import urllib.request
 
 REPO = "xniperbuilds/riplox-desktop"
@@ -31,8 +32,25 @@ def api(path):
         "https://api.github.com/" + path,
         headers={"Accept": "application/vnd.github+json", "User-Agent": "riplox-bump"},
     )
-    with urllib.request.urlopen(req, timeout=60) as r:
-        return json.load(r)
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return json.load(r)
+    except urllib.error.HTTPError as e:
+        # 403 here is nearly always the rate limit: GitHub allows 60 requests an
+        # hour per IP unauthenticated, and behind a mobile carrier that hour is
+        # shared with everyone else on the same address. Release day is exactly
+        # when a stack trace is least useful.
+        if e.code == 403:
+            raise SystemExit(
+                "ERROR: GitHub refused the request (403). Unauthenticated calls are\n"
+                "limited to 60 an hour per IP address. Wait an hour, or run\n"
+                "'gh auth status' and try again from a network that is not shared."
+            )
+        if e.code == 404:
+            raise SystemExit("ERROR: no such release or repository: %s" % path)
+        raise SystemExit("ERROR: GitHub returned HTTP %s for %s" % (e.code, path))
+    except urllib.error.URLError as e:
+        raise SystemExit("ERROR: could not reach GitHub (%s). Check the connection." % e.reason)
 
 
 def sha256_of(url):
@@ -93,51 +111,63 @@ def main():
     print("  sha256 %s" % sha)
     print("  %.1f MB" % (asset["size"] / 1048576))
 
-    write(
-        "winget/XniperBuilds.Riplox.yaml",
-        sub(read("winget/XniperBuilds.Riplox.yaml"), (r"^PackageVersion: .+$", "PackageVersion: " + version)),
-    )
-    write(
-        "winget/XniperBuilds.Riplox.installer.yaml",
-        sub(
+    scoop = json.loads(read("scoop/riplox.json"))
+    scoop["version"] = version
+    scoop["architecture"]["64bit"]["url"] = url
+    scoop["architecture"]["64bit"]["hash"] = sha.lower()
+
+    # Every substitution runs before anything is written. A template that has
+    # drifted makes sub() exit, and it has to exit while all six files still
+    # agree with each other - a run that rewrites two of them and then stops
+    # leaves winget claiming one version and Chocolatey another, which is worse
+    # than not running at all because nothing on screen says the set is now
+    # mixed.
+    staged = {
+        "winget/XniperBuilds.Riplox.yaml": sub(
+            read("winget/XniperBuilds.Riplox.yaml"),
+            (r"^PackageVersion: .+$", "PackageVersion: " + version),
+        ),
+        "winget/XniperBuilds.Riplox.installer.yaml": sub(
             read("winget/XniperBuilds.Riplox.installer.yaml"),
             (r"^PackageVersion: .+$", "PackageVersion: " + version),
             (r"^ReleaseDate: .+$", "ReleaseDate: " + date),
             (r"(?m)^  InstallerUrl: .+$", "  InstallerUrl: " + url),
             (r"(?m)^  InstallerSha256: .+$", "  InstallerSha256: " + sha),
         ),
-    )
-    write(
-        "winget/XniperBuilds.Riplox.locale.en-US.yaml",
-        sub(
+        "winget/XniperBuilds.Riplox.locale.en-US.yaml": sub(
             read("winget/XniperBuilds.Riplox.locale.en-US.yaml"),
             (r"^PackageVersion: .+$", "PackageVersion: " + version),
             (r"^ReleaseNotesUrl: .+$", "ReleaseNotesUrl: https://github.com/%s/releases/tag/v%s" % (REPO, version)),
         ),
-    )
-
-    scoop = json.loads(read("scoop/riplox.json"))
-    scoop["version"] = version
-    scoop["architecture"]["64bit"]["url"] = url
-    scoop["architecture"]["64bit"]["hash"] = sha.lower()
-    write("scoop/riplox.json", json.dumps(scoop, indent=4) + "\n")
-
-    write(
-        "chocolatey/riplox.nuspec",
-        sub(
+        "scoop/riplox.json": json.dumps(scoop, indent=4) + "\n",
+        "chocolatey/riplox.nuspec": sub(
             read("chocolatey/riplox.nuspec"),
             (r"<version>.+?</version>", "<version>%s</version>" % version),
             (r"<releaseNotes>.+?</releaseNotes>", "<releaseNotes>https://github.com/%s/releases/tag/v%s</releaseNotes>" % (REPO, version)),
         ),
-    )
-    write(
-        "chocolatey/tools/chocolateyinstall.ps1",
-        sub(
+        "chocolatey/tools/chocolateyinstall.ps1": sub(
             read("chocolatey/tools/chocolateyinstall.ps1"),
             (r"(?m)^(\s*url64bit\s*=\s*)'.+'$", r"\g<1>'%s'" % url),
             (r"(?m)^(\s*checksum64\s*=\s*)'.+'$", r"\g<1>'%s'" % sha),
         ),
-    )
+    }
+    for relpath, text in staged.items():
+        write(relpath, text)
+
+    # winget validate only checks the schema, so a manifest that points at the
+    # stable download name instead of the versioned one passes it cleanly - and
+    # then pins a hash to a URL whose contents change at the next release, which
+    # every installed user sees as a checksum mismatch. Nothing else catches
+    # that, so check it here, along with the six files agreeing on one version.
+    for relpath, text in staged.items():
+        if url not in text and sha not in text and sha.lower() not in text:
+            continue
+        if name not in text and (url in text or sha in text):
+            raise SystemExit("ERROR: %s does not carry the versioned asset name %s" % (relpath, name))
+    versions = {relpath: version in text for relpath, text in staged.items()}
+    missing = [r for r, ok in versions.items() if not ok]
+    if missing:
+        raise SystemExit("ERROR: these files do not mention version %s: %s" % (version, ", ".join(missing)))
 
     print("\nChecking the winget manifest")
     try:
