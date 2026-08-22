@@ -1253,18 +1253,10 @@ button { font-family: var(--body); }
 
 /* --- settings ------------------------------------------------------------ */
 
-/* Six named groups instead of one wall of switches. The heading is quiet on
-   purpose - it is a signpost, not a thing to read. */
-.group-head {
-  margin: 24px 0 9px;
-  font-family: var(--display);
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: .2em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-.group-head:first-of-type { margin-top: 6px; }
+/* .group-head is styled with the rest of the settings layout further down.
+   It used to be defined twice - the older copy here set letter-spacing and
+   uppercase, which the newer one did not override, so the panel headings came
+   out spaced and shouting for no reason anybody could see in either rule. */
 
 .group-adv > summary {
   margin: 24px 0 9px;
@@ -1853,80 +1845,141 @@ button { font-family: var(--body); }
   color: var(--ink-faint);
 }
 
-/* The closed state is the one that matters: this is what the screen looks
-   like when it is opened, and it has to read as a short list of subjects. */
-.group-head.is-group {
-  margin: 0 0 8px;
-  padding: 0;
-  border: 0;
-  font-size: inherit;
-  font-weight: inherit;
+/* ---- Settings: a list of categories, and one category ------------------- */
+
+.set-cols {
+  display: grid;
+  grid-template-columns: 214px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
 }
 
-.group-toggle {
+/* Sticky, because the list is the way around the screen and scrolling a long
+   category should not take it away. */
+.set-nav {
+  position: sticky;
+  top: 8px;
   display: flex;
-  align-items: baseline;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--panel);
+}
+
+.set-cat {
+  display: flex;
+  align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 12px 15px;
-  border: 1px solid var(--line);
+  padding: 8px 10px;
+  border: 0;
   border-radius: var(--r-s);
-  background: var(--tint);
+  background: transparent;
+  color: var(--ink-dim);
+  font: inherit;
+  font-size: 13px;
   text-align: left;
   cursor: pointer;
-  transition: border-color .18s var(--ease), background .18s var(--ease);
+  transition: background .15s var(--ease), color .15s var(--ease);
 }
-.group-toggle:hover { border-color: rgba(var(--cyan-rgb), .45); }
+.set-cat:hover { background: var(--hover); color: var(--ink); }
 
-/* A chevron that points down when the group is open. Rotation only, so
-   nothing around it moves. */
-.group-toggle::before {
-  content: "";
-  flex: none;
-  align-self: center;
-  width: 6px; height: 6px;
-  margin-right: 2px;
-  border-right: 1.5px solid var(--ink-faint);
-  border-bottom: 1.5px solid var(--ink-faint);
-  transform: rotate(-45deg);
-  transition: transform .18s var(--ease);
-}
-.group-head.is-open .group-toggle::before { transform: rotate(45deg); }
-
-.group-name {
-  flex: none;
-  font-family: var(--display);
-  font-size: 14px;
-  font-weight: 600;
+/* The bar rather than a fill: it marks the row without turning the list into
+   a block of colour, and it survives the hover state landing on top of it. */
+.set-cat.is-on {
+  background: rgba(var(--cyan-rgb), .10);
   color: var(--ink);
+  font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--cyan);
 }
 
-/* The whole point of the closed screen: what you would find in here, in
-   words, so the list of names is also a description of the app. */
-.group-what {
+/* During a search the selection means nothing, so the categories still
+   holding a match say so instead of going inert. */
+.set-cat.has-hit { color: var(--ink); }
+.set-cat.has-hit .set-cat-count { color: var(--cyan); }
+
+.set-cat-name {
   flex: 1;
   min-width: 0;
-  font-size: 12px;
-  color: var(--ink-faint);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.group-count {
+/* What makes the list worth reading rather than merely clickable: how much is
+   behind each name, before going there. */
+.set-cat-count {
   flex: none;
   font-family: var(--mono);
   font-size: 11px;
   color: var(--ink-faint);
 }
+.set-cat.is-on .set-cat-count { color: rgba(var(--cyan-rgb), .85); }
 
-.group-head.is-open + .panel { margin-bottom: 18px; }
+.set-body { min-width: 0; }
+.set-group[hidden] { display: none; }
+.set-group + .set-group { margin-top: 16px; }
 
-/* Below this the description would be a sliver of itself, so it wraps under
-   the name instead of being cut to nothing. */
-@media (max-width: 720px) {
-  .group-toggle { flex-wrap: wrap; }
-  .group-what { flex-basis: 100%; white-space: normal; }
+/* Now a panel header rather than a button - the name of what is on show. */
+.group-head {
+  margin: 0;
+  padding: 0 2px 9px;
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* ---- the four things that were never settings --------------------------- */
+
+.set-about {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-top: 22px;
+}
+.set-about-label {
+  grid-column: 1 / -1;
+  margin-bottom: -2px;
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.set-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--tint);
+  color: var(--ink-dim);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .15s var(--ease), color .15s var(--ease);
+}
+.set-info:hover { border-color: rgba(var(--cyan-rgb), .4); color: var(--ink); }
+.set-info.is-on { border-color: rgba(var(--cyan-rgb), .55); color: var(--ink); }
+.set-info-text { min-width: 0; }
+.set-info-text b { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.set-info-text small { font-size: 11px; color: var(--ink-faint); }
+
+/* Narrow enough that a column each would leave neither usable: the list lies
+   down into a strip across the top and the panel takes the full width. */
+@media (max-width: 760px) {
+  .set-cols { grid-template-columns: 1fr; }
+  .set-nav {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 6px;
+  }
+  .set-cat { white-space: nowrap; }
+  .set-cat-count { display: none; }
 }
 
 /* A row whose switch still holds a choice but cannot act on it right now.

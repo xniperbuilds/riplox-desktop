@@ -737,17 +737,23 @@
   <section class="view" id="view-settings">
     <div class="view-head"><h2>Settings</h2></div>
 
-    <!-- Someone opening this screen for the first time is not looking for a
-         particular setting - they are looking at what the app can even do.
-         Thirty rows of switches answers that question by drowning it, and the
-         honest outcome is that they scroll once and leave.
-         So the page opens as its table of contents: six short rows saying
-         what is inside each one, and nothing expanded but the first. The
-         search is for the second visit, when you do know what you want. -->
+    <!-- This was an accordion - one shut row per group, opened one at a time.
+         It worked at eight groups and stopped working at thirteen: every
+         answer sat behind a click, and the screen read as a wall of closed
+         doors rather than a list of what the app can do.
+         It is now a list on the left and one group on the right. Every
+         category is visible without opening anything, the panel is only ever
+         as long as a single group, and the four things that were never
+         settings - the changelog, the roadmap, site health, reporting a bug -
+         are out of the list and sit under About instead.
+         The search is for the second visit, when you do know the name of what
+         you want; while it runs it ignores categories entirely and shows every
+         match at once, because with a list on the left there is nothing to
+         "open" and a hit in another category would otherwise be invisible. -->
     <!-- No number in this sentence on purpose: it would be wrong the first
          time a group is added and nobody would notice. -->
-    <p class="set-lede">Everything Riplox can be told to do, grouped. Open one
-      to see what is inside it.</p>
+    <p class="set-lede">Everything Riplox can be told to do, grouped. Pick a
+      category, or search if you already know what you are after.</p>
 
     <!-- Searches the descriptions as well as the names, which is the whole
          reason it earns its place: an earlier attempt matched names only, and
@@ -1292,7 +1298,7 @@
     </div>
 
     <!-- --------------------------------------------------- Site status -->
-    <h3 class="group-head" data-what="Whether it is the site or you — from this PC's own last result per site">How sites are behaving</h3>
+    <h3 class="group-head" data-info="1" data-short="Site health" data-sub="All working" data-what="Whether it is the site or you — from this PC's own last result per site">How sites are behaving</h3>
     <div class="panel">
       <div class="field">
         <div class="field-text">
@@ -1323,7 +1329,7 @@
          another feature: it is the only evidence a user has that the app is
          still being made. Kept honest - things move to Landed when they
          actually ship, and nothing is promised with a date. -->
-    <h3 class="group-head" data-what="What is being built right now — so you can tell this apart from an abandoned app">What's next</h3>
+    <h3 class="group-head" data-info="1" data-short="What's next" data-sub="Being built now" data-what="What is being built right now — so you can tell this apart from an abandoned app">What's next</h3>
     <div class="panel">
       <div class="field">
         <div class="field-text">
@@ -1381,7 +1387,7 @@
          everything here is a change someone running the previous version does
          not have. No version number on purpose - the build carries that, and
          a number here would be one more thing to keep in step. -->
-    <h3 class="group-head" data-what="What changed since the version you had before">What's new</h3>
+    <h3 class="group-head" data-info="1" data-short="What's new" data-sub="This version" data-what="What changed since the version you had before">What's new</h3>
     <div class="panel">
       <div class="field">
         <div class="field-text">
@@ -1466,7 +1472,7 @@
     </div>
 
     <!-- ------------------------------------------------- Something wrong? -->
-    <h3 class="group-head" data-what="Report a bug or ask for a feature">Something wrong, or missing?</h3>
+    <h3 class="group-head" data-info="1" data-short="Something wrong?" data-sub="Report it" data-what="Report a bug or ask for a feature">Something wrong, or missing?</h3>
     <div class="panel">
       <div class="field">
         <div class="field-text">

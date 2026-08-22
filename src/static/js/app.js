@@ -3473,73 +3473,148 @@
 
   /* ------------------------------------------------------ settings groups */
 
-  /* The screen opens as its own table of contents.
+  /* A list of categories on the left, one category on the right.
 
-     Someone seeing Settings for the first time is not hunting a particular
-     switch - they are working out what the app can do at all. Thirty rows
-     answers that by burying it, and the honest result is one scroll and a
-     shrug. So every group starts closed with a line saying what is inside,
-     and the whole screen is eight readable rows. Downloads opens because it
-     is the one anybody actually came for.
+     This was an accordion of shut rows. That shape answers "what can this app
+     do" with a click per group, and at thirteen groups the screen had become a
+     wall of closed doors - which is exactly the complaint that produced this
+     rewrite. A list costs nothing to read, shows every category at once, and
+     keeps the panel no longer than a single group.
 
-     A search box was tried here first and thrown away: it only helps someone
-     who already knows the name of the thing, which is exactly the person who
-     did not need help. */
+     Four of those thirteen were never settings at all - the changelog, the
+     roadmap, site health and reporting a bug. They are marked data-info in the
+     template and live under About, so the list is only things you can change.
+     Marked there rather than matched by name here, because renaming one should
+     not quietly move it back in among the switches. */
 
   var SETTINGS_OPEN_BY_DEFAULT = "Downloads";
+  var groups = [];          // every group, in template order
+  var currentGroup = null;       // the one on show while not searching
 
-  function buildSettingGroups() {
-    var heads = document.querySelectorAll("#view-settings .group-head");
-    Array.prototype.forEach.call(heads, function (head) {
+  function buildSettingsNav() {
+    var view = $("view-settings");
+    var heads = Array.prototype.slice.call(view.querySelectorAll(".group-head"));
+    if (!heads.length) return;
+
+    var cols  = mk("div", "set-cols");
+    var nav   = mk("nav", "set-nav");
+    var body  = mk("div", "set-body");
+    var about = mk("div", "set-about");
+    nav.setAttribute("aria-label", "Settings categories");
+    cols.appendChild(nav);
+    cols.appendChild(body);
+    heads[0].parentNode.insertBefore(cols, heads[0]);
+
+    heads.forEach(function (head) {
       var panel = head.nextElementSibling;
       if (!panel || panel.className.indexOf("panel") < 0) return;
 
-      var name = head.textContent.trim();
-      var what = head.dataset.what || "";
-      var count = panel.querySelectorAll(".field").length;
+      var g = {
+        head:  head,
+        panel: panel,
+        name:  head.textContent.trim(),
+        what:  head.dataset.what || "",
+        count: panel.querySelectorAll(".field").length,
+        info:  head.dataset.info === "1"
+      };
 
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "group-toggle";
+      // Head and panel stay siblings inside the wrapper, because the search
+      // reaches a row's heading through panel.previousElementSibling.
+      g.box = mk("div", "set-group");
+      g.box.appendChild(head);
+      g.box.appendChild(panel);
+      body.appendChild(g.box);
+      panel.hidden = false;              // the wrapper does the hiding now
 
-      var title = document.createElement("span");
-      title.className = "group-name";
-      title.textContent = name;
+      var target = g.info ? about : nav;
+      target.appendChild(g.info ? aboutCard(g) : navButton(g));
+      groups.push(g);
+    });
 
-      var note = document.createElement("span");
-      note.className = "group-what";
-      note.textContent = what;
+    if (about.childNodes.length) {
+      var label = mk("div", "set-about-label");
+      label.textContent = "About Riplox";
+      about.insertBefore(label, about.firstChild);
+      cols.parentNode.insertBefore(about, cols.nextSibling);
+    }
 
-      var tally = document.createElement("span");
-      tally.className = "group-count";
-      // A section of prose has no settings to count, and saying "0 settings"
-      // about the roadmap would be a strange thing to read.
-      tally.textContent = count ? count : "";
+    showGroup(byName(SETTINGS_OPEN_BY_DEFAULT) || groups[0]);
+  }
 
-      btn.appendChild(title);
-      if (what) btn.appendChild(note);
-      btn.appendChild(tally);
+  function mk(tag, cls) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    return n;
+  }
 
-      head.textContent = "";
-      head.appendChild(btn);
-      head.classList.add("is-group");
+  function byName(name) {
+    for (var i = 0; i < groups.length; i++) {
+      if (groups[i].name === name) return groups[i];
+    }
+    return null;
+  }
 
-      var open = name === SETTINGS_OPEN_BY_DEFAULT;
-      setGroupOpen(head, panel, open);
+  function navButton(g) {
+    var btn = mk("button", "set-cat");
+    btn.type = "button";
 
-      btn.addEventListener("click", function () {
-        setGroupOpen(head, panel, panel.hidden);
-      });
+    var name = mk("span", "set-cat-name");
+    name.textContent = g.name;
+
+    // The count is what makes the list worth reading rather than just
+    // clickable: it says how much is behind each name before you go there.
+    var tally = mk("span", "set-cat-count");
+    tally.textContent = g.count ? g.count : "";
+
+    btn.appendChild(name);
+    btn.appendChild(tally);
+    btn.addEventListener("click", function () {
+      if ($("setSearch").value) {          // leaving a search by picking a category
+        $("setSearch").value = "";
+      }
+      showGroup(g);
+      applySettingsFilter();
+    });
+    g.btn = btn;
+    return btn;
+  }
+
+  function aboutCard(g) {
+    var card = mk("button", "set-info");
+    card.type = "button";
+
+    var text = mk("span", "set-info-text");
+    var b = mk("b");  b.textContent = g.head.dataset.short || g.name;
+    var s = mk("small"); s.textContent = g.head.dataset.sub || "";
+    text.appendChild(b);
+    text.appendChild(s);
+    card.appendChild(text);
+
+    card.addEventListener("click", function () {
+      if ($("setSearch").value) $("setSearch").value = "";
+      showGroup(g);
+      applySettingsFilter();
+      g.box.scrollIntoView({ block: "nearest" });
+    });
+    g.btn = card;
+    return card;
+  }
+
+  /* Show exactly one group. Used while nothing is being searched for; a
+     search takes over and shows every match instead, across all of them. */
+  function showGroup(g) {
+    if (!g) return;
+    currentGroup = g;
+    groups.forEach(function (o) {
+      o.box.hidden = o !== g;
+      if (o.btn) {
+        o.btn.classList.toggle("is-on", o === g);
+        o.btn.setAttribute("aria-current", o === g ? "true" : "false");
+      }
     });
   }
 
-  function setGroupOpen(head, panel, open) {
-    panel.hidden = !open;
-    head.classList.toggle("is-open", open);
-    head.querySelector(".group-toggle").setAttribute("aria-expanded", open);
-  }
-
-  buildSettingGroups();
+  buildSettingsNav();
 
   /* ------------------------------------------------- searching settings */
 
@@ -3587,17 +3662,30 @@
       if (matches && allowed) hits++;
     });
 
-    // A group with nothing left to show is noise; one with a hit opens itself.
-    document.querySelectorAll("#view-settings .group-head.is-group")
-      .forEach(function (head) {
-        var panel = head.nextElementSibling;
-        if (!panel) return;
-        var live = panel.querySelectorAll(".field:not([hidden])").length;
-        var prose = panel.querySelectorAll(".field").length === 0;
-        head.hidden = !!term && !live && !prose;
-        panel.hidden = head.hidden || (term ? !live : panel.hidden);
-        if (term && live) setGroupOpen(head, panel, true);
-      });
+    // While a search is running the categories step aside and every group
+    // holding a hit is shown at once. There is nothing to "open" in a list, so
+    // without this a match sitting in a category you are not looking at would
+    // simply be invisible - and a search that cannot reach two thirds of the
+    // screen is worse than no search. With the box empty, one category shows
+    // and the rest wait.
+    groups.forEach(function (g) {
+      if (!term) {
+        g.box.hidden = g !== currentGroup;
+      } else if (g.count) {
+        g.box.hidden = !g.panel.querySelectorAll(".field:not([hidden])").length;
+      } else {
+        // Nothing to filter inside these - the changelog and the rest are
+        // prose, so they answer to their own name and description only.
+        var label = (g.name + " " + g.what).toLowerCase();
+        g.box.hidden = label.indexOf(term) < 0;
+      }
+      if (g.btn) {
+        g.btn.classList.toggle("is-on", !term && g === currentGroup);
+        // A category still holding matches is worth pointing at, so the list
+        // stays useful during a search instead of going inert.
+        g.btn.classList.toggle("has-hit", !!term && !g.box.hidden);
+      }
+    });
 
     // The toggle carries its own count, because "Show advanced" on its own
     // never told anyone that twelve settings were sitting behind it - and a
