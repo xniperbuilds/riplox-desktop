@@ -46,6 +46,7 @@ ONLINE = {
 # permanent red line teaches everybody to ignore the summary.
 NEEDS_A_SERVICE = {
     "test_relay_socket.py": "cd relay && npx wrangler dev --port 8799 --local",
+    "test_relay_poll_latency.py": "cd relay && npx wrangler dev --port 8799 --local",
 }
 
 

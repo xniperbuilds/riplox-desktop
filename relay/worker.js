@@ -6,22 +6,31 @@
  * pass through is AES-GCM ciphertext this worker has no key for.
  *
  *   POST /send/:room   leave a sealed envelope
- *   GET  /wait/:room   the PC's held-open request, answered the moment one lands
+ *   GET  /wait/:room   the PC's long poll, held in the Worker, not in the room
  *   POST /ack/:room    the PC's sealed verdict on a message it just handled
  *   GET  /ack/:room    the phone waiting to hear that verdict
  *   GET  /p/:room      the page a phone uses to send, which does the crypto
  *
- * A Durable Object per room gives the held-open request something to wait on.
- * Long-poll rather than a WebSocket on purpose: the desktop app then needs no
- * websocket library at all, and both give the same two properties that matter
- * - the PC opens no port, and delivery is immediate rather than on a tick.
+ * A Durable Object per room holds the queue and pushes to whoever is listening.
+ * Two ways to listen, both giving the two properties that matter - the PC opens
+ * no port, and delivery is immediate rather than on a tick:
+ *
+ *   /ws    a hibernatable WebSocket, which is what a current PC uses
+ *   /wait  a long poll, for a network that will not pass a WebSocket upgrade
+ *
+ * Nothing is ever held open inside the Durable Object. It cannot hibernate
+ * while a request is still being processed or a setTimeout is pending, and it
+ * is billed for wall-clock time whenever it cannot hibernate - one PC on the
+ * old long poll cost 6,578 GB-s in a day, half the free daily allowance, from
+ * a single machine. So /wait is held in the Worker instead, which is billed
+ * for CPU rather than duration, and the object sleeps on a socket in between.
  */
 
 import { ICON_192, ICON_512 } from "./icons.js";
 import { APK_B64, APK_SIZE, APK_SHA256, APK_VERSION, APK_CODE } from "./apk.js";
 
 const MAX_BODY = 4096;             // an envelope is a few hundred bytes
-const MAX_HOLD = 30;               // seconds a /wait request is held open
+const MAX_HOLD = 30;               // longest a poll may wait, in seconds
 const KEEP = 7 * 24 * 60 * 60 * 1000;
 const MAX_QUEUE = 100;
 
@@ -215,11 +224,13 @@ export default {
 
     /* The socket the PC holds open instead of re-asking every 25 seconds.
      *
-     * Why this exists, measured rather than assumed: a held /wait is a request
-     * still being processed, and Cloudflare bills a Durable Object for
-     * wall-clock time whenever it cannot hibernate. This account's own figures
-     * for one PC on one day: 6,578 GB-s, which is 51% of the free daily
-     * allowance - from a single machine. Two people would stop the relay.
+     * Why this exists, measured rather than assumed: anything held open inside
+     * a Durable Object stops it hibernating, and Cloudflare bills a Durable
+     * Object for wall-clock time whenever it cannot hibernate. This account's
+     * own figures for one PC on one day: 6,578 GB-s, which is 51% of the free
+     * daily allowance - from a single machine. Two people would stop the relay.
+     * /wait no longer holds anything in here either, but this is still the
+     * cheaper of the two: one socket a day rather than 3,456 polls.
      *
      * The whole request is forwarded rather than a rebuilt address, because
      * the Upgrade header is what makes this a WebSocket at all and a rebuilt
@@ -232,14 +243,60 @@ export default {
       return stub.fetch(new Request("https://room/ws", request));
     }
 
+    /* The long poll, for a PC whose network will not pass a WebSocket upgrade.
+     *
+     * The hold lives here rather than inside the Durable Object, and that is
+     * the entire difference. Cloudflare bills a Durable Object for wall-clock
+     * time whenever it cannot hibernate, and a held request is one of the
+     * things that stops it hibernating; a Worker is billed for CPU, is
+     * explicitly "No charge for duration", and has "no hard limit on duration
+     * for HTTP-triggered Workers". Waiting on a socket costs no CPU at all.
+     *
+     * So the object is asked once and answers at once. If it has nothing it
+     * hands back a socket and hibernates, and this waits on that instead.
+     *
+     * The PC is not involved and does not know: same address, same query, same
+     * JSON back. Every already-installed copy gets this for free. */
     if (parts[0] === "wait" && request.method === "GET") {
-      const hold = url.searchParams.get("hold") || "25";
+      const hold = Math.min(
+        Number(url.searchParams.get("hold") || 25) || 25, MAX_HOLD);
       // ack has to travel too. This router rebuilds the address rather than
       // passing it through, so anything not named here is silently dropped -
       // which is exactly what happened to ack on the first deploy: the flag
       // was sent, never arrived, and the fix appeared not to work.
       const ack = url.searchParams.get("ack") === "1" ? "&ack=1" : "";
-      return stub.fetch(`https://room/wait?hold=${hold}${ack}`);
+
+      const answer = await stub.fetch(new Request(
+        `https://room/poll?hold=${hold}${ack}`,
+        { headers: { Upgrade: "websocket" } }
+      ));
+
+      // Something was already waiting, so it came straight back.
+      if (answer.status !== 101 || !answer.webSocket) return answer;
+
+      const ws = answer.webSocket;
+      ws.accept();
+      const payload = await new Promise((resolve) => {
+        const timer = setTimeout(() => resolve(null), hold * 1000);
+        const finish = (value) => { clearTimeout(timer); resolve(value); };
+        ws.addEventListener("message", (event) => finish(event.data));
+        // A socket that closes or errors is not an answer, but it is an end.
+        // Returning the ordinary empty response leaves the PC doing exactly
+        // what it does after a quiet hold: asking again.
+        ws.addEventListener("close", () => finish(null));
+        ws.addEventListener("error", () => finish(null));
+      });
+      try { ws.close(); } catch { /* already gone; nothing to close */ }
+
+      const empty = { ok: true, msgs: [], held: 0 };
+      if (typeof payload !== "string") return json(empty);
+      try {
+        // pushToSockets() sends {msgs, held} - the same two fields /poll
+        // returns - so this is the identical body with ok in front of it.
+        return json({ ok: true, ...JSON.parse(payload) });
+      } catch {
+        return json(empty);
+      }
     }
 
     // The PC confirming, by name, what it actually dealt with.
@@ -293,7 +350,9 @@ export class Room {
     this.state = state;
     this.queue = [];         // {n, c, at} waiting to be handed over
     this.flight = [];        // handed over, not yet confirmed
-    this.waiters = [];       // resolve functions of held-open /wait requests
+    // No list of held-open requests any more: nothing is held open in here.
+    // /poll answers at once or hands over a socket, so the only thing waiting
+    // for a room is a socket, and a socket lets this object hibernate.
     this.acks = new Map();   // rid -> {n, c, at}
     this.ackWaiters = new Map();
     this.seen = 0;           // when a PC last asked for anything
@@ -526,20 +585,34 @@ export class Room {
       this.queue.push({ n, c, at: Date.now() });
       await this.keep();
 
-      // Whichever way the PC is listening. A held /wait is woken by its
-      // resolver; a hibernating socket is woken by this send, and both are
-      // tried because a room can have an old copy and a new one at once.
-      const waiting = this.waiters;
-      this.waiters = [];
-      waiting.forEach((resolve) => resolve());
+      /* However the PC is listening, it is listening on a socket now - its own
+       * from /ws, or the one /poll handed to the Worker on its behalf. There is
+       * no longer a held request to wake, which is the whole point: a room with
+       * nobody actively receiving is a room that costs nothing. */
       await this.pushToSockets();
 
       return json({ ok: true, queued: this.queue.length });
     }
 
-    if (url.pathname === "/wait") {
-      const hold = Math.min(Number(url.searchParams.get("hold") || 25) || 25, MAX_HOLD);
-
+    /* What /wait became, and why it never waits any more.
+     *
+     * A held request is a request still being processed, and a Durable Object
+     * cannot hibernate while one exists - nor while a setTimeout is pending,
+     * which the old hold also left behind. Either one alone is enough to keep
+     * the object awake, so removing only the obvious one would have changed
+     * nothing. Together they billed 10,800 GB-s a day for a single PC that
+     * could not use a WebSocket - 83% of the entire free daily allowance, from
+     * one machine. This account's own worst day was 6,578 GB-s.
+     *
+     * So this route answers immediately, always. Either something is waiting
+     * and it is handed over at once, or nothing is and the caller is given a
+     * hibernatable socket to wait on instead. The waiting then happens in the
+     * Worker, which Cloudflare does not bill for duration and puts no limit on
+     * how long it may hold a response open.
+     *
+     * The PC never sees any of this. It still asks /wait, still gets the same
+     * JSON, and needs no update to benefit. */
+    if (url.pathname === "/poll") {
       /* Who clears the in-flight batch.
        *
        * Originally the next /wait did: its arrival was taken as proof the
@@ -561,30 +634,49 @@ export class Room {
       }
       this.sweep();
 
-      if (this.queue.length === 0) {
-        await new Promise((resolve) => {
-          const timer = setTimeout(resolve, hold * 1000);
-          this.waiters.push(() => {
-            clearTimeout(timer);
-            resolve();
-          });
-        });
-        this.sweep();
-      }
-
+      /* Concatenated onto what is already in flight, never assigned over it.
+       *
+       * Assigning threw away every unconfirmed message the moment a newer one
+       * arrived: a link that reached the PC and failed to queue was gone for
+       * good, with nothing in any log - the exact failure ack=1 exists to
+       * prevent, and the opposite of what /done promises below.
+       * pushToSockets() had this same defect and was fixed; this path never
+       * got that fix. tests/test_relay_flight_drop.mjs fails on the old line. */
       if (this.queue.length) {
-        this.flight = this.queue;
+        this.flight = this.flight.concat(this.queue);
         this.queue = [];
         await this.keep();
       }
 
-      return json({
-        ok: true,
-        msgs: this.flight.map((m) => ({ n: m.n, c: m.c })),
-        // So a PC that asks can tell the difference between "nothing was
-        // sent" and "something was sent and is still not dealt with".
-        held: this.flight.length,
-      });
+      if (this.flight.length) {
+        return json({
+          ok: true,
+          msgs: this.flight.map((m) => ({ n: m.n, c: m.c })),
+          // So a PC that asks can tell the difference between "nothing was
+          // sent" and "something was sent and is still not dealt with".
+          held: this.flight.length,
+        });
+      }
+
+      // Nothing here. Hand back a socket and go to sleep on it.
+      const pair = new WebSocketPair();
+      const [client, server] = Object.values(pair);
+      this.state.acceptWebSocket(server);
+      /* Belt and braces, and honestly labelled as such.
+       *
+       * As the code stands there is no await between the queue check above and
+       * this line, so nothing can have been queued in between and this call
+       * always finds nothing to do - a mutation that deletes it does not turn
+       * any test red, which is how that was established rather than assumed.
+       *
+       * It stays because the thing it guards against is cheap to reintroduce:
+       * add one await anywhere above and a send landing in that window would
+       * sit in the queue until the next poll twenty-five seconds later, with
+       * nothing to show for it. /ws carries the same call for the same reason,
+       * and like /ws it is deliberately not awaited - the 101 has to go back
+       * now. */
+      this.pushToSockets();
+      return new Response(null, { status: 101, webSocket: client });
     }
 
     /* The PC confirming it actually dealt with a message.

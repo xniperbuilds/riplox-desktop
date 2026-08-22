@@ -15,7 +15,8 @@ Live at **https://relay.xniperbuilds.com**.
 | Route | Who calls it | What it does |
 |---|---|---|
 | `POST /send/:room` | the phone | leaves a sealed envelope |
-| `GET /wait/:room?hold=` | the PC | held open until something arrives |
+| `GET /ws/:room` | the PC | a hibernatable WebSocket - what a current PC uses |
+| `GET /wait/:room?hold=` | the PC | long poll, for a network that blocks WebSockets. Held in the Worker, never in the room |
 | `POST /ack/:room` | the PC | leaves its sealed verdict on a message |
 | `GET /ack/:room?r=` | the phone | held open until that verdict lands |
 | `GET /now` | the phone | the relay's clock, so a drifted phone still works |

@@ -18,9 +18,13 @@ enabled = true
 pattern = "relay.xniperbuilds.com"
 custom_domain = true
 
-# One Durable Object per pairing. It exists so the desktop app's held-open
-# request has something to wait on - Workers KV cannot do that, and its free
-# tier caps writes at 1,000 a day, which a postbox would burn through.
+# One Durable Object per pairing. It holds the queue and pushes to whoever is
+# listening - a hibernatable WebSocket from the PC, or one the Worker holds on
+# the PC's behalf when its network will not pass a WebSocket upgrade. Nothing
+# is ever held open inside the object itself: it cannot hibernate while a
+# request is in flight, and it is billed for wall-clock time whenever it cannot
+# hibernate. Workers KV could not do this at all, and its free tier caps writes
+# at 1,000 a day, which a postbox would burn through.
 [[durable_objects.bindings]]
 name = "ROOMS"
 class_name = "Room"
