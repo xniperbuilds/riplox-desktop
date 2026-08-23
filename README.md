@@ -102,10 +102,47 @@ match; Android's own dialog does the installing.
 There is a Windows sender too — [`send-windows/`](send-windows/), released
 beside Riplox itself. Windows has no share sheet, so it earns its place on the
 keyboard instead: copy a link in any program, press <kbd>Ctrl+Shift+S</kbd>, and
-it is on its way. Nothing opens; the answer arrives as a notification. It is
-also the only sender that can reach the downloading PC directly over the local
-network — a web page cannot, because an HTTPS page is not allowed to call a
-plain-HTTP address on the LAN.
+it is on its way. Nothing opens; the answer arrives as a notification.
+
+### The short way, when both are on the same Wi-Fi
+
+The relay exists because the phone and the PC are usually *not* on the same
+network — and none of the above needs them to be. But when they are, sending a
+link to another continent and back is a long way to move a few hundred bytes.
+
+So the app tries the local network first. Riplox listens on **47811** and
+answers two things: a ping, and a sealed envelope. If the PC answers there, the
+link never leaves the building.
+
+The phone is never told where the PC is in advance, because that answer goes
+stale: an address moves with DHCP and changes completely between networks.
+Instead **every sealed reply carries the addresses the PC can currently be
+reached at**. The relay never sees them — it holds ciphertext it cannot open —
+and a PC that moved network corrects itself on the very next send. It sends all
+of its addresses rather than choosing one: which is reachable depends on the
+*phone's* network, not on the PC's opinion of itself.
+
+Details that stop this being worse than the relay it replaces:
+
+- **The room must match.** Another Riplox on the same Wi-Fi would answer a ping
+  happily; handing it someone else's message is worse than not trying at all.
+- **The same sealed envelope goes either way.** If the local attempt arrived and
+  only its answer was lost, the relay copy carries an identical nonce and the PC
+  refuses it as a repeat instead of downloading it twice.
+- **Every check fails open.** They exist to make the attempt cheap, so when one
+  cannot answer it lets the attempt happen anyway — a check that fails closed
+  turns "I could not tell" into "never use the local network", and a feature
+  that never happens looks exactly like one that was never built.
+- **Cleartext, deliberately.** What travels is the AES-GCM envelope the relay
+  also cannot read. TLS would wrap ciphertext in ciphertext, and no certificate
+  authority issues for `192.168.x.x`.
+
+⚠ **The web page cannot do this**, and that was measured rather than assumed: a
+page served over HTTPS is forbidden by the browser from calling
+`http://192.168.x.x` at all. The local path belongs to the two native senders.
+
+Incoming says **on your network** beside anything that arrived this way, so the
+claim is shown rather than made.
 
 Opening a pairing link on Windows hands it to that app rather than to the
 browser: it registers `riploxsend://` when it installs, and the pairing page
