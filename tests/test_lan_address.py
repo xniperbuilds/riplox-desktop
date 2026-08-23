@@ -24,6 +24,26 @@ from pathlib import Path
 SRC = Path(__file__).resolve().parent.parent / "src"
 sys.path.insert(0, str(SRC))
 
+# ⚠ Nothing in this file may touch the real Riplox folder.
+#
+# Patching sharing.save() is NOT enough, and that is not a theory: it was tried
+# here and it wrote test data straight into somebody's live share.json, taking
+# their phone pairing with it. _remember_link() calls the module-private
+# _save() directly, so the public save() this test replaced was simply stepped
+# around.
+#
+# So the folder itself is moved instead. Every path in sharing.py goes through
+# engine.data_dir(), so redirecting that one function puts the whole module in
+# a temporary directory - and no amount of calling private helpers can reach
+# real data from inside it.
+import tempfile
+from pathlib import Path
+
+import engine                                              # noqa: E402
+
+_SANDBOX = Path(tempfile.mkdtemp(prefix="riplox-test-"))
+engine.data_dir = lambda: _SANDBOX
+
 import sharing                                              # noqa: E402
 
 PASS, FAIL = [], []
