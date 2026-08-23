@@ -2121,12 +2121,76 @@
    * is and opens the folder, so "Load unpacked" is a paste rather than a hunt.
    */
   api("/api/extension").then(function (res) {
+    if (!res || !res.ok) return;
     var where = $("extPath");
-    if (!where || !res || !res.ok) return;
-    where.textContent = res.there
-      ? res.path
-      : "Not found on this PC - reinstall Riplox to get it back.";
+    if (where) {
+      where.textContent = res.there
+        ? res.path
+        : "Not found on this PC - reinstall Riplox to get it back.";
+    }
+    showPortable(res);
   });
+
+  /*
+   * Portable copies.
+   *
+   * Two things go unsaid without this. A copy that asked to keep everything
+   * in its own folder and could not - a read-only stick - carries on working
+   * while writing to this PC instead, and nobody would ever know. And the
+   * browser extension, which needs the installer to introduce it to Chrome,
+   * simply does nothing on a copy that was never installed.
+   */
+  function showPortable(res) {
+    var row = $("portableRow");
+    var note = $("portableWhere");
+    if (row && note && (res.portable === "on" || res.portable === "read-only")) {
+      row.hidden = false;
+      note.className = res.portable === "read-only" ? "warn" : "";
+      note.textContent = res.portable === "read-only"
+        ? "This copy asked to keep everything in its own folder, but that "
+          + "folder cannot be written to. Your settings and history are on "
+          + "this PC instead, in the usual place."
+        : "In its own folder, beside Riplox. Nothing is written anywhere "
+          + "else on this PC.";
+    }
+
+    var connectRow = $("extConnectRow");
+    if (!connectRow || !res.canConnect) return;
+    connectRow.hidden = false;
+    paintConnect(res.connected);
+  }
+
+  function paintConnect(connected) {
+    var btn = $("connectBrowser");
+    var state = $("extConnectState");
+    if (btn) {
+      btn.textContent = connected ? "Remove" : "Connect";
+      // The button's own label used to decide the next action, which breaks
+      // the moment the wording changes. This does not.
+      btn.dataset.on = connected ? "1" : "";
+    }
+    if (state) {
+      state.textContent = connected
+        ? "Connected - your browser can reach this copy."
+        : "Not connected - the extension's button will do nothing yet.";
+    }
+  }
+
+  var connectBtn = $("connectBrowser");
+  if (connectBtn) {
+    connectBtn.addEventListener("click", function () {
+      api("/api/extension/connect", { on: connectBtn.dataset.on !== "1" })
+        .then(function (res) {
+          if (res && res.ok) {
+            paintConnect(res.connected);
+            toast(res.message || "Done", "good");
+          } else {
+            toast((res && (res.message || res.error)) || "Could not do that",
+                  "bad");
+          }
+        });
+    });
+  }
 
   var extBtn = $("openExtFolder");
   if (extBtn) {

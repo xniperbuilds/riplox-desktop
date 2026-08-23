@@ -153,12 +153,80 @@ def tie_to_app(proc) -> None:
         kernel32.CloseHandle(target)
 
 
+# Portable mode. A "Data" folder beside the exe means "keep everything in
+# here" - the ZIP ships one, the installer never does. The folder is both the
+# marker and the destination, so there is nothing to configure and nothing
+# that can disagree with itself.
+#
+# WARNING: it must never reach dist/Riplox. The installer copies that folder
+# wholesale, so a marker left there would move every INSTALLED user's data
+# root into the install directory - silently, because a per-user install is
+# writable. Their settings, history and phone pairing would all look gone.
+# build/make_portable.py stages a copy for exactly this reason, and
+# installer.iss excludes Data\* as a second line of defence.
+_PORTABLE_MARK = "Data"
+
+_root = None                  # decided once, on the first call
+_root_state = "off"           # off | on | read-only
+
+
+def _installed_root() -> Path:
+    base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+    return Path(base) / APP_NAME
+
+
+def _app_folder():
+    """The folder the packaged app runs from, or None when run from source."""
+    if not getattr(sys, "frozen", False):
+        return None
+    return Path(sys.executable).resolve().parent
+
+
+def _writable(folder: Path) -> bool:
+    """Can this actually be written to? A read-only stick answers no."""
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        probe = folder / ".write-test"
+        probe.write_text("", encoding="utf-8")
+        probe.unlink()
+        return True
+    except OSError:
+        return False
+
+
+def _decide_root():
+    """
+    Where this copy keeps its things, and why.
+
+    Running from source is never portable: a checkout has no Data folder, and
+    if somebody made one by hand it would still be the wrong place for it.
+    """
+    home = _app_folder()
+    if home is not None:
+        beside = home / _PORTABLE_MARK
+        if beside.is_dir():
+            if _writable(beside):
+                return beside, "on"
+            # Wanted, and not possible - a read-only stick, or unpacked
+            # somewhere this user cannot write. Falling back is right.
+            # Falling back QUIETLY is not, so Settings gets told.
+            return _installed_root(), "read-only"
+    return _installed_root(), "off"
+
+
 def data_dir() -> Path:
     """User-writable folder for settings, history and the live binaries."""
-    base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-    d = Path(base) / APP_NAME
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+    global _root, _root_state
+    if _root is None:
+        _root, _root_state = _decide_root()
+    _root.mkdir(parents=True, exist_ok=True)
+    return _root
+
+
+def portable_state() -> str:
+    """"on", "read-only" or "off". Decides the root if nothing has yet."""
+    data_dir()
+    return _root_state
 
 
 def bin_dir() -> Path:
@@ -1250,6 +1318,8 @@ def _autostart_command() -> str:
 def autostart_on() -> bool:
     if os.name != "nt":
         return False
+    if portable_state() == "on":
+        return False              # never claims a key an installed copy left
     try:
         import winreg
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _RUN_KEY) as key:
@@ -1272,6 +1342,11 @@ def set_autostart(on: bool) -> dict:
     if not getattr(sys, "frozen", False):
         return {"ok": False, "on": False,
                 "message": "Only the installed Riplox can start with Windows."}
+    if portable_state() == "on":
+        return {"ok": False, "on": False,
+                "message": "A portable Riplox writes nothing outside its own "
+                           "folder, and starting with Windows needs a registry "
+                           "entry. Install Riplox to use this."}
 
     try:
         import winreg

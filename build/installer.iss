@@ -72,7 +72,7 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 [Files]
 ; bin is excluded here and added from the repo below, so it is not compressed
 ; into the installer twice - the dist copy exists only for local test runs.
-Source: "..\dist\Riplox\*"; DestDir: "{app}"; Excludes: "bin\*"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\dist\Riplox\*"; DestDir: "{app}"; Excludes: "bin\*,Data\*"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; The browser extension, shipped unpacked so it can be loaded from here. It is
 ; a few kilobytes of text and icons, and keeping it beside the app is what makes
 ; "load this folder" an instruction anyone can follow.

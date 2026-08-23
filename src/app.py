@@ -1210,6 +1210,139 @@ def extension_dir() -> Path:
     return Path(__file__).resolve().parent.parent / "browser-extension"
 
 
+# --------------------------------------------------------------------------
+# Letting the browser talk to a portable copy
+#
+# A browser will only speak to a program it was told about in the registry,
+# and it is the INSTALLER that writes those entries. A portable copy has no
+# installer - so without this the extension button does nothing at all, with
+# no error and nothing to search for. That silence is the whole reason this
+# exists.
+#
+# It stays opt-in. A portable Riplox writes nothing outside its own folder,
+# and this breaks that rule deliberately, so it happens only when somebody
+# presses the button and reads what it says first.
+# --------------------------------------------------------------------------
+
+HOST_NAME = "com.xniperbuilds.riplox"
+EXTENSION_ID = "eceoennjnigbildembfcpdlmiaahocnm"
+
+_HOST_KEYS = (r"Software\Google\Chrome\NativeMessagingHosts",
+              r"Software\Microsoft\Edge\NativeMessagingHosts",
+              r"Software\BraveSoftware\Brave-Browser\NativeMessagingHosts")
+
+# riplox:// is the extension's other half - the handoff that opens Riplox when
+# it is closed. Registering one without the other leaves a button that works
+# only while the app is already running.
+_SCHEME_KEY = r"Software\Classes\riplox"
+
+
+def native_host_file() -> Path:
+    """The description the browser reads. Beside the exe, where setup puts it."""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent / "native-host.json"
+    return Path(__file__).resolve().parent.parent / "native-host.json"
+
+
+def _same_file(one: str, other: str) -> bool:
+    return (one.strip().strip('"').lower().replace("/", "\\")
+            == other.strip().lower().replace("/", "\\"))
+
+
+def browser_connected() -> bool:
+    """Does any browser already point at this copy's native-host.json?"""
+    want = str(native_host_file())
+    try:
+        import winreg
+    except ImportError:
+        return False
+    for sub in _HOST_KEYS:
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                                sub + "\\" + HOST_NAME) as key:
+                value, _ = winreg.QueryValueEx(key, "")
+            if _same_file(str(value), want):
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def _write_host_manifest() -> Path:
+    """Same shape setup writes, pointed at this copy's RiploxHost.exe."""
+    where = native_host_file()
+    where.write_text(json.dumps({
+        "name": HOST_NAME,
+        "description": "Riplox",
+        "path": str(where.parent / "RiploxHost.exe"),
+        "type": "stdio",
+        "allowed_origins": ["chrome-extension://" + EXTENSION_ID + "/"],
+    }, indent=2), encoding="utf-8")
+    return where
+
+
+def connect_browsers(on: bool) -> dict:
+    """
+    Add or remove the entries a browser needs. Returns what to tell the user.
+
+    Every write is HKEY_CURRENT_USER: no administrator rights, and it reaches
+    exactly this Windows account rather than the whole machine.
+    """
+    if os.name != "nt":
+        return {"ok": False, "connected": False, "message": "Windows only."}
+    try:
+        import winreg
+    except ImportError:                     # pragma: no cover - Windows only
+        return {"ok": False, "connected": False, "message": "Windows only."}
+
+    exe = str(Path(sys.executable).resolve())
+    try:
+        if on:
+            manifest = str(_write_host_manifest())
+            for sub in _HOST_KEYS:
+                with winreg.CreateKey(winreg.HKEY_CURRENT_USER,
+                                      sub + "\\" + HOST_NAME) as key:
+                    winreg.SetValueEx(key, "", 0, winreg.REG_SZ, manifest)
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, _SCHEME_KEY) as key:
+                winreg.SetValueEx(key, "", 0, winreg.REG_SZ, "URL:Riplox")
+                winreg.SetValueEx(key, "URL Protocol", 0, winreg.REG_SZ, "")
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER,
+                                  _SCHEME_KEY + r"\DefaultIcon") as key:
+                winreg.SetValueEx(key, "", 0, winreg.REG_SZ, exe + ",0")
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER,
+                                  _SCHEME_KEY + r"\shell\open\command") as key:
+                winreg.SetValueEx(key, "", 0, winreg.REG_SZ,
+                                  '"' + exe + '" "%1"')
+        else:
+            for sub in _HOST_KEYS:
+                try:
+                    winreg.DeleteKey(winreg.HKEY_CURRENT_USER,
+                                     sub + "\\" + HOST_NAME)
+                except FileNotFoundError:
+                    pass                    # already gone is the wanted state
+            # Deepest first: Windows will not delete a key that still has
+            # children, so the order here is the whole trick.
+            for sub in (_SCHEME_KEY + r"\shell\open\command",
+                        _SCHEME_KEY + r"\shell\open",
+                        _SCHEME_KEY + r"\shell",
+                        _SCHEME_KEY + r"\DefaultIcon",
+                        _SCHEME_KEY):
+                try:
+                    winreg.DeleteKey(winreg.HKEY_CURRENT_USER, sub)
+                except FileNotFoundError:
+                    pass
+    except OSError as exc:
+        return {"ok": False, "connected": browser_connected(),
+                "message": str(exc)[:160]}
+
+    if on:
+        return {"ok": True, "connected": True,
+                "message": "Your browser can reach this copy of Riplox now. "
+                           "Reload the extension if it was already open."}
+    return {"ok": True, "connected": False,
+            "message": "Removed. Riplox has left nothing in the registry."}
+
+
 @app.get("/api/extension")
 def api_extension():
     """
@@ -1219,7 +1352,23 @@ def api_extension():
     said so. A folder nobody can find is a feature nobody has.
     """
     folder = extension_dir()
-    return jsonify({"ok": True, "path": str(folder), "there": folder.is_dir()})
+    state = engine.portable_state()
+    return jsonify({"ok": True, "path": str(folder), "there": folder.is_dir(),
+                    "portable": state,
+                    "connected": browser_connected(),
+                    # Only a portable copy is ever asked to do this itself.
+                    # An installed one had it done by setup.
+                    "canConnect": state == "on" and getattr(sys, "frozen", False)})
+
+
+@app.post("/api/extension/connect")
+def api_extension_connect():
+    """Opt in or out of letting the browser reach a portable copy."""
+    body = request.json or {}
+    if engine.portable_state() != "on":
+        return jsonify({"ok": False,
+                        "error": "The installed Riplox already did this."}), 400
+    return jsonify(connect_browsers(bool(body.get("on", True))))
 
 
 @app.post("/api/extension/open")

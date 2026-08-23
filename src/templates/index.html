@@ -1175,6 +1175,24 @@
                 Riplox does the rest - there is nothing else to install.</span>
         </div>
       </div>
+
+      <!-- Portable copies only. A browser will not speak to a program it was
+           never told about, and it is the installer that does the telling -
+           so on a portable copy the extension's button silently does nothing
+           until this is pressed. Hidden entirely when Riplox was installed,
+           because then setup already handled it. -->
+      <div class="field" id="extConnectRow" hidden>
+        <div class="field-text">
+          <label>Let your browser reach this copy</label>
+          <span>This is a portable Riplox, so nothing has told your browser
+                about it - the extension's button will do nothing until you
+                press this. <b>It adds one entry to the Windows registry</b>,
+                which a portable copy otherwise never does. Press it again to
+                take that entry back out.</span>
+          <span class="hint" id="extConnectState"></span>
+        </div>
+        <button class="ghost small" id="connectBrowser">Connect</button>
+      </div>
     </div>
 
     <!-- ------------------------------------------------------- Backup -->
@@ -1211,6 +1229,17 @@
          second kind of thing that opens differently. -->
     <h3 class="group-head" data-what="Engine version and update channel, connection tuning, version checks">Advanced</h3>
     <div class="panel">
+        <!-- Only ever shown to a portable copy. The second state is the one
+             that matters: it wanted its own folder and could not have it, and
+             saying nothing would leave somebody believing this PC was left
+             untouched when it was not. -->
+        <div class="field" id="portableRow" hidden>
+          <div class="field-text">
+            <label>Where Riplox keeps its things</label>
+            <span id="portableWhere"></span>
+          </div>
+        </div>
+
         <div class="field">
           <div class="field-text">
             <label>Download engine</label>
