@@ -37,7 +37,7 @@ except ImportError:                 # the tray is a nicety, never a requirement
     Image = None
 
 BASE = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 
 _window = None
 _tray = None

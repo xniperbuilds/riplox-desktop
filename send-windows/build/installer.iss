@@ -4,7 +4,7 @@
 ; outside the user's own profile.
 
 #define AppName      "Riplox Send"
-#define AppVersion   "1.0.1"
+#define AppVersion   "1.0.2"
 #define AppExe       "RiploxSend.exe"
 #define Publisher    "XniperBuilds"
 
