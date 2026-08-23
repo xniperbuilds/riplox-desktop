@@ -84,7 +84,30 @@ final class Store {
             }
             joined.append(address);
         }
-        prefs.edit().putString(LAN, joined.toString()).apply();
+        String now = joined.toString();
+        if (now.equals(prefs.getString(LAN, ""))) {
+            return;                            // same as before, nothing to do
+        }
+        prefs.edit().putString(LAN, now).apply();
+
+        /* ⚠ The PC has moved, or was given a new address. Forget which
+         * networks refused us.
+         *
+         * Lan remembers a refusal for ten minutes so a guest Wi-Fi that blocks
+         * device-to-device traffic costs one timeout rather than one per send.
+         * But "this network blocks it" and "we were holding the wrong address"
+         * both arrive as the same failed ping, and only the first deserves to
+         * be remembered.
+         *
+         * Without this, moving both phone and PC to another Wi-Fi looked like
+         * a network that refuses: the first send would fail on the stale
+         * address, mark the new network refused, and then every send for the
+         * next ten minutes would skip the local path without even trying -
+         * while the correct address sat in storage, learned from that very
+         * first reply. A new address is new information, so the old verdict
+         * goes with it.
+         */
+        Lan.reset();
     }
 
     void forget() {
