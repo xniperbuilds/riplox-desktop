@@ -1933,12 +1933,14 @@
   });
 
   $("failedClear").addEventListener("click", function () {
-    if (!window.confirm("Delete every row on this page? The files are not "
-                        + "touched - only this list.")) return;
-    api("/api/failed/clear", {}).then(function () {
-      failedOpen = "";
-      loadFailed();
-      toast("Failed list emptied", "good");
+    ask("Delete every row on this page? The files are not touched - only "
+        + "this list.", { ok: "Delete all", danger: true }).then(function (yes) {
+      if (!yes) return;
+      api("/api/failed/clear", {}).then(function () {
+        failedOpen = "";
+        loadFailed();
+        toast("Failed list emptied", "good");
+      });
     });
   });
 
@@ -3344,15 +3346,18 @@
 
     var drop = e.target.closest("[data-aremove]");
     if (drop) {
-      if (!window.confirm("Remove this account? Its sign-in is deleted from "
-                          + "this PC. The other accounts are not touched.")) return;
-      api("/api/cookies/account/remove", { site: drop.dataset.aremove,
-                                           account: parseInt(drop.dataset.n, 10) })
-        .then(function (res) {
-          if (!res.ok) { toast(res.error || "Could not remove it.", "bad"); return; }
-          toast("Account removed");
-          loadCookies();
-        });
+      ask("Remove this account? Its sign-in is deleted from this PC. The "
+          + "other accounts are not touched.",
+          { ok: "Remove", danger: true }).then(function (yes) {
+        if (!yes) return;
+        api("/api/cookies/account/remove", { site: drop.dataset.aremove,
+                                             account: parseInt(drop.dataset.n, 10) })
+          .then(function (res) {
+            if (!res.ok) { toast(res.error || "Could not remove it.", "bad"); return; }
+            toast("Account removed");
+            loadCookies();
+          });
+      });
     }
   });
 
