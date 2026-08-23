@@ -187,21 +187,53 @@ final class Relay {
      * - which is not a failure, and must never be treated as one.
      */
     static String verdict(String room, byte[] key, String rid, int hold) {
+        JSONObject said = reply(room, key, rid, hold);
+        return said == null ? "" : said.optString("why", "");
+    }
+
+    /**
+     * The whole of what the PC said, opened, or null if it said nothing.
+     *
+     * Separate from verdict() because the reply now carries a second thing:
+     * the addresses the PC can be reached at on its own network. That is how
+     * this phone learns to skip the relay next time both are on the same
+     * Wi-Fi - it never has to discover anything, and a PC that changed network
+     * or was given a new address corrects itself on the very next send.
+     */
+    static JSONObject reply(String room, byte[] key, String rid, int hold) {
         try {
             JSONObject ack = new JSONObject(
                     get("/ack/" + room + "?r=" + rid + "&hold=" + hold, hold * 1000 + 8000));
             if (ack.optBoolean("ok", false) && ack.has("ack")) {
                 JSONObject sealed = ack.getJSONObject("ack");
-                JSONObject said = open(key, sealed.optString("n"), sealed.optString("c"));
-                if (said != null) {
-                    return said.optString("why", "");
-                }
+                return open(key, sealed.optString("n"), sealed.optString("c"));
             }
         } catch (Exception ignored) {
             // The message is in the postbox either way, and the PC picks it up
             // whenever it is next running.
         }
-        return "";
+        return null;
+    }
+
+    /** The addresses out of a reply, or empty. Never null, never a null entry. */
+    static java.util.List<String> lanFrom(JSONObject said) {
+        java.util.List<String> found = new java.util.ArrayList<>();
+        if (said == null) {
+            return found;
+        }
+        org.json.JSONArray list = said.optJSONArray("lan");
+        if (list == null) {
+            return found;
+        }
+        for (int at = 0; at < list.length() && found.size() < 4; at++) {
+            String one = list.optString(at, "");
+            // An address:port and nothing else. Anything else is not something
+            // to open a connection to, whatever sent it.
+            if (one.length() > 0 && one.length() <= 64 && one.lastIndexOf(':') > 0) {
+                found.add(one);
+            }
+        }
+        return found;
     }
 
     /** Plain English for what the PC said. */

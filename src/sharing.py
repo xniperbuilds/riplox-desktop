@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import ipaddress
 import json
 import os
 import re
@@ -269,16 +270,79 @@ def relay_base() -> str:
     return url
 
 
-def lan_ip() -> str:
-    """This machine's address on its own network, without asking anyone."""
-    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+def _own_network(address: str) -> bool:
+    """An address a phone on the same Wi-Fi could actually reach this PC at."""
     try:
-        probe.connect(("10.255.255.255", 1))   # no packet is actually sent
-        return probe.getsockname()[0]
-    except OSError:
-        return ""
-    finally:
-        probe.close()
+        found = ipaddress.ip_address(address)
+    except ValueError:
+        return False
+    # Link-local counts as "private" to the ipaddress module and is no use
+    # here: 169.254.x is what an adapter gives itself when it has no network,
+    # and handing that to a phone is handing it an address nobody answers on.
+    return (found.version == 4 and found.is_private
+            and not found.is_loopback and not found.is_link_local)
+
+
+def lan_ip() -> str:
+    """
+    This machine's address on its own network, without asking anyone.
+
+    The trick is a UDP socket "connected" to somewhere it never sends anything:
+    the OS still has to choose the interface it would route through, and that
+    choice is the answer.
+
+    ⚠️ Which destination it asks about matters more than it looks. This used to
+    probe 10.255.255.255, which is itself inside 10.0.0.0/8 - so on a machine
+    holding a route for 10/8 (a corporate VPN, WSL, Docker) it answered with
+    that adapter's address instead of the Wi-Fi one. Nothing would ever report
+    it: the pairing link would simply carry an address nobody answers on, and
+    every send would quietly take the long way round instead.
+
+    So the default route is asked first, and only an address a phone could
+    actually reach is accepted. The old probe stays behind it, because a
+    machine with no route to the internet at all still has a network, and that
+    case used to work.
+    """
+    found = lan_addresses()
+    return found[0] if found else ""
+
+
+# One probe per private range, plus the default route. Each asks the OS which
+# address it would send *from* to reach that range, so between them they find
+# the interfaces that matter without parsing ipconfig or adding a dependency.
+_PROBES = ("1.1.1.1", "10.255.255.255", "172.31.255.255", "192.168.255.255")
+
+
+def lan_addresses() -> list:
+    """
+    Every address on this machine a phone might be able to reach it at.
+
+    ⚠️ Why a list rather than one answer. A PC with a VPN, WSL, Docker or a
+    second adapter has several private addresses, and *which one the phone can
+    reach depends on the phone's network, not on this machine's opinion*.
+    Choosing one here and hoping is how the phone ends up talking to an address
+    nobody answers on - silently, on every send, until the pairing is redone.
+
+    So this hands over the candidates and lets the phone pick the one on its
+    own subnet. On an ordinary machine they all collapse to a single address
+    and nothing about the old behaviour changes.
+
+    Default route first, because that is the right guess when nothing else can
+    tell them apart - and it is what lan_ip() hands to the pairing link.
+    """
+    found = []
+    for target in _PROBES:
+        probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            probe.connect((target, 1))         # no packet is actually sent
+            address = probe.getsockname()[0]
+        except OSError:
+            continue
+        finally:
+            probe.close()
+        if _own_network(address) and address not in found:
+            found.append(address)
+    return found
 
 
 def _looks_like_key(text: str) -> bool:
@@ -578,7 +642,7 @@ def handle(nonce_b64: str, cipher_b64: str, via: str = "lan") -> str:
                 # as often as it likes.
                 verdict = "paused" if (device or {}).get("paused") else "pong"
             else:
-                verdict = _accept(device, body)
+                verdict = _accept(device, body, via)
 
         # The LAN answers in the same breath. Over the relay there is nothing
         # to answer into, so the verdict is posted back separately.
@@ -760,7 +824,7 @@ TEXT_MAX = 2900
 TEXT_TTL = 24 * 3600
 
 
-def _take_text(text: str, device) -> str:
+def _take_text(text: str, device, via: str = "relay") -> str:
     """
     Keep a piece of sent text until its owner comes to collect it.
 
@@ -802,12 +866,13 @@ def _take_text(text: str, device) -> str:
         "device": (device or {}).get("id", ""),
         "at": time.time(),
         "expires": time.time() + TEXT_TTL,
+        "via": via,
         "state": "waiting" if hold else "ready",
     })
     return "held" if hold else "queued"
 
 
-def _accept(device, body: dict) -> str:
+def _accept(device, body: dict, via: str = "relay") -> str:
     """
     Apply this device's rules, then queue it. Returns what to tell the phone.
 
@@ -827,7 +892,7 @@ def _accept(device, body: dict) -> str:
         # existing share must not change shape because of this branch.
         text = str(body.get("text") or "")
         if text.strip():
-            return _take_text(text, device)
+            return _take_text(text, device, via)
         return "bad-link"          # never going to work; nothing to keep
 
     settings = engine.load_settings()
@@ -861,6 +926,11 @@ def _accept(device, body: dict) -> str:
         "device": device_id,
         "opts": opts,
         "at": time.time(),
+        # Which way it came in. Not decoration: "nothing left the building" is
+        # a thing Riplox says about itself, and until now there was no way to
+        # tell a link that stayed on the home network from one that went out to
+        # a relay and back. They arrived looking identical.
+        "via": via,
         # "waiting" either way, so a held link gets the Approve button and the
         # badge the screen already draws for one. What differs is why.
         "state": "waiting" if (hold or blocked) else "queued",
@@ -981,7 +1051,24 @@ def _reply(key_b64: str, rid, verdict: str) -> None:
     if not _RID_RE.fullmatch(rid):
         return
 
-    envelope = _seal(key_b64, {"why": verdict, "ts": time.time()})
+    said = {"why": verdict, "ts": time.time()}
+
+    # Where this PC can be reached on its own network, so the phone can skip
+    # the relay next time it is on the same Wi-Fi.
+    #
+    # It rides inside the sealed envelope, so the relay never learns an address
+    # on anybody's network - it carries ciphertext it cannot open. And it is
+    # read fresh on every reply rather than cached, because a laptop changes
+    # networks without restarting Riplox, and a stale address is worse than
+    # none: the phone would spend a timeout on it before every single send.
+    #
+    # Absent rather than empty when there is nothing to say. A field that is
+    # sometimes "" is a field every reader has to special-case.
+    where = lan_addresses()
+    if where:
+        said["lan"] = [f"{address}:{LAN_PORT}" for address in where[:4]]
+
+    envelope = _seal(key_b64, said)
     if not envelope:
         return
     envelope["r"] = rid

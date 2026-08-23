@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Cleartext, and what actually restricts it.
+
+  The app needs plain HTTP for exactly one thing: handing a sealed envelope to
+  the user's own PC at 192.168.x.x or similar, when both are on the same Wi-Fi.
+
+  ⚠ The obvious config for that cannot be written. Android's <domain> matches a
+  hostname or one exact address - it does NOT accept CIDR, so
+  "10.0.0.0/8" here would match nothing at all and the local path would simply
+  never work, silently. That was tried first and checked against the docs
+  before it shipped.
+
+  So the honest position, rather than a comment claiming otherwise:
+
+    * cleartext is permitted by default here, because Android gives no way to
+      permit it for private ranges only, and
+    * what actually restricts it is Lan.java, which resolves each candidate
+      address and refuses anything that is not on one of this phone's own
+      networks before it opens a connection. There are exactly two http:// uses
+      in this app and both are behind that check.
+
+  What this file CAN do, and does: pin the one address that leaves the building
+  to encrypted only. The relay can never be downgraded to plain HTTP by a bug,
+  a redirect, or a future edit - it will fail instead.
+-->
+<network-security-config>
+
+    <base-config cleartextTrafficPermitted="true" />
+
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">xniperbuilds.com</domain>
+    </domain-config>
+
+</network-security-config>

@@ -84,6 +84,27 @@ final class Sender {
                     continue;
                 }
 
+                /* The short way first: if the PC is on this same Wi-Fi it can
+                 * be handed the envelope directly, and it answers at once.
+                 *
+                 * ⚠ The SAME envelope goes either way. It is sealed once,
+                 * above, so if the local attempt did arrive and only its answer
+                 * was lost, the relay copy carries an identical nonce and the
+                 * PC refuses it as a repeat instead of downloading it twice.
+                 * Sealing a second one here would turn a lost answer into a
+                 * duplicate download - which this app has done before, and is
+                 * what the whole class comment above is about. */
+                Lan.Reach near = Lan.find(context, store.lan(), store.room());
+                String direct = Lan.deliver(near, envelope);
+
+                if (direct != null) {
+                    Outbox.done(context, url, text, at);
+                    String local = Relay.words(direct);
+                    say(context, local.length() > 0 ? local
+                            : context.getString(R.string.left_for_pc));
+                    continue;
+                }
+
                 try {
                     Relay.leave(store.room(), envelope);
                 } catch (Exception exc) {
@@ -103,8 +124,17 @@ final class Sender {
                 // running and there is no point holding up thirteen others for
                 // one that is not.
                 int hold = Outbox.size(context) > 0 ? 2 : 12;
-                String words = Relay.words(
-                        Relay.verdict(store.room(), store.key(), envelope.optString("r"), hold));
+                JSONObject said = Relay.reply(
+                        store.room(), store.key(), envelope.optString("r"), hold);
+
+                // Where the PC says it can be reached, so the next link shared
+                // on this network can skip the relay. Taken from every reply
+                // rather than kept from pairing: laptops move between networks
+                // and DHCP hands out new addresses, and an address that has
+                // gone stale costs a timeout before every single send.
+                store.rememberLan(Relay.lanFrom(said));
+
+                String words = Relay.words(said == null ? "" : said.optString("why", ""));
                 say(context, words.length() > 0 ? words
                         : context.getString(R.string.left_for_pc));
             }

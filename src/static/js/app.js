@@ -2509,6 +2509,22 @@
       // it. The reason is what turns the Approve button into a choice.
       var why = waiting && e.why ? " · " + esc(WHY[e.why] || e.why) : "";
 
+      /* Which way it came in.
+       *
+       * "Nothing left the building" is something Riplox says about itself, and
+       * until this there was no way to see it: a link that stayed on the home
+       * network and one that went out to a relay and back arrived looking
+       * exactly the same. Shown rather than claimed.
+       *
+       * Only the local one is called out. Saying "relay" on every other row
+       * would be noise about the ordinary case - and older entries, logged
+       * before this existed, have no via at all and must not be labelled
+       * wrongly for it. */
+      var road = e.via === "lan"
+        ? '<span class="in-road" title="Sent straight to this PC over your own '
+          + 'network. It never went to the internet.">on your network</span>'
+        : "";
+
       // Sent text is shown as dots and a length, never as itself. What
       // arrives this way is usually a key or a password, and a window is a
       // thing other people can see over your shoulder, screen-share, or
@@ -2516,7 +2532,7 @@
       if (e.kind === "text") {
         return '<div class="in-row' + (waiting ? " waiting" : "") + '">' +
           '<div class="what"><b>' + esc(e.from || "A device") + " · text" +
-          why + "</b><span>" + "•".repeat(Math.min(e.chars || 8, 24)) +
+          why + road + "</b><span>" + "•".repeat(Math.min(e.chars || 8, 24)) +
           " · " + (e.chars || 0) + " characters</span></div>" +
           (waiting
             ? '<button class="primary small" data-ok="' + esc(e.id) + '">Approve</button>' +
@@ -2528,7 +2544,7 @@
 
       return '<div class="in-row' + (waiting ? " waiting" : "") + '">' +
         '<div class="what"><b>' + esc(e.from || "A device") + " · " +
-        esc(e.quality || "default") + why + "</b><span>" + esc(e.url) + "</span></div>" +
+        esc(e.quality || "default") + why + road + "</b><span>" + esc(e.url) + "</span></div>" +
         (waiting
           ? '<button class="primary small" data-ok="' + esc(e.id) + '">Approve</button>' +
             '<button class="ghost small" data-no="' + esc(e.id) + '">No</button>'

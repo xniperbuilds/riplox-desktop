@@ -1557,6 +1557,32 @@ button { font-family: var(--body); }
   color: var(--ink-faint);
 }
 
+/* "on your network" beside a share that never left the building.
+   Quiet on purpose - it is a fact about that one row, not a badge to be
+   pleased with, and the ordinary case says nothing at all.
+
+   ⚠ Written as ".in-row .what b .in-road" rather than ".in-road", and that is
+   not tidiness. ".in-row .what span" above sets display:block and the faint
+   ink colour, and it outranks a bare class - so the first version of this came
+   out grey and 771px wide instead of a small cyan pill. Measured in the
+   running window, not guessed. */
+.in-row .what b .in-road {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--cyan-ink);
+  border: 1px solid currentColor;
+  opacity: .85;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
 .phone-help { margin: 4px 0 18px; }
 .phone-help .more-note b { color: var(--ink-dim); font-weight: 600; }
 
