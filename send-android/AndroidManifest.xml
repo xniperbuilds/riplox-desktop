@@ -7,13 +7,15 @@
   can take a share and act on it with no window at all - which is what
   ShareActivity below does, with Theme.NoDisplay and finish() in onCreate.
 
-  INTERNET is the only permission. It cannot read the clipboard, storage,
-  contacts or anything else, because it never needs to.
+  Every permission below is here for one named reason, and there is nothing
+  for anything else: it cannot read the clipboard, storage, contacts, location
+  or the camera, because it never needs to. (This note used to say INTERNET was
+  the only one, which stopped being true several versions ago.)
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.xniperbuilds.sendtoriplox"
-    android:versionCode="4"
-    android:versionName="1.0.3">
+    android:versionCode="5"
+    android:versionName="1.0.4">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
