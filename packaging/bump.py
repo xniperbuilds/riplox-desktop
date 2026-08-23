@@ -25,6 +25,10 @@ import urllib.request
 REPO = "xniperbuilds/riplox-desktop"
 HERE = os.path.dirname(os.path.abspath(__file__))
 ASSET = "Riplox_Setup_v{version}.exe"
+# Scoop takes the portable ZIP instead. Unpacking a folder is what Scoop
+# is for, and it means a Scoop user keeps their settings across an update:
+# the app writes into Data\ beside the exe, and the manifest persists it.
+PORTABLE = "Riplox_Portable_v{version}.zip"
 
 
 def api(path):
@@ -94,27 +98,37 @@ def main():
     version = release["tag_name"].lstrip("v")
     date = release["published_at"][:10]
 
-    name = ASSET.format(version=version)
-    asset = next((a for a in release["assets"] if a["name"] == name), None)
-    if asset is None:
-        raise SystemExit(
-            "ERROR: release v%s has no asset named %s.\nIt has: %s"
-            % (version, name, ", ".join(a["name"] for a in release["assets"]))
-        )
+    def pick(pattern):
+        """The named asset's url, sha256 and size - or stop, saying what is there."""
+        name = pattern.format(version=version)
+        asset = next((a for a in release["assets"] if a["name"] == name), None)
+        if asset is None:
+            raise SystemExit(
+                "ERROR: release v%s has no asset named %s.\nIt has: %s"
+                % (version, name, ", ".join(a["name"] for a in release["assets"]))
+            )
+        found = asset["browser_download_url"]
+        digest = (asset.get("digest") or "").replace("sha256:", "")
+        return found, (digest or sha256_of(found)).upper(), asset["size"]
 
-    url = asset["browser_download_url"]
-    digest = (asset.get("digest") or "").replace("sha256:", "")
-    sha = (digest or sha256_of(url)).upper()
+    url, sha, size = pick(ASSET)
+    # Looked up before anything is written, so a release that forgot the ZIP
+    # stops here rather than leaving Scoop pointing at the previous version
+    # while winget and Chocolatey have moved on.
+    zip_url, zip_sha, zip_size = pick(PORTABLE)
 
     print("Riplox v%s  (%s)" % (version, date))
     print("  %s" % url)
     print("  sha256 %s" % sha)
-    print("  %.1f MB" % (asset["size"] / 1048576))
+    print("  %.1f MB" % (size / 1048576))
+    print("  %s" % zip_url)
+    print("  sha256 %s" % zip_sha)
+    print("  %.1f MB" % (zip_size / 1048576))
 
     scoop = json.loads(read("scoop/riplox.json"))
     scoop["version"] = version
-    scoop["architecture"]["64bit"]["url"] = url
-    scoop["architecture"]["64bit"]["hash"] = sha.lower()
+    scoop["architecture"]["64bit"]["url"] = zip_url
+    scoop["architecture"]["64bit"]["hash"] = zip_sha.lower()
 
     # Every substitution runs before anything is written. A template that has
     # drifted makes sub() exit, and it has to exit while all six files still

@@ -5,11 +5,10 @@
     "license": "GPL-3.0-only",
     "architecture": {
         "64bit": {
-            "url": "https://github.com/xniperbuilds/riplox-desktop/releases/download/v1.3.0/Riplox_Setup_v1.3.0.exe",
-            "hash": "eb1d19d1bee69ae28f1988ad5c8f30ccf45bb502cea5debed8f1df142b7e86c4"
+            "url": "https://github.com/xniperbuilds/riplox-desktop/releases/download/v1.3.0/Riplox_Portable_v1.3.0.zip",
+            "hash": ""
         }
     },
-    "innosetup": true,
     "shortcuts": [
         [
             "Riplox.exe",
@@ -17,7 +16,7 @@
         ]
     ],
     "persist": [
-        "cookies"
+        "Data"
     ],
     "checkver": {
         "github": "https://github.com/xniperbuilds/riplox-desktop"
@@ -25,8 +24,12 @@
     "autoupdate": {
         "architecture": {
             "64bit": {
-                "url": "https://github.com/xniperbuilds/riplox-desktop/releases/download/v$version/Riplox_Setup_v$version.exe"
+                "url": "https://github.com/xniperbuilds/riplox-desktop/releases/download/v$version/Riplox_Portable_v$version.zip"
             }
         }
-    }
+    },
+    "extract_dir": "Riplox",
+    "pre_install": [
+        "if (!(Test-Path \"$dir\\Data\")) { New-Item -ItemType Directory \"$dir\\Data\" | Out-Null }"
+    ]
 }
