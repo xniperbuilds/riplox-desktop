@@ -108,13 +108,32 @@ def send_link(url: str) -> dict:
         return {"ok": False, "why": "", "error": "That does not look like a link."}
 
     result = send.send_link(room, key, lan, url)
-    # The PC's own address can change on a home network; a send that had to
-    # fall back to the relay is the moment to notice that.
-    if result.get("via") == "relay" and lan and not send.lan_alive(lan, room):
-        data = store.load()
-        data["lan"] = ""
-        store.save(data)
+    _learn_lan(result, lan)
     return result
+
+
+def _learn_lan(result: dict, had: str) -> None:
+    """
+    Keep up with a PC that moved.
+
+    A home PC's address changes - a new router, a DHCP lease, a laptop carried
+    between networks. This used to notice only by *losing* it: a send that fell
+    back to the relay triggered a second ping, and if that failed too the
+    stored address was wiped and never replaced. So the first time the PC moved
+    it dropped to relay-only permanently, until somebody happened to pair
+    again, and paid an extra timeout on the way there.
+
+    The PC now says where it is inside every sealed reply, so the answer is
+    already in hand: take it. Nothing is wiped on failure any more - a stale
+    address that gets corrected on the next relay send is worth more than no
+    address at all, because forgetting it is what made this permanent.
+    """
+    fresh = str(result.get("lan") or "").strip()
+    if not fresh or fresh == had:
+        return
+    data = store.load()
+    data["lan"] = fresh
+    store.save(data)
 
 
 def say(title: str, body: str) -> None:
@@ -153,6 +172,9 @@ class Api:
                     "version": VERSION}
 
         answer = send.ping(room, key, lan)
+        # The status check talks to the PC too, so it is a free chance to hear
+        # where it has moved to - often before the user sends anything at all.
+        _learn_lan(answer, lan)
         why = answer.get("why", "")
         if why == "pong":
             state, label, note = "ready", "Ready", (

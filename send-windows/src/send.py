@@ -166,6 +166,29 @@ def lan_alive(lan: str, room: str) -> bool:
         return False
 
 
+def _pick_lan(offered) -> str:
+    """
+    One address out of what the PC offered, or "".
+
+    ⚠️ The PC sends several on purpose - a machine with a VPN, WSL or a second
+    adapter has more than one, and which of them is reachable depends on this
+    machine's network rather than on the PC's opinion of itself. This sender
+    keeps one, because unlike the phone it is usually on the same fixed desk;
+    the first is the PC's own default route, which is the right guess when
+    nothing else can tell them apart. Anything that is not an address and a
+    port is not something to open a connection to, whoever sent it.
+    """
+    if isinstance(offered, str):
+        offered = [offered]
+    if not isinstance(offered, list):
+        return ""
+    for one in offered[:4]:
+        one = str(one or "").strip()
+        if 0 < len(one) <= 64 and one.rfind(":") > 0:
+            return one
+    return ""
+
+
 def deliver(room: str, key: str, lan: str, body: dict) -> dict:
     """
     Seal this and get it to the PC. Returns {ok, why, via}.
@@ -205,7 +228,16 @@ def deliver(room: str, key: str, lan: str, body: dict) -> dict:
         if got.get("ok") and got.get("ack"):
             said_back = unseal(key, got["ack"].get("n", ""), got["ack"].get("c", ""))
             if said_back:
-                return {"ok": True, "why": said_back.get("why", ""), "via": "relay"}
+                # Where the PC says it can be reached, now.
+                #
+                # It rides inside the sealed reply, so the relay never learns an
+                # address on anybody's network. What matters is that it comes
+                # back on EVERY reply: the address learned once at pairing goes
+                # stale the first time the PC is handed a new one, and until
+                # this the only thing that ever noticed was a wasted timeout
+                # before every single send.
+                return {"ok": True, "why": said_back.get("why", ""), "via": "relay",
+                        "lan": _pick_lan(said_back.get("lan"))}
     except (urllib.error.URLError, OSError, ValueError, socket.timeout):
         pass
 
