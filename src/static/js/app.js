@@ -326,6 +326,9 @@
     // so on the chip. "1440p" over a 480p source is the app lying about the
     // file it is about to hand over.
     var upscaled = (info && info.upscaled) || {};
+    // Shown before anything is pressed. "Highest" on an 8K video is 3.4 GB,
+    // and finding that out from the progress bar is finding out too late.
+    var sizes = (info && info.sizes) || {};
 
     $("qualityChips").innerHTML = options.map(function (q) {
       var from = upscaled[q];
@@ -336,6 +339,7 @@
         '" data-q="' + q + '"' +
         (from ? ' title="YouTube made this with AI from a ' + from + 'p original"' : "") +
         ">" + esc(labels[q] || q) +
+        (sizes[q] ? '<em class="chip-size"> · ' + esc(sizes[q]) + "</em>" : "") +
         (from ? '<em> · AI-upscaled from ' + from + "p</em>" : "") +
         "</button>";
     }).join("");
@@ -1471,6 +1475,10 @@
       } else {
         bits.push(["", j.percent.toFixed(1) + "%"]);
       }
+      // "45.2 MB of 342.0 MB" answers "how much longer on this line" in a way
+      // a percentage never does - and on an 8K file that is the whole question.
+      if (j.got && j.size) bits.push(["", j.got + " of " + j.size]);
+      else if (j.size) bits.push(["", j.size]);
       if (j.speed) bits.push(["", j.speed]);
       if (j.eta) bits.push(["", "ETA " + j.eta]);
       // Worth seeing while it runs, not only once it lands.

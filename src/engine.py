@@ -2044,6 +2044,7 @@ def analyze(url: str, settings: dict) -> dict:
         "extractor": (info.get("extractor_key") or info.get("extractor") or "").lower(),
         "qualities": rungs["rungs"],
         "upscaled": rungs["upscaled"],
+        "sizes": rungs["sizes"],
         # Live now, as opposed to a finished stream. Only a live one can be
         # joined from the beginning, so this is what decides whether that
         # choice is offered at all - a checkbox on every ordinary video is
@@ -2417,6 +2418,29 @@ def _available_qualities(info: dict, settings: dict = None) -> dict:
     settings = settings or {}
     allow = bool(settings.get("allow_ai_upscale"))
 
+    def bytes_of(f):
+        return f.get("filesize") or f.get("filesize_approx") or 0
+
+    videos = [f for f in (info.get("formats") or [])
+              if isinstance(f.get("height"), int) and bytes_of(f)]
+    audios = [bytes_of(f) for f in (info.get("formats") or [])
+              if f.get("acodec") not in (None, "none") and not f.get("height")
+              and bytes_of(f)]
+    # The audio Riplox would take rides along with every video-only stream, so
+    # a size that left it out would be wrong by the same amount every time.
+    audio_bytes = max(audios) if audios else 0
+
+    def size_at(limit):
+        """Roughly what this rung costs: the stream the selector would land on."""
+        fits = [f for f in videos if not limit or f["height"] <= limit]
+        if not fits:
+            return 0
+        tallest = max(f["height"] for f in fits)
+        top = [f for f in fits if f["height"] == tallest]
+        # Mirrors the sort: h264 wins a tie, and "max" takes the fattest - so
+        # the biggest at that height is the honest upper bound either way.
+        return max(bytes_of(f) for f in top) + audio_bytes
+
     real, fake = set(), set()
     for f in info.get("formats") or []:
         h = f.get("height")
@@ -2439,7 +2463,16 @@ def _available_qualities(info: dict, settings: dict = None) -> dict:
             # Skipped otherwise: offering it would promise a file we would not
             # deliver, and "download this video" means the video.
 
-    return {"rungs": ["best", "max"] + rungs + ["mp3"], "upscaled": notes}
+    # Shown on the chip so nobody meets a 3.6 GB download by surprise - which
+    # is exactly what "highest" means on an 8K video.
+    sizes = {}
+    for key in ["best", "max"] + rungs:
+        found = size_at(0 if key in ("best", "max") else int(key))
+        if found:
+            sizes[key] = human_bytes(found)
+
+    return {"rungs": ["best", "max"] + rungs + ["mp3"],
+            "upscaled": notes, "sizes": sizes}
 
 
 # What the engine says when Instagram is refusing the post rather than the
@@ -3637,7 +3670,7 @@ def environment() -> dict:
 
 class Job:
     __slots__ = ("id", "url", "title", "thumbnail", "quality", "status", "percent",
-                 "speed", "eta", "size", "filepath", "error", "created", "proc",
+                 "speed", "eta", "size", "got", "filepath", "error", "created", "proc",
                  "cancelled", "uploader", "batch", "log", "attempt",
                  "start", "end", "exact", "stage", "paused", "kind", "conv",
                  "opts", "origin", "streams", "sent_cookies", "tried_signed_in",
@@ -3704,6 +3737,10 @@ class Job:
         # re-run four hundred times.
         self.started_on = ""
         self.net_waits = 0
+        # What has arrived so far, as text. The percentage alone does not
+        # answer "how much longer on this connection" - "45.2 MB of 342.0 MB"
+        # does, and yt-dlp was already sending both numbers.
+        self.got = ""
         # When to try this one again on its own, and how many of those goes
         # have been used. Only ever set for a refusal that is known to pass.
         self.retry_at = 0.0
@@ -3752,6 +3789,7 @@ class Job:
             "speed": self.speed,
             "eta": self.eta,
             "size": self.size,
+            "got": self.got,
             "filepath": self.filepath,
             "error": self.error,
             "attempt": self.attempt,
@@ -5095,6 +5133,11 @@ class DownloadManager:
             # actually on the disk.
             job.percent = max(job.percent, min(99.0, low + (high - low) * pct))
             job.size = human_bytes(size)
+            # ⚠️ Per STREAM, not per file: yt-dlp fetches the video and the
+            # audio separately and reports each on its own. The stage beside it
+            # says which one, so the numbers restarting is readable rather than
+            # baffling.
+            job.got = human_bytes(downloaded)
 
         job.speed = f"{human_bytes(_num(speed))}/s" if _num(speed) else ""
         job.eta = _human_time(_num(eta))

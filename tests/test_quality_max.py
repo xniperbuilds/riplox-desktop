@@ -117,6 +117,61 @@ rungs = engine._available_qualities(
 check("max is offered beside best", "max" in rungs and "best" in rungs, rungs)
 check("...and mp3 is still last", rungs[-1] == "mp3", rungs)
 
+print("")
+print("-- how big it will be, said before anything is pressed -------------")
+# Nazim met a 3.6 GB download by surprise: "Highest" on an 8K video means
+# 4320p AV1 at 50 Mbps, and the only place that showed was the progress bar,
+# which is far too late to find out.
+INFO = {"formats": [
+    {"height": 4320, "filesize": 3_600_000_000, "vcodec": "av01", "acodec": "none"},
+    {"height": 2160, "filesize": 342_000_000, "vcodec": "vp9", "acodec": "none"},
+    {"height": 1080, "filesize": 77_000_000, "vcodec": "avc1", "acodec": "none"},
+    {"height": 720, "filesize": 25_000_000, "vcodec": "avc1", "acodec": "none"},
+    {"filesize": 4_000_000, "vcodec": "none", "acodec": "mp4a"},
+]}
+out = engine._available_qualities(INFO, {})
+sizes = out["sizes"]
+
+check("every rung that can be measured carries a size",
+      all(k in sizes for k in ("best", "max", "2160", "1080", "720")), sizes)
+check("the top rungs show the 8K reality, not the 1080p one",
+      "GB" in sizes["max"] and "GB" in sizes["best"], sizes.get("max"))
+check("a capped rung shows what that cap costs",
+      "MB" in sizes["2160"], sizes.get("2160"))
+
+
+def as_bytes(text):
+    """"27.7 MB" -> a number, so the rungs can actually be compared."""
+    amount, _, unit = text.partition(" ")
+    scale = {"B": 1, "KB": 1024, "MB": 1024 ** 2, "GB": 1024 ** 3}
+    return float(amount) * scale.get(unit.strip(), 1)
+
+
+check("a smaller rung really is a smaller number",
+      as_bytes(sizes["720"]) < as_bytes(sizes["1080"])
+      < as_bytes(sizes["2160"]) < as_bytes(sizes["max"]),
+      " < ".join(sizes[k] for k in ("720", "1080", "2160", "max")))
+
+# The audio rides along with every video-only stream, so leaving it out would
+# understate every single rung by the same amount.
+no_audio = {"formats": [f for f in INFO["formats"] if f.get("height")]}
+check("the audio is counted in",
+      engine._available_qualities(INFO, {})["sizes"]["720"]
+      != engine._available_qualities(no_audio, {})["sizes"]["720"],
+      "%s vs %s" % (engine._available_qualities(INFO, {})["sizes"]["720"],
+                    engine._available_qualities(no_audio, {})["sizes"]["720"]))
+
+blank = engine._available_qualities({"formats": [{"height": 1080}]}, {})
+check("a format with no size at all is left out rather than guessed",
+      blank["sizes"] == {}, blank["sizes"])
+check("...and the rungs still come back", "1080" in blank["rungs"], blank["rungs"])
+
+print("")
+print("-- and how much of it has arrived ---------------------------------")
+job = engine.Job(url="https://example.com/v")
+check("nothing claimed before anything has arrived", job.got == "", job.got)
+check("the row carries it", "got" in job.to_dict())
+
 shutil.rmtree(SANDBOX, ignore_errors=True)
 
 print("\n" + "=" * 68)
