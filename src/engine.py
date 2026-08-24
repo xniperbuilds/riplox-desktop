@@ -2904,7 +2904,21 @@ _CLEARS_ON_ITS_OWN = (
 #
 # ⚠️ This answers "is there a network", NOT "is this site up". A site that is
 # refusing must still fail normally - waiting for ever is worse than failing.
-_NET_HOSTS = (("1.1.1.1", 443), ("8.8.8.8", 53))
+# ⚠️ Several, on different ports and different owners, because ONE answer
+# deciding "nothing may download" is a dangerous amount of power for a probe.
+# Corporate networks and some ISPs block 1.1.1.1 and 8.8.8.8 outright - on such
+# a machine a single-host probe would say "offline" for ever and Riplox would
+# never start a download again, which is far worse than the outage it is meant
+# to handle.
+_NET_HOSTS = (("1.1.1.1", 443), ("8.8.8.8", 53),
+              ("9.9.9.9", 53), ("208.67.222.222", 443))
+
+# And even then it fails OPEN. If the probe has claimed offline for this long
+# while work is waiting, one job is let through to find out with real traffic:
+# a wrong probe costs a single quick attempt that puts itself back, and a right
+# one costs nothing at all.
+_NET_DOUBT_AFTER = 120.0
+_net_offline_since = [0.0]
 _NET_CACHE_FOR = 4.0                 # _next_job runs constantly; do not probe per call
 _net_last = [0.0, True]              # (when, answer)
 _net_lock = threading.Lock()
@@ -4060,11 +4074,22 @@ class DownloadManager:
         if not schedule_allows(settings):
             return None
 
-        # Nothing goes out while there is no network. Starting a download now
-        # would only spend its retries on an outage and land it in Failed,
-        # which is exactly the behaviour this exists to remove.
+        # Nothing goes out while there is no network: starting a download now
+        # would spend its retries on an outage and land it in Failed, which is
+        # what this exists to remove.
+        #
+        # ⚠️ But never for ever. A probe that is simply wrong - a network that
+        # blocks the hosts it asks - would otherwise stop this machine
+        # downloading anything, permanently and silently. So after a couple of
+        # minutes of claimed silence one job goes out anyway and settles it
+        # with real traffic.
         if not network_ok():
-            return None
+            first = _net_offline_since[0] or time.monotonic()
+            _net_offline_since[0] = first
+            if time.monotonic() - first < _NET_DOUBT_AFTER:
+                return None
+        else:
+            _net_offline_since[0] = 0.0
 
         want = max(1, min(5, int(settings.get("max_parallel", 2))))
         with self._lock:

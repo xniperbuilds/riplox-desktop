@@ -171,6 +171,38 @@ try:
     check("...the job is left exactly as it was",
           job.status == "downloading" and job.net_waits == 0,
           "%s / %s" % (job.status, job.net_waits))
+
+    print("")
+    print("-- and a probe that is simply WRONG must not block for ever ------")
+    # The dangerous failure of this whole feature: some networks block
+    # 1.1.1.1 and 8.8.8.8 outright. On such a machine a probe that is trusted
+    # absolutely would stop Riplox downloading anything, permanently and
+    # silently - far worse than the outage it was built for.
+    import time as _time
+    pretend(network=False)
+    MANAGER._jobs.clear()
+    MANAGER._order[:] = []
+    stuck = engine.Job(url="https://example.com/v")
+    stuck.status = "queued"
+    MANAGER._jobs[stuck.id] = stuck
+    MANAGER._order.append(stuck.id)
+
+    engine._net_offline_since[0] = 0.0
+    check("it does hold back at first", MANAGER._next_job() is None)
+
+    # Two minutes of claimed silence later.
+    engine._net_offline_since[0] = _time.monotonic() - engine._NET_DOUBT_AFTER - 1
+    let_through = MANAGER._next_job()
+    check("one job is let through to settle it with real traffic",
+          let_through is not None, "still blocked")
+
+    pretend(network=True)
+    MANAGER._next_job()
+    check("and the doubt clock resets once the network answers again",
+          engine._net_offline_since[0] == 0.0, engine._net_offline_since[0])
+
+    check("more than one host is asked, so one blocked address is not a verdict",
+          len(engine._NET_HOSTS) >= 3, engine._NET_HOSTS)
 finally:
     engine.network_ok, engine.here_now = REAL_NET, REAL_HERE
     shutil.rmtree(SANDBOX, ignore_errors=True)
