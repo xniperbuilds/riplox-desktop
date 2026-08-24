@@ -7,6 +7,7 @@ instead (useful while working on the interface).
 """
 
 import ctypes
+import hashlib
 import json
 import logging
 import os
@@ -1882,7 +1883,18 @@ watcher = ClipboardWatcher(manager)
 # watchers, two tray icons, and a global shortcut owned by whichever started
 # first - which looks exactly like a shortcut that downloads into nowhere.
 
-MUTEX_NAME = "Local\\RiploxDesktop.SingleInstance"
+# WARNING: named after the DATA, not the machine. What this protects is one
+# set of settings, one queue and one pairing being driven by two processes -
+# and two copies keeping their things in different folders cannot do that to
+# each other. A portable Riplox on a stick is the case that matters: with a
+# fixed name it exited and raised the INSTALLED copy's window instead, which
+# is not what anybody means by portable and looked like a failure to start.
+# Two copies of the same install still collide, which is the point.
+def _mutex_name() -> str:
+    where = str(engine.data_dir()).lower().encode("utf-8", "replace")
+    return ("Local\RiploxDesktop.SingleInstance."
+            + hashlib.sha1(where).hexdigest()[:16])
+
 ERROR_ALREADY_EXISTS = 183
 _mutex = None
 
@@ -1919,7 +1931,7 @@ def claim_single_instance(raise_window: bool = True) -> bool:
 
     # Held for the life of the process; Windows releases it when we exit, even
     # on a crash, so a dead copy never blocks the next start.
-    _mutex = kernel32.CreateMutexW(None, True, MUTEX_NAME)
+    _mutex = kernel32.CreateMutexW(None, True, _mutex_name())
     if kernel32.GetLastError() != ERROR_ALREADY_EXISTS:
         return True
 

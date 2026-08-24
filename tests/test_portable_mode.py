@@ -224,6 +224,32 @@ check("the real LOCALAPPDATA was left alone",
       and not (Path(REAL_LOCALAPPDATA) / engine.APP_NAME / ".write-test").exists()
       if REAL_LOCALAPPDATA else True)
 
+
+print("")
+print("-- a portable copy is a separate app, not the same one -------------")
+# Found by running it: with a fixed mutex name the portable copy EXITED and
+# raised the installed copy's window instead. That is not what anybody means
+# by portable, and to the user it looks as though it failed to start.
+#
+# The mutex guards the DATA - one queue, one settings file, one pairing being
+# driven by two processes - and two copies with different folders cannot do
+# that to each other.
+import app as riplox                                        # noqa: E402
+
+as_app(home)
+portable_name = riplox._mutex_name()
+as_app(plain)
+installed_name = riplox._mutex_name()
+
+check("a portable copy and an installed one are different instances",
+      portable_name != installed_name,
+      "%s vs %s" % (portable_name[-16:], installed_name[-16:]))
+as_app(plain)
+check("...but the same copy is always itself",
+      riplox._mutex_name() == installed_name)
+check("the name still says what it is, for anyone reading a handle list",
+      installed_name.startswith("Local\RiploxDesktop.SingleInstance"),
+      installed_name)
 shutil.rmtree(SANDBOX, ignore_errors=True)
 
 print("\n" + "=" * 68)
