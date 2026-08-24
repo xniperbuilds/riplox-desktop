@@ -215,6 +215,37 @@ want to confirm the file is untouched.
 Requires Windows 10 or 11 with the Microsoft Edge WebView2 Runtime, which is
 already present on Windows 11 and on any Windows 10 with a current Edge.
 
+### Portable
+
+There is a portable build as well — a ZIP on the same releases page. Unzip it
+anywhere, including a USB stick, and run `Riplox.exe`.
+
+Settings, history, the download queue and the pairing with your phone all live
+in a `Data` folder beside the program, and nothing is written anywhere else on
+the PC. Starting with Windows is refused rather than quietly writing to the
+registry, and if the drive turns out to be read-only Riplox says so in Settings
+rather than pretending it stayed portable.
+
+Downloads are the exception, on purpose: they go to your Downloads folder like
+any other program, because a 4 GB video landing on a USB stick by surprise
+helps nobody. Point Riplox somewhere else in Settings if you want them there.
+
+### The browser extension
+
+An extension ships with Riplox, in a `browser-extension` folder beside the
+program — Settings shows the exact path and the four steps to load it. One
+click on a video page sends that page across, and a right-click menu handles
+links you have not opened. None of it is required: copying a link and pressing
+the keyboard shortcut does the same job with nothing to install.
+
+The button that appears on the page itself is off until you turn it on, in the
+extension's popup — it is the one part that needs access to pages, so it asks
+first.
+
+⚠️ On a **portable** copy, open Settings → Browser and press **Let your browser
+reach this copy** first. A browser only speaks to a program the registry told
+it about, and normally the installer is what does the telling.
+
 ## Building from source
 
 ```

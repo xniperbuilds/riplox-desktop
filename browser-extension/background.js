@@ -271,6 +271,22 @@ async function syncInPageButton() {
       matches,
       runAt: "document_idle",
     }]).catch(() => {});
+
+    // ⚠️ Registering only reaches pages loaded from now on. Somebody turning
+    // this on is looking at a page RIGHT NOW, and nothing appearing on it is
+    // indistinguishable from the feature being broken - which is exactly how
+    // it was first reported. So the tabs already open get it too.
+    //
+    // content.js guards on window.__riploxButton, so a tab that somehow gets
+    // it twice still ends up with one button.
+    const already = await chrome.tabs.query({ url: matches }).catch(() => []);
+    for (const tab of already) {
+      if (!tab.id) continue;
+      chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ["content.js"],
+      }).catch(() => {});      // chrome:// and the store cannot be scripted
+    }
   } else if (existing.length) {
     await chrome.scripting.unregisterContentScripts({ ids: [SCRIPT_ID] })
       .catch(() => {});

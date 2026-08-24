@@ -1190,6 +1190,21 @@
         </div>
       </div>
 
+      <!-- The button on the page is off until it is asked for, because it is
+           the one part that needs access to pages. That is the right default
+           and a terrible secret: it was built here and still took a hunt to
+           find, so it gets named where somebody is already reading. -->
+      <div class="field">
+        <div class="field-text">
+          <label>The button on the page itself</label>
+          <span>Once the extension is loaded, open it from the browser's
+                toolbar and turn on <b>Show a button on every page</b>. It
+                starts off, because it is the one part that needs to see the
+                pages you are on - so it asks first, and turning it back off
+                hands that access straight back.</span>
+        </div>
+      </div>
+
       <!-- Portable copies only. A browser will not speak to a program it was
            never told about, and it is the installer that does the telling -
            so on a portable copy the extension's button silently does nothing
