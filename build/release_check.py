@@ -23,13 +23,19 @@ import sys
 import urllib.error
 import urllib.request
 
-# repo -> the name that must never change between releases
-STABLE = {
-    "xniperbuilds/riplox-desktop": "Riplox_Setup.exe",
-    "xniperbuilds/riplox":         "Riplox.apk",
-    "xniperbuilds/riplox-tt":      "RiploxTT.apk",
-    "xniperbuilds/riplox-ig":      "RiploxIG.apk",
-}
+# (repo, the name that must never change between releases)
+#
+# A list rather than a mapping because one release can owe more than one stable
+# name: the site's page has a Download button AND a portable link, and the
+# portable one was added without this noticing - a check that passes while half
+# the page 404s is worse than no check.
+STABLE = [
+    ("xniperbuilds/riplox-desktop", "Riplox_Setup.exe"),
+    ("xniperbuilds/riplox-desktop", "Riplox_Portable.zip"),
+    ("xniperbuilds/riplox",         "Riplox.apk"),
+    ("xniperbuilds/riplox-tt",      "RiploxTT.apk"),
+    ("xniperbuilds/riplox-ig",      "RiploxIG.apk"),
+]
 
 UA = {"User-Agent": "riplox-release-check", "Accept": "application/vnd.github+json"}
 
@@ -54,9 +60,12 @@ def reachable(repo, name):
 
 def main():
     bad = []
-    for repo, name in STABLE.items():
+    seen = {}          # one API call per repo: the allowance is 60 an hour
+    for repo, name in STABLE:
         try:
-            rel = latest(repo)
+            if repo not in seen:
+                seen[repo] = latest(repo)
+            rel = seen[repo]
         except Exception as exc:                       # noqa: BLE001
             print("%-30s COULD NOT CHECK  %s" % (repo, str(exc)[:40]))
             bad.append(repo)
