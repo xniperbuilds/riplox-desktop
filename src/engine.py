@@ -1424,6 +1424,10 @@ def check_engine_update(force: bool = False) -> dict:
 
 QUALITY_LABELS = {
     "best": "Best available",
+    # Deliberately not called "best" anything. It is not better for watching -
+    # it is a bigger, less playable file that survives being uploaded again,
+    # and the name has to carry that or it will be picked by mistake.
+    "max": "Highest - for re-uploading",
     "2160": "4K · 2160p",
     "1440": "2K · 1440p",
     "1080": "Full HD · 1080p",
@@ -1579,17 +1583,22 @@ def format_args(quality: str, settings: dict, audio_lang: str = "") -> list:
                 "--audio-quality", "0", "--embed-thumbnail", "--embed-metadata",
                 "--convert-thumbnails", "jpg"]
 
+    # ⚠ Every quality that is not one of these is a NUMBER, and goes straight
+    # into [height<=?N]. A new name added without this guard would build
+    # "[height<=?max]" and break the download outright.
+    uncapped = quality in ("best", "max")
+
     if not ff:
         # Without ffmpeg we can only take streams that are already muxed, and
         # a muxed stream carries whatever audio it was made with - so there is
         # nothing to choose between here.
-        if quality == "best":
+        if uncapped:
             return ["-f", f"best{sr}[ext=mp4]/best{sr}/best[ext=mp4]/best"]
         cap = f"[height<=?{quality}]"
         return ["-f", f"best{cap}{sr}[ext=mp4]/best{cap}{sr}/"
                       f"best{cap}[ext=mp4]/best{cap}/best"]
 
-    cap = "" if quality == "best" else f"[height<=?{quality}]"
+    cap = "" if uncapped else f"[height<=?{quality}]"
 
     # Built as a list and de-duplicated rather than concatenated, because with
     # no audio language chosen several of these strings come out identical -
@@ -1601,10 +1610,11 @@ def format_args(quality: str, settings: dict, audio_lang: str = "") -> list:
         if branch not in branches:
             branches.append(branch)
 
-    if safe:
-        add(f"bv*{cap}{sr}{H264}+ba{la}{AAC}")
-        add(f"bv*{cap}{sr}{H264}+ba{la}")
-        add(f"bv*{cap}{sr}{H264}+ba")
+    # ⚠ H264 used to be a FILTER here, which is why "Best available" returned
+    # 1080p while 4K sat on the shelf: on YouTube h264 stops at 1080p and 4K
+    # exists only as VP9 or AV1, so filtering for h264 threw the resolution
+    # away. It is a tie-break in the sort below now - h264 still wins wherever
+    # h264 can reach the same height, and nothing is lost when it cannot.
     add(f"bv*{cap}{sr}+ba{la}")
     add(f"bv*{cap}{sr}+ba")
     add(f"b{cap}{sr}")
@@ -1618,7 +1628,23 @@ def format_args(quality: str, settings: dict, audio_lang: str = "") -> list:
         add("bv*+ba")
         add("b")
 
-    return ["-f", "/".join(branches), "-S", "res",
+    # Highest resolution first, always. Then:
+    #
+    #  * "max" wants the best SOURCE for uploading again, so it takes the
+    #    fattest video stream - VP9 at 13.4 Mbps carries more into a re-encode
+    #    than AV1 at 9.0 - and AAC audio, because Opus inside an MP4 is unusual
+    #    and some sites refuse it, while the two bitrates are equal in practice.
+    #  * otherwise h264 wins ties, because it plays in Windows Media Player,
+    #    WhatsApp and every phone with no codec to install.
+    #
+    # ⚠ A codec CHAIN does not work: "res,vcodec:h264:av01:vp9" was measured and
+    # the chain is ignored. Only one codec preference is honoured.
+    if quality == "max":
+        order = "res,vbr,abr"
+    else:
+        order = "res,vcodec:h264,acodec:aac" if safe else "res"
+
+    return ["-f", "/".join(branches), "-S", order,
             "--merge-output-format", "mp4"]
 
 
@@ -1906,7 +1932,11 @@ def extra_args(settings: dict, quality: str, trimmed: bool = False) -> list:
     # The archive remembers video ids, not files. A clip of a video you have
     # already saved in full is a different file the user is asking for on
     # purpose, so trimming ignores the archive rather than silently refusing.
-    if settings.get("skip_existing") and not trimmed:
+    # ⚠ The archive remembers video ids, not files - so a video already saved
+    # at 1080p would be skipped when asked for again at the highest quality,
+    # and the user would get nothing with no reason shown. Same carve-out, same
+    # reason, as trimming above: it is a different file, asked for on purpose.
+    if settings.get("skip_existing") and not trimmed and quality != "max":
         args += ["--download-archive", str(archive_file())]
 
     return args
@@ -2408,7 +2438,7 @@ def _available_qualities(info: dict, settings: dict = None) -> dict:
             # Skipped otherwise: offering it would promise a file we would not
             # deliver, and "download this video" means the video.
 
-    return {"rungs": ["best"] + rungs + ["mp3"], "upscaled": notes}
+    return {"rungs": ["best", "max"] + rungs + ["mp3"], "upscaled": notes}
 
 
 # What the engine says when Instagram is refusing the post rather than the
@@ -3535,7 +3565,7 @@ class Job:
                  "cancelled", "uploader", "batch", "log", "attempt",
                  "start", "end", "exact", "stage", "paused", "kind", "conv",
                  "opts", "origin", "streams", "sent_cookies", "tried_signed_in",
-                 "account", "retry_at", "auto_retries")
+                 "account", "retry_at", "auto_retries", "height")
 
     def __init__(self, url, title="", thumbnail="", quality="best", uploader="",
                  batch=False, start="", end="", exact=False, opts=None,
@@ -3587,6 +3617,10 @@ class Job:
         # Which of the site's accounts signed the last attempt. 0 means none -
         # either the site has no sign-in here or this attempt went signed out.
         self.account = 0
+        # The height the file actually came out at, once it exists. 0 until
+        # then, because before it lands the only honest answer is what was
+        # asked for.
+        self.height = 0
         # When to try this one again on its own, and how many of those goes
         # have been used. Only ever set for a refusal that is known to pass.
         self.retry_at = 0.0
@@ -3605,6 +3639,22 @@ class Job:
         self.log = ""
         self.attempt = 0
 
+    def _quality_label(self) -> str:
+        """
+        What to show beside a finished row.
+
+        "Best available" is the app's word, not an answer: it does not say
+        whether 4K or 720p came back, and that is the one thing somebody
+        looking at a finished download wants to know. So once the file exists
+        it is replaced by the height it really came out at.
+
+        Only for "best". "Highest" was chosen deliberately and already says
+        what it means, and every numbered rung is its own answer already.
+        """
+        if self.quality == "best" and self.height:
+            return f"{self.height}p"
+        return QUALITY_LABELS.get(self.quality, self.quality)
+
     def to_dict(self) -> dict:
         return {
             "id": self.id,
@@ -3613,7 +3663,7 @@ class Job:
             "thumbnail": self.thumbnail,
             "uploader": self.uploader,
             "quality": self.quality,
-            "qualityLabel": QUALITY_LABELS.get(self.quality, self.quality),
+            "qualityLabel": self._quality_label(),
             "status": self.status,
             "percent": round(self.percent, 1),
             "speed": self.speed,
@@ -4042,13 +4092,23 @@ class DownloadManager:
         if lang:
             dub = f" [{_safe_name(lang)[:12]}]"
 
+        # The app's own name, at the end.
+        #
+        # At the END and not the front on purpose: a folder of downloads still
+        # sorts by title, which is how people actually look for them. It rides
+        # along when a file is shared or uploaded again, which is the point.
+        #
+        # ⚠️ A name typed by hand above never gets this - somebody who named
+        # the file meant the name they typed.
+        mark = " Riplox"
+
         if job.quality == "mp3":
             # Audio lands as .mp3, so it can never collide with a video file.
-            return str(root / f"%(title).110B [%(id)s]{dub}{clip}.%(ext)s")
+            return str(root / f"%(title).110B [%(id)s]{dub}{clip}{mark}.%(ext)s")
 
         # Height belongs in the name: without it, grabbing the same video at
         # 720p and then at 1080p silently overwrote the first file.
-        return str(root / f"%(title).100B [%(id)s] %(height)sp{dub}{clip}.%(ext)s")
+        return str(root / f"%(title).100B [%(id)s] %(height)sp{dub}{clip}{mark}.%(ext)s")
 
     def _run_job(self, job: Job) -> None:
         """
@@ -4629,7 +4689,7 @@ class DownloadManager:
              "%(progress.speed)s|%(progress.eta)s"),
             "--progress-template",
             "postprocess:" + POST_TAG + "%(progress.status)s|%(progress.postprocessor)s",
-            "--print", "after_move:" + PATH_TAG + "%(filepath)s",
+            "--print", "after_move:" + PATH_TAG + "%(filepath)s|%(height)s",
             # Costs nothing - the engine has already read the page by then -
             # and it is the only way a phone-sent download ever gets a picture.
             "--print", "before_dl:" + THUMB_TAG + "%(thumbnail)s|%(title)s",
@@ -4721,7 +4781,16 @@ class DownloadManager:
             elif line.startswith(POST_TAG):
                 job.status = "converting"
             elif line.startswith(PATH_TAG):
-                job.filepath = line[len(PATH_TAG):].strip()
+                rest = line[len(PATH_TAG):].strip()
+                # Split from the RIGHT: a path cannot contain "|" on Windows,
+                # but reading it that way costs nothing and cannot be wrong.
+                path, sep, tail = rest.rpartition("|")
+                if sep and tail.strip().isdigit():
+                    job.filepath = path.strip()
+                    job.height = int(tail.strip())
+                else:
+                    # An older engine, or a format with no height at all.
+                    job.filepath = rest
             elif line.startswith(THUMB_TAG):
                 # Only fills gaps. A link analysed on this PC already carries
                 # the picture and the title the user saw before pressing

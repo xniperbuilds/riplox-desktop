@@ -707,6 +707,23 @@
     document.querySelectorAll("#qualityChips .chip").forEach(function (c) {
       c.classList.toggle("is-on", c === chip);
     });
+
+    /* The re-upload rung says what it is before it is used. It is not "better"
+     * for watching - it is a bigger file chosen to survive being uploaded
+     * again, and it is honest about usually being the same file, because a
+     * warning that overstates its case is one people learn to click past. */
+    var note = $("qualityNote");
+    if (note) {
+      note.hidden = quality !== "max";
+      if (quality === "max") {
+        note.textContent = "Biggest file, chosen to survive being uploaded "
+          + "again rather than to play everywhere - it may need a codec your "
+          + "player does not have. Most of the time it is the same file as "
+          + "Best available, and it ignores “Skip files I already have” "
+          + "so a copy you saved at a lower quality is not mistaken for this one.";
+      }
+    }
+
     syncAlsoAudio();
     refreshCommand();
   });
