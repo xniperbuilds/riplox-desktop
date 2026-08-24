@@ -15,6 +15,7 @@ import os
 import platform
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import threading
@@ -2845,6 +2846,67 @@ AUTO_RETRY_AFTER = (5 * 60, 15 * 60)
 _CLEARS_ON_ITS_OWN = ("check page instead of the post", "often clears on its own")
 
 
+# Is there a network at all?
+#
+# Riplox used to walk its whole ladder of retry clients in about twenty seconds
+# - 2s, 6s, 10s between attempts - which is shorter than a Wi-Fi-to-mobile
+# switch takes. So every attempt was spent while there was no network, the job
+# landed in Failed, and nothing ever picked it up again: AUTO_RETRY_AFTER only
+# fires for errors that clears_on_its_own() recognises, and that list is two
+# Instagram phrases.
+#
+# ⚠️ This answers "is there a network", NOT "is this site up". A site that is
+# refusing must still fail normally - waiting for ever is worse than failing.
+_NET_HOSTS = (("1.1.1.1", 443), ("8.8.8.8", 53))
+_NET_CACHE_FOR = 4.0                 # _next_job runs constantly; do not probe per call
+_net_last = [0.0, True]              # (when, answer)
+_net_lock = threading.Lock()
+
+
+def network_ok(force: bool = False) -> bool:
+    """Can this machine reach anything? Cached, because it is asked often."""
+    now = time.monotonic()
+    with _net_lock:
+        if not force and now - _net_last[0] < _NET_CACHE_FOR:
+            return _net_last[1]
+
+    answer = False
+    for host, port in _NET_HOSTS:
+        probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        probe.settimeout(2.0)
+        try:
+            probe.connect((host, port))
+            answer = True
+        except OSError:
+            continue
+        finally:
+            probe.close()
+        break
+
+    with _net_lock:
+        _net_last[0], _net_last[1] = time.monotonic(), answer
+    return answer
+
+
+def here_now() -> str:
+    """
+    This machine's own address, as a fingerprint of which network it is on.
+
+    A network CHANGE is the case the probe above cannot see: the internet is
+    fine, it is simply a different internet, and the media URL in hand was
+    issued to the old address. YouTube answers those with 403, which is correct
+    of it and useless to us.
+    """
+    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        probe.connect(("1.1.1.1", 1))
+        return probe.getsockname()[0]
+    except OSError:
+        return ""
+    finally:
+        probe.close()
+
+
 def clears_on_its_own(text: str) -> bool:
     """Is this the kind of refusal that passes if you simply wait?"""
     low = (text or "").lower()
@@ -3565,7 +3627,8 @@ class Job:
                  "cancelled", "uploader", "batch", "log", "attempt",
                  "start", "end", "exact", "stage", "paused", "kind", "conv",
                  "opts", "origin", "streams", "sent_cookies", "tried_signed_in",
-                 "account", "retry_at", "auto_retries", "height")
+                 "account", "retry_at", "auto_retries", "height", "started_on",
+                 "net_waits")
 
     def __init__(self, url, title="", thumbnail="", quality="best", uploader="",
                  batch=False, start="", end="", exact=False, opts=None,
@@ -3621,6 +3684,12 @@ class Job:
         # then, because before it lands the only honest answer is what was
         # asked for.
         self.height = 0
+        # Which network this attempt began on, and how many times it has been
+        # put back because the network went away. The count is what stops a
+        # laptop shut in a bag for a week from coming back to a job that has
+        # re-run four hundred times.
+        self.started_on = ""
+        self.net_waits = 0
         # When to try this one again on its own, and how many of those goes
         # have been used. Only ever set for a refusal that is known to pass.
         self.retry_at = 0.0
@@ -3939,6 +4008,12 @@ class DownloadManager:
         if not schedule_allows(settings):
             return None
 
+        # Nothing goes out while there is no network. Starting a download now
+        # would only spend its retries on an outage and land it in Failed,
+        # which is exactly the behaviour this exists to remove.
+        if not network_ok():
+            return None
+
         want = max(1, min(5, int(settings.get("max_parallel", 2))))
         with self._lock:
             # Anything whose own wait is up goes back in the queue. Here
@@ -4162,14 +4237,69 @@ class DownloadManager:
         elif not job.cancelled:
             note_health(job.url, HEALTH_DOWN, job.error)
 
+    # Enough for a network that comes and goes; short of a machine that has
+    # been asleep for a week and would otherwise re-run this for ever.
+    _NET_WAIT_CAP = 40
+
+    def _network_went(self, job: Job) -> bool:
+        """
+        Did this attempt fail because the network left, or changed?
+
+        Two different things, and neither is the download's fault:
+
+          * the network is GONE - the probe says so outright.
+
+          * the network CHANGED. The probe cannot see this: the internet is
+            fine, it is simply a different internet, and the media URL in hand
+            was issued to the old address. YouTube answers 403, which is
+            correct of it and useless here. A fresh run gets fresh URLs.
+
+        Returns True when the job has been put back on the queue rather than
+        failed, so the caller stops spending its ladder of retries.
+        """
+        if job.cancelled:
+            return False
+
+        gone = not network_ok(force=True)
+        moved = bool(job.started_on) and here_now() not in ("", job.started_on)
+        if not (gone or moved):
+            return False
+
+        job.net_waits += 1
+        if job.net_waits > self._NET_WAIT_CAP:
+            # Said plainly rather than left waiting for ever: at some point
+            # "the network never came back" is the honest answer.
+            job.status = "error"
+            job.error = ("The network kept dropping, so Riplox stopped trying. "
+                         "Press Retry when the connection is steady.")
+            return True
+
+        job.status = "queued"
+        job.error = ""
+        job.percent = 0.0
+        job.speed = job.eta = ""
+        job.attempt = 0
+        job.started_on = ""
+        self._save()
+        return True
+
     def _run_engine(self, job: Job, settings: dict) -> bool:
         """yt-dlp's attempts. True when the file is on disk."""
         plans = _RETRY_CLIENTS if _is_youtube(job.url) else _PLAIN_RETRIES
+        job.started_on = here_now()
 
         for index, client in enumerate(plans):
             job.attempt = index + 1
             if self._attempt(job, settings, client) or job.cancelled:
                 return job.status == "done"
+
+            # ⚠ Asked BEFORE another rung is spent. The whole ladder used to
+            # run inside about twenty seconds - shorter than a Wi-Fi-to-mobile
+            # switch takes - so every attempt was burned while there was no
+            # network to use, and the job landed in Failed over a fault that
+            # had already fixed itself.
+            if self._network_went(job):
+                return False
 
             last = index + 1 >= len(plans)
             if last or not _is_transient(job.log):

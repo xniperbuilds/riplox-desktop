@@ -1675,8 +1675,14 @@
       renderBulkButtons(res.jobs);
 
       if (!analyzing) {
-        $("engineStatus").className = "status" + (active ? " busy" : "");
-        $("engineLabel").textContent = active ? active + " active" : "ready";
+        // A stopped queue with no explanation reads as a broken app. This is
+        // the commonest reason for it and the one the user can act on.
+        var offline = res.network === false;
+        $("engineStatus").className = "status"
+          + (offline ? " warn" : (active ? " busy" : ""));
+        $("engineLabel").textContent = offline
+          ? "waiting for the network"
+          : (active ? active + " active" : "ready");
       }
 
       clearTimeout(pollTimer);

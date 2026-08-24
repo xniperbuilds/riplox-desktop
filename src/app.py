@@ -377,6 +377,10 @@ def api_jobs():
         # rather than left silent: a queue that is not moving looks broken,
         # and this is the one case where not moving is the correct behaviour.
         "cooling": engine.cooling_sites(),
+        # Same reasoning as cooling above, and the more common case: a queue
+        # that has stopped because there is no network looks broken unless it
+        # says so. Cached inside engine, so polling this costs nothing.
+        "network": engine.network_ok(),
         "hasFfmpeg": engine.has_ffmpeg(),
         # Decides whether a failed job is offered a "Fix this" button.
         "hasPotoken": potoken.installed(),
