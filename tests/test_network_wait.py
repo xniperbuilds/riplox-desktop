@@ -175,6 +175,31 @@ finally:
     engine.network_ok, engine.here_now = REAL_NET, REAL_HERE
     shutil.rmtree(SANDBOX, ignore_errors=True)
 
+print("")
+print("-- a media URL that went stale mid-download ------------------------")
+# Reported on an 8K video: "max" chose 4320p AV1 at 50 Mbps - three and a half
+# gigabytes - and the download outlived the URL YouTube had issued for it.
+# Pressing Retry resumed it from the .part file, so the failure was never real:
+# it needed TIME rather than another client, and the twenty-second ladder gives
+# it neither. AUTO_RETRY_AFTER (5 minutes, then 15) is the right tool and was
+# not being reached.
+for text, want, why in [
+    ("ERROR: unable to download video data: HTTP Error 403: Forbidden",
+     True, "the URL went stale - a later go resumes it"),
+    ("unable to download video data: HTTP Error 404",
+     True, "same thing, whatever the code"),
+    ("ERROR: Private video. Sign in if you have been granted access",
+     False, "private stays private, however long you wait"),
+    ("ERROR: Video unavailable",
+     False, "gone is gone"),
+    ("HTTP Error 403: Forbidden",
+     False, "a bare 403 is a site refusing - _AUTH_REFUSED owns that"),
+    ("ERROR: Sign in to confirm you are not a bot",
+     False, "that has its own handling"),
+]:
+    got = engine.clears_on_its_own(text)
+    check("%-5s  %s" % (got, why), got is want, text[:56])
+
 print("\n" + "=" * 68)
 print("  " + str(len(PASS)) + " passed, " + str(len(FAIL)) + " failed")
 for name in FAIL:

@@ -2843,7 +2843,21 @@ def looks_rate_limited(text: str) -> bool:
 # quietly re-asks for ever is how a machine ends up walled properly.
 AUTO_RETRY_AFTER = (5 * 60, 15 * 60)
 
-_CLEARS_ON_ITS_OWN = ("check page instead of the post", "often clears on its own")
+_CLEARS_ON_ITS_OWN = (
+    "check page instead of the post", "often clears on its own",
+    # ⚠️ The media URL expiring part-way through, which is what a big file
+    # invites: YouTube issues those URLs with a lifetime, and an 8K download of
+    # three and a half gigabytes can outlive one. yt-dlp says exactly this, and
+    # only after extraction has already succeeded - so the video IS reachable
+    # and the address simply went stale. A later attempt resumes from the .part
+    # file rather than starting over.
+    #
+    # Deliberately this whole phrase and NOT a bare "403": _AUTH_REFUSED
+    # already treats "http error 403" as a site refusing the request, which is
+    # a different thing with a different recovery, and a video that is private
+    # or blocked fails during extraction with a different message entirely.
+    "unable to download video data",
+)
 
 
 # Is there a network at all?
