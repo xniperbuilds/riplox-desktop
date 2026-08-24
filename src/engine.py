@@ -546,6 +546,7 @@ DEFAULT_SETTINGS = {
     # reusing them silently picks something nobody asked for.
     "last_opts": {},
     "hotkey": True,                  # Ctrl+Shift+D from anywhere
+    "hotkey_combo": "",              # empty means "pick one for me"
     "write_thumbnail": False,
     "theme": "auto",                 # auto | light | dark
 

@@ -35,6 +35,17 @@ MAX_ITEMS = 40
 
 TRAILER = re.compile(r"^\s*Whats-new:\s*(.+?)\s*$", re.I | re.M)
 
+# Lines that describe the machinery rather than the app. They were worth
+# writing - they say what the release actually did - but somebody opening
+# What's new wants to know what changed for THEM, and "the relay keeps a log of
+# its own health" is not that. Matched on a fragment, so the wording can be
+# tidied later without this list quietly going stale.
+INTERNAL = (
+    "relay no longer lets other websites",
+    "relay now paces each device",
+    "What's new writes itself",
+)
+
 
 def git(*args: str) -> str:
     """Run git in the repo. Empty string if it fails for any reason."""
@@ -62,12 +73,20 @@ def collect() -> list:
     if not raw:
         return []
 
-    items = []
+    items, hidden = [], False
     for message in raw.split("\x00"):
         for found in TRAILER.finditer(message):
             line = " ".join(found.group(1).split())
-            if line and line.lower() != "skip" and line not in items:
-                items.append(line)
+            if not line or line.lower() == "skip" or line in items:
+                continue
+            if any(mark in line for mark in INTERNAL):
+                hidden = True        # real work, but nothing a user can act on
+                continue
+            items.append(line)
+
+    # The plumbing still gets one honest line rather than being pretended away.
+    if hidden:
+        items.append("Plus the usual fixes and small improvements underneath.")
     return items[:MAX_ITEMS]
 
 

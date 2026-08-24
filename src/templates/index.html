@@ -922,6 +922,20 @@
         <button class="toggle {% if settings.hotkey %}on{% endif %}"
                 id="setHotkey" role="switch"><i></i></button>
       </div>
+
+      <!-- Riplox tries four combinations and takes whichever Windows grants.
+           When all four are spoken for there was, until now, no shortcut and
+           no way to ask for a different one. -->
+      <div class="field sub-field">
+        <div class="field-text">
+          <label>Choose your own keys</label>
+          <span>Press <b>Pick keys</b>, then hold the combination you want -
+                two keys or three, with Ctrl, Alt or Shift. Leave it as
+                <b>automatic</b> and Riplox keeps choosing for you.</span>
+          <span class="hint" id="comboNote"></span>
+        </div>
+        <button class="ghost small" id="pickCombo">Pick keys</button>
+      </div>
     </div>
 
     <!-- ------------------------------------------- Saved with the video -->

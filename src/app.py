@@ -789,6 +789,20 @@ def api_set_settings():
         if trouble:
             return jsonify({"ok": False, "error": trouble}), 400
 
+    # Same reasoning as the proxy above: a shortcut that is accepted here and
+    # refused by Windows at the next start is worse than one refused now.
+    if patch.get("hotkey_combo"):
+        # parse_combo returns the tidy label on success and the reason on
+        # refusal, in the same slot.
+        mods, vk, said = parse_combo(patch["hotkey_combo"])
+        if mods is None:
+            return jsonify({"ok": False, "error": said}), 400
+        if not combo_free(mods, vk):
+            return jsonify({"ok": False,
+                            "error": "Windows says " + said + " already belongs "
+                                     "to another program. Try another one."}), 400
+        patch["hotkey_combo"] = said         # stored in its tidy form
+
     saved = engine.save_settings(patch)
     # Turning Sharing on or off has to take effect now, not at the next start.
     if "sharing" in patch or "share_lan_only" in patch or "share_relay" in patch:
@@ -1545,6 +1559,7 @@ def api_clipboard():
         "pending": watcher.pending,
         "autoCount": watcher.auto_count,
         "hotkey": watcher.hotkey_state,
+        "hotkeyWanted": watcher.hotkey_wanted,
         "hotkeyLabel": watcher.hotkey_label,
         # The window only hides on close when there is a tray icon to get it
         # back from, so the UI needs to know whether one exists.
@@ -1642,6 +1657,82 @@ HOTKEY_CHOICES = [
     (MOD_CONTROL | MOD_ALT, 0x59, "Ctrl + Alt + Y"),
 ]
 
+# A second id, used only to ask Windows whether a combination is free and then
+# hand it straight back. It must not be HOTKEY_ID, or the question would take
+# the shortcut away from the loop that is using it.
+HOTKEY_TEST_ID = 2
+
+_VK_NAMES = {}
+for _i, _ch in enumerate("ABCDEFGHIJKLMNOPQRSTUVWXYZ"):
+    _VK_NAMES[_ch] = 0x41 + _i
+for _d in range(10):
+    _VK_NAMES[str(_d)] = 0x30 + _d
+for _n in range(1, 25):
+    _VK_NAMES["F%d" % _n] = 0x6F + _n          # VK_F1 is 0x70
+
+_MOD_NAMES = {"CTRL": MOD_CONTROL, "ALT": MOD_ALT, "SHIFT": MOD_SHIFT}
+
+
+def parse_combo(text):
+    """
+    "Ctrl+Shift+D" -> (mods, vk, label), or (None, None, why) if it is refused.
+
+    ⚠️ The letter here comes from the PHYSICAL key. The browser captures
+    event.code, not event.key, because RegisterHotKey wants a virtual-key code
+    and that follows the physical key - on a French or German layout the
+    character the same key produces is a different letter entirely, and a
+    shortcut registered from the character would fire on a key nobody pressed.
+    """
+    parts = [p.strip() for p in str(text or "").split("+") if p.strip()]
+    if not parts:
+        return None, None, "Press the keys you want to use."
+
+    mods, key = 0, None
+    for part in parts:
+        found = _MOD_NAMES.get(part.upper())
+        if found:
+            mods |= found
+        elif key is not None:
+            return None, None, "Use one key with Ctrl, Alt or Shift - not two."
+        else:
+            key = part.upper()
+
+    if not mods:
+        return None, None, ("Add Ctrl, Alt or Shift. Without one, that key "
+                            "would stop working in every other program.")
+    if key is None:
+        return None, None, "Add a letter, a number or an F key."
+    vk = _VK_NAMES.get(key)
+    if vk is None:
+        return None, None, "Riplox can use A-Z, 0-9 and F1-F24."
+
+    order = [name for name in ("Ctrl", "Alt", "Shift")
+             if mods & _MOD_NAMES[name.upper()]]
+    return mods, vk, " + ".join(order + [key])
+
+
+def combo_free(mods, vk) -> bool:
+    """
+    Will Windows grant this combination? Asked by taking it and handing it
+    straight back: nothing listens for it here, we only want the answer.
+
+    Immediate on purpose. The shortcut itself is only applied at the next
+    start - the same as the switch beside it - so without this a user would
+    pick something another program already owns, restart, and find nothing
+    happening with no idea why.
+    """
+    if os.name != "nt":
+        return True
+    try:
+        user32 = ctypes.windll.user32
+        if not user32.RegisterHotKey(None, HOTKEY_TEST_ID,
+                                     mods | MOD_NOREPEAT, vk):
+            return False
+        user32.UnregisterHotKey(None, HOTKEY_TEST_ID)
+        return True
+    except Exception:
+        return True            # cannot tell; never block on a guess
+
 
 class ClipboardWatcher:
     """
@@ -1656,6 +1747,7 @@ class ClipboardWatcher:
         self.auto_count = 0         # bumped whenever we queue something
         self.hotkey_state = "off"   # off | on | taken
         self.hotkey_label = ""      # the combination we actually got
+        self.hotkey_wanted = ""     # the one that was asked for, if it lost
         self._last_seen = ""
         self._handled = set()
 
@@ -1724,10 +1816,23 @@ class ClipboardWatcher:
                                        wintypes.HWND, wintypes.UINT, wintypes.UINT]
         user32.GetMessageW.restype = ctypes.c_int
 
-        for mods, key, label in HOTKEY_CHOICES:
+        # What the user picked goes first; the built-in list stays behind it
+        # so that a combination somebody else grabbed still leaves a working
+        # shortcut instead of none at all.
+        choices, wanted = list(HOTKEY_CHOICES), ""
+        chosen = engine.load_settings().get("hotkey_combo", "")
+        if chosen:
+            mods, vk, label = parse_combo(chosen)
+            if mods is not None:
+                choices, wanted = [(mods, vk, label)] + choices, label
+
+        for mods, key, label in choices:
             if user32.RegisterHotKey(None, HOTKEY_ID, mods | MOD_NOREPEAT, key):
-                self.hotkey_state = "on"
                 self.hotkey_label = label
+                # Falling back silently would be the worst outcome: the user
+                # would press the keys they chose and nothing would happen.
+                self.hotkey_state = "fallback" if (wanted and label != wanted) else "on"
+                self.hotkey_wanted = wanted if self.hotkey_state == "fallback" else ""
                 break
         else:
             # Every candidate is spoken for by some other program.

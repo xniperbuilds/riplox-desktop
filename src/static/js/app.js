@@ -2955,6 +2955,80 @@
   bindToggle("setSubfolder", "subfolder_per_site");
   bindToggle("setAutoDownload", "auto_download");
   bindToggle("setHotkey", "hotkey");
+
+  /* Choosing the shortcut.
+   *
+   * ⚠️ The key is read from event.code, never event.key. Windows registers a
+   * VIRTUAL-KEY code, which follows the physical key; event.key is the letter
+   * the layout produces. They agree on a US keyboard and disagree on a French
+   * or German one, so reading the letter would register a key nobody pressed -
+   * and it would test perfectly here and fail abroad.
+   */
+  var comboKeys = null;
+
+  function codeToKey(code) {
+    if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+    if (/^Digit[0-9]$/.test(code)) return code.slice(5);
+    if (/^F([1-9]|1[0-9]|2[0-4])$/.test(code)) return code;
+    return "";
+  }
+
+  function showCombo(text, kind) {
+    var note = $("comboNote");
+    if (!note) return;
+    note.className = "hint" + (kind ? " " + kind : "");
+    note.textContent = text;
+  }
+
+  function stopPicking() {
+    if (!comboKeys) return;
+    document.removeEventListener("keydown", comboKeys, true);
+    comboKeys = null;
+    var btn = $("pickCombo");
+    if (btn) btn.textContent = "Pick keys";
+  }
+
+  var pickBtn = $("pickCombo");
+  if (pickBtn) {
+    pickBtn.addEventListener("click", function () {
+      if (comboKeys) { stopPicking(); showCombo("", ""); return; }
+      pickBtn.textContent = "Press keys…";
+      showCombo("Hold Ctrl, Alt or Shift and press a letter, a number or an F key. Esc to stop.", "");
+
+      comboKeys = function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.key === "Escape") { stopPicking(); showCombo("", ""); return; }
+
+        var key = codeToKey(e.code);
+        if (!key) return;                       // a modifier on its own: wait
+
+        var parts = [];
+        if (e.ctrlKey) parts.push("Ctrl");
+        if (e.altKey) parts.push("Alt");
+        if (e.shiftKey) parts.push("Shift");
+        if (!parts.length) {
+          showCombo("Hold Ctrl, Alt or Shift as well - on its own that key "
+                    + "would stop working everywhere else.", "warn");
+          return;
+        }
+        parts.push(key);
+        stopPicking();
+
+        var combo = parts.join("+");
+        api("/api/settings", { hotkey_combo: combo }).then(function (res) {
+          if (!res || !res.ok) {
+            showCombo((res && res.error) || "Could not use that one.", "warn");
+            return;
+          }
+          var saved = (res.settings && res.settings.hotkey_combo) || combo;
+          showCombo(saved + " — restart Riplox for this to take effect.", "");
+          toast("Restart Riplox for this to take effect");
+        });
+      };
+      document.addEventListener("keydown", comboKeys, true);
+    });
+  }
   bindToggle("setAutoPaste", "auto_paste");
   bindToggle("setPace", "pace_sites");
   // On the Failed page rather than in Settings - it is about that page, and
@@ -4247,6 +4321,14 @@
           if (label) label.textContent = "unavailable";
         } else if (label && res.hotkeyLabel) {
           label.textContent = res.hotkeyLabel;
+          // Asked for one, given another. Saying nothing would leave somebody
+          // pressing the keys they chose, wondering why nothing happens.
+          if (res.hotkey === "fallback" && res.hotkeyWanted && note) {
+            note.innerHTML = '<b class="warn">' + res.hotkeyWanted
+              + ' already belongs to another program.</b> Riplox is using '
+              + res.hotkeyLabel + ' instead. Pick different keys below, or '
+              + 'close whatever owns those.';
+          }
         }
 
         /* Settings names this shortcut too, and it is not always Ctrl+Shift+D:
