@@ -1578,6 +1578,11 @@
       if (!job || !job.filepath) { toast("File path unknown.", "bad"); return; }
       api("/api/open", { path: job.filepath, reveal: act === "reveal" }).then(function (r) {
         if (!r.ok) toast(r.error || "Could not open it.", "bad");
+        /* The server opens the folder when the file is not where it was
+           recorded, and used to say so only to itself: ok was true, so this
+           branch said nothing and a folder appeared instead of the video with
+           no explanation at all. */
+        else if (r.note) toast(r.note, "warn");
       });
       return;
     }
@@ -1850,6 +1855,9 @@
 
     api("/api/open", { path: path, reveal: !e.target.closest("[data-open]") }).then(function (r) {
       if (!r.ok) toast(r.error || "Could not open it.", "bad");
+      /* Same as the queue: a folder opening in place of the video is worth a
+         sentence, and this is the page where it actually happened. */
+      else if (r.note) toast(r.note, "warn");
     });
   });
 

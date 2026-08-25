@@ -958,7 +958,19 @@ def _base_args(settings: dict, cookie_path=None, batch: bool = False) -> list:
     if exe is None:
         raise EngineMissing("yt-dlp binary not found")
 
-    args = [str(exe), "--no-warnings", "--ignore-config", "--no-colors"]
+    # ⚠️ --encoding utf-8 is not a nicety. Without it yt-dlp writes its output
+    # in the console codepage - cp1252 here - while we read the pipe as utf-8.
+    # Every title with a curly quote, an accent or an emoji came back mangled,
+    # and the "Destination:" line is where Riplox learns the path it saved. So
+    # the LIBRARY recorded a name that did not exist: the file on disk had
+    # "Wahdi Ba’dak" and history had "Wahdi Ba<?>dak", and Play quietly opened
+    # the folder instead of the video. 56 of 244 entries on one real machine.
+    #
+    # Measured, because the obvious fix is the wrong one: PYTHONIOENCODING in
+    # the child's environment does NOTHING here - yt-dlp is frozen and sets up
+    # its own stdout. Only this flag changes the bytes (0x91 -> e2 80 98).
+    args = [str(exe), "--no-warnings", "--ignore-config", "--no-colors",
+            "--encoding", "utf-8"]
 
     ff = ffmpeg_path()
     if ff is not None:
@@ -2764,6 +2776,15 @@ THUMB_TAG = "@@RPXTHUMB@@"
 # different player client, which is what usually clears a bot check.
 _RETRY_CLIENTS = ["", "tv_simply,web_safari", "mweb,android_vr"]
 
+# How long an engine may say NOTHING before Riplox stops waiting for it.
+#
+# Deliberately generous. The thing this catches sat there for five hours, so
+# fifteen minutes loses nothing real, and the cost of being wrong is high: a
+# download killed at the wrong moment throws away what it had. Silence is a
+# safe signal because a slow download is not a quiet one - yt-dlp prints a
+# progress line every second at any speed, and the merge talks on stderr.
+_SILENCE_LIMIT = 900.0
+
 # Other sites have no player client to switch, but the same request often
 # works seconds later - a TikTok link that failed with "unable to extract
 # universal data for rehydration" succeeded on the very next attempt with the
@@ -3717,7 +3738,10 @@ class Job:
                  "start", "end", "exact", "stage", "paused", "kind", "conv",
                  "opts", "origin", "streams", "sent_cookies", "tried_signed_in",
                  "account", "retry_at", "auto_retries", "height", "started_on",
-                 "net_waits")
+                 "net_waits",
+                 # When the engine last said ANYTHING, and whether it went
+                 # quiet for so long that we gave up on it. See _SILENCE_LIMIT.
+                 "heard", "went_quiet")
 
     def __init__(self, url, title="", thumbnail="", quality="best", uploader="",
                  batch=False, start="", end="", exact=False, opts=None,
@@ -3753,6 +3777,10 @@ class Job:
         # Stopping to carry on later is not the same as giving up, and the
         # half-written file has to survive the difference.
         self.paused = False
+        # The last time the engine said anything at all, and whether it stopped
+        # saying anything for long enough that Riplox gave up waiting.
+        self.heard = 0.0
+        self.went_quiet = False
         # Whether the last attempt actually carried a saved session. Recorded
         # rather than worked out again, because "would cookies be sent for
         # this URL" is a question with several answers and only one of them
@@ -4992,6 +5020,18 @@ class DownloadManager:
             creationflags=_NO_WINDOW,
         )
         job.proc = proc
+        # ⚠️ THIS CALL IS THE WHOLE POINT OF tie_to_app, AND IT WAS MISSING.
+        #
+        # The job object was written, tested and then never wired up, so every
+        # yt-dlp Riplox started outlived it. Found on Nazim's own machine: three
+        # yt-dlp processes from dead Riploxes, started 4:02, 4:37 and 5:35 pm,
+        # holding 3.7, 2.6 and 2.1 HOURS of CPU between them - about 87% of a
+        # core each, for ever, on links that were never going to finish. Two of
+        # them were on the same URL the running copy was retrying.
+        #
+        # Nothing surfaced it: Riplox had forgotten them, Task Manager showed
+        # "yt-dlp" and nothing else, and the machine just felt slow.
+        tie_to_app(proc)
 
         # Read stderr as it arrives rather than in one lump at the end. A
         # trimmed download is handed to ffmpeg, which reports its progress
@@ -5001,6 +5041,7 @@ class DownloadManager:
 
         def drain_stderr():
             for raw in proc.stderr:
+                job.heard = time.monotonic()
                 line = raw.rstrip("\r\n")
                 stderr_lines.append(line)
                 del stderr_lines[:-400]
@@ -5010,7 +5051,39 @@ class DownloadManager:
         err_thread = threading.Thread(target=drain_stderr, daemon=True)
         err_thread.start()
 
+        # The watchdog. Nothing used to notice an engine that simply stopped.
+        #
+        # Found on a real machine: one TikTok video that yt-dlp cannot extract
+        # left FOUR yt-dlp processes spinning at a full core each - one of them
+        # for five hours - while the row sat on "downloading" for ever. Other
+        # videos downloaded fine, so nothing looked broken; the machine was just
+        # slow and that download never finished.
+        #
+        # Silence is the signal, not slowness. With --newline --progress a
+        # download prints constantly however slow the connection is, and the
+        # merge talks on stderr, which is why BOTH pipes feed job.heard. A job
+        # that has said nothing on either for _SILENCE_LIMIT is not working.
+        job.heard = time.monotonic()
+        job.went_quiet = False
+
+        def watchdog():
+            while proc.poll() is None:
+                time.sleep(5)
+                # Paused and cancelled are the user's doing, not a fault, and a
+                # paused job is silent on purpose.
+                if job.cancelled or job.paused:
+                    job.heard = time.monotonic()
+                    continue
+                if time.monotonic() - job.heard < _SILENCE_LIMIT:
+                    continue
+                job.went_quiet = True
+                _kill_tree(proc)
+                return
+
+        threading.Thread(target=watchdog, daemon=True).start()
+
         for line in proc.stdout:
+            job.heard = time.monotonic()
             # Killing yt-dlp does not empty the pipe it already filled. There
             # can be ten seconds of buffered progress left, and every line of
             # it used to push the row back to "downloading" with a rising
@@ -5071,6 +5144,24 @@ class DownloadManager:
             return True          # nothing left to retry
 
         job.log = _diagnostic(args, stderr_lines, proc.returncode, job)
+
+        # The watchdog stopped it. Checked before anything reads the exit code,
+        # because a killed process looks like an ordinary failure and this one
+        # has a much more useful thing to say than whatever yt-dlp last wrote.
+        #
+        # It ends here rather than going round the retry ladder again: fifteen
+        # minutes of silence is not a hiccup, and three more attempts would be
+        # forty-five more minutes of the same nothing.
+        if job.went_quiet:
+            job.status = "error"
+            job.error = ("The download engine stopped responding - nothing at "
+                         "all for %d minutes - so Riplox stopped waiting for "
+                         "it. This usually means the site changed and the "
+                         "engine cannot read this video yet. Try Update engine "
+                         "in Settings, or this link again later."
+                         % int(_SILENCE_LIMIT / 60))
+            job.speed = job.eta = ""
+            return True          # not a retry - it already had its time
 
         # A size ceiling is not an error to yt-dlp: it prints one line, skips
         # the video and exits 0. Without this the row would read "done" over a

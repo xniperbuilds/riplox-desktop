@@ -1454,7 +1454,13 @@ def api_open():
         if not parent.exists() or not _inside_downloads(parent):
             return jsonify({"ok": False, "error": "That file is no longer there."}), 404
         os.startfile(str(parent))  # noqa: S606
-        return jsonify({"ok": True, "note": "File missing - opened its folder."})
+        # The note is the whole point of this branch. It used to be returned
+        # and never shown, so pressing Play opened a folder and said nothing -
+        # which reads as the button being broken rather than the file having
+        # moved.
+        return jsonify({"ok": True, "note": "That file is not where Riplox "
+                                            "left it, so its folder is open "
+                                            "instead."})
 
     if path.is_file() and path.suffix.lower() not in PLAYABLE:
         reveal = True  # never hand an unexpected file type to the shell
