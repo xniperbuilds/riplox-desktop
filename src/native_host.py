@@ -30,8 +30,51 @@ MAX_MESSAGE = 1024 * 1024          # a link, not a payload
 INBOX_CAP = 200
 
 
+# Where the app said to put things. Written beside this exe when a portable
+# copy connects a browser - see app._write_host_manifest.
+POINTER = "host-data-dir.txt"
+
+
+def _beside() -> Path:
+    """The folder this program runs from."""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
 def data_dir() -> Path:
-    """The same folder Riplox itself uses, worked out the same way."""
+    """
+    The same folder Riplox itself uses - which is NOT always LOCALAPPDATA.
+
+    It used to assume it was, and that was a silent bug: engine.data_dir()
+    learned about portable copies and this did not. A portable Riplox read its
+    own Data folder while the browser dropped links into LOCALAPPDATA, so the
+    extension said "sent" and nothing ever arrived.
+
+    This cannot simply call engine.data_dir(). RiploxHost.exe is built from
+    this one file, and importing the engine would drag the whole application
+    into a program whose entire job is to pass a link along. So the app hands
+    the answer over instead, with the two derivable cases behind it.
+    """
+    here = _beside()
+
+    # 1. What the app told us, if it is still true. A portable drive can come
+    #    back as a different letter, and a pointer at a folder that no longer
+    #    exists is exactly the silence this function exists to prevent.
+    try:
+        told = (here / POINTER).read_text(encoding="utf-8").strip()
+        if told and Path(told).is_dir():
+            return Path(told)
+    except OSError:
+        pass
+
+    # 2. A Data folder beside this exe - the portable ZIP, where RiploxHost.exe
+    #    sits next to Riplox.exe and shares its folder.
+    beside = here / "Data"
+    if beside.is_dir():
+        return beside
+
+    # 3. An ordinary install.
     base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
     d = Path(base) / APP_NAME
     d.mkdir(parents=True, exist_ok=True)

@@ -28,6 +28,7 @@ from flask import Flask, jsonify, render_template, request
 
 import cookies
 import engine
+import native_host
 import potoken
 import sharing
 import watch
@@ -1290,6 +1291,26 @@ def browser_connected() -> bool:
 def _write_host_manifest() -> Path:
     """Same shape setup writes, pointed at this copy's RiploxHost.exe."""
     where = native_host_file()
+
+    # ⚠️ Tell the host where this copy actually keeps things.
+    #
+    # RiploxHost.exe is started by the browser, not by us, so it inherits none
+    # of our environment and cannot see a PortableApps launcher's variable.
+    # Left to work it out alone it wrote to LOCALAPPDATA while a portable
+    # Riplox read its own Data folder: the extension said "sent" and the link
+    # went nowhere at all.
+    #
+    # Rewritten every time the button is pressed, which is also the answer to a
+    # drive letter that changed - press it again, exactly as the readme says.
+    try:
+        (where.parent / native_host.POINTER).write_text(
+            str(engine.data_dir()), encoding="utf-8")
+    except OSError:
+        # Not fatal by itself: the host still has "Data beside the exe" and
+        # LOCALAPPDATA behind this, so registering the browser is still worth
+        # doing.
+        pass
+
     where.write_text(json.dumps({
         "name": HOST_NAME,
         "description": "Riplox",
