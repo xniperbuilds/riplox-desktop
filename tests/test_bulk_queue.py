@@ -10,6 +10,7 @@ import os
 import shutil
 import sys
 import tempfile
+import threading
 from pathlib import Path
 
 SANDBOX = Path(tempfile.mkdtemp(prefix="riplox-bulk-"))
@@ -30,9 +31,40 @@ def check(name, ok, detail=""):
     print(("  PASS  " if ok else "  FAIL  ") + name + (" | " + detail if detail else ""))
 
 
+def bare_manager():
+    """
+    A DownloadManager with no worker threads at all.
+
+    ⚠️ This is the whole reason this file was flaky. DownloadManager() starts
+    real workers in __init__, and every job below is pushed straight into
+    _jobs as "queued" - exactly what a worker is hunting for. Whether the
+    assertion or the worker got there first depended on how busy the machine
+    was, so it passed alone and failed inside the full suite. A worker that won
+    would also have gone off and downloaded https://example.com/queued for real.
+
+    ⚠️ Setting _running = False afterwards does NOT fix it, and that was
+    measured rather than assumed: a worker already past the `while self._running`
+    check still takes one more job, and _wake.set() actively hurries it along.
+    Measured 12 of 12 either way. The only reliable answer is to never start
+    them - so build the object and fill in the four fields the bulk methods
+    touch (_lock, _jobs, _order, _wake) plus _running for anything that reads it.
+
+    pause_all / retry_all / resume_all need no worker: they are state changes
+    under that same lock.
+    """
+    man = engine.DownloadManager.__new__(engine.DownloadManager)
+    man._jobs = {}
+    man._order = []
+    man._lock = threading.Lock()
+    man._wake = threading.Event()
+    man._workers = []
+    man._running = False
+    return man
+
+
 def loaded():
     """One job in each state that matters."""
-    man = engine.DownloadManager()
+    man = bare_manager()
     states = ["queued", "downloading", "paused", "error", "cancelled", "done"]
     made = {}
     for state in states:
@@ -82,7 +114,7 @@ check("paused is queued again", made["paused"].status == "queued")
 check("a failed one is not resumed", made["error"].status == "error")
 
 print("\n-- pressing them on an empty queue is harmless ---------------------")
-empty = engine.DownloadManager()
+empty = bare_manager()           # same reason as loaded(), above
 check("pause all on nothing", empty.pause_all() == 0)
 check("retry all on nothing", empty.retry_all() == 0)
 check("resume all on nothing", empty.resume_all() == 0)
