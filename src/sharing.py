@@ -1100,17 +1100,31 @@ class _LanHandler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(raw)))
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        # ⚠️ NO Access-Control-Allow-Origin here, and no OPTIONS handler. It
+        # used to send "*", and that was the whole of a real hole.
+        #
+        # /lan-ping hands back the room id, and a room id on its own is enough
+        # to take a waiting message away from its owner - relay/worker.js says
+        # exactly that in its own comment, because GET /wait/<room> without
+        # ack=1 empties the flight list. So any page the user happened to have
+        # open could read the room from here and then quietly bin the link
+        # their phone had just sent. It could never read the relay's reply, but
+        # by then the message was already gone.
+        #
+        # Nothing legitimate ever wanted that header. The docstring at the top
+        # of this file records the measurement: a browser page cannot reach
+        # this listener at all, because the page is https and this is http. The
+        # only clients that matter are native, and CORS means nothing to them.
         self.end_headers()
         self.wfile.write(raw)
 
-    def do_OPTIONS(self) -> None:
-        self._json(200, {"ok": True})
-
     def do_GET(self) -> None:
-        # A phone confirming it has found the right PC before it sends. The
-        # room is not a secret on its own; the key is, and that is not here.
+        # A phone confirming it has found the right PC before it sends.
+        #
+        # The room still comes back, because the paired Android app compares it
+        # to decide whether it found the right machine, and removing it would
+        # break every phone already paired. What changed is that no web page
+        # can read this answer any more - see _json above.
         if self.path == "/lan-ping":
             self._json(200, {"ok": True, "room": load()["room"]})
         else:
