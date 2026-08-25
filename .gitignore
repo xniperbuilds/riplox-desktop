@@ -11,6 +11,20 @@ build/_work/
 build/riplox/
 *.spec.bak
 
+# The staged PortableApps.com package, ~232 MB of the app copied into their
+# folder layout. Unlike the portable ZIP's staging folder, this one is left on
+# disk ON PURPOSE: their Launcher is a GUI tool that has to be pointed at it to
+# produce RiploxPortable.exe. So it lives here between runs, and this line is
+# the only thing stopping a rebuilt copy of every shipped binary from being
+# committed. This repository has already had its history rewritten once to get
+# binaries back out of it.
+build/_paf/
+
+# The portable ZIP's staging folder. make_portable.py deletes it when it
+# finishes, so it is only ever on disk after an interrupted run - which is
+# exactly when it would be committed by accident.
+build/_portable/
+
 # The same, for the companion senders that live beside it.
 send-windows/dist/
 send-windows/dist_installer/

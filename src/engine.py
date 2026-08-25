@@ -167,6 +167,21 @@ def tie_to_app(proc) -> None:
 # installer.iss excludes Data\* as a second line of defence.
 _PORTABLE_MARK = "Data"
 
+# A PortableApps.com package is portable too, but it puts Data at the package
+# root rather than beside the exe - the app lives down in App\Riplox\, and the
+# PortableApps menu's own backup and sync only ever look at the root Data. Left
+# to the rule above, Riplox would make a SECOND Data folder three levels down
+# and every setting, every history entry and the phone pairing would sit
+# outside what that menu backs up. Nothing would fail; it would just quietly
+# not be there when the user restored.
+#
+# Their launcher does not hand any of this over by itself: %PAL:DataDir% is a
+# substitution that only exists inside launcher.ini. The name below is
+# therefore OURS, declared in the package's [Environment] section as
+# RIPLOX_PORTABLE_DATA=%PAL:DataDir% - which is also why nothing else on a
+# normal PC ever sets it.
+_PAF_DATA_VAR = "RIPLOX_PORTABLE_DATA"
+
 _root = None                  # decided once, on the first call
 _root_state = "off"           # off | on | read-only
 
@@ -204,6 +219,19 @@ def _decide_root():
     """
     home = _app_folder()
     if home is not None:
+        # A PortableApps.com launcher told us where its Data folder is. It
+        # wins, because that is the folder their menu backs up. Required to
+        # exist already - the format always ships one, so a path that is not
+        # there is a typo in launcher.ini, and inventing the folder would hide
+        # that behind a package which looks fine and syncs nothing. Falling
+        # through leaves Settings reading "off", which is the visible signal.
+        given = os.environ.get(_PAF_DATA_VAR, "").strip()
+        if given and Path(given).is_dir():
+            spot = Path(given)
+            if _writable(spot):
+                return spot, "on"
+            return _installed_root(), "read-only"
+
         beside = home / _PORTABLE_MARK
         if beside.is_dir():
             if _writable(beside):
