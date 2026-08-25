@@ -36,7 +36,17 @@ def version_of(path: Path, pattern: str) -> str:
 
 
 def wanted() -> list:
-    """(path, why) for everything a release carries, at today's versions."""
+    """
+    (path, published name, why) for everything a release carries.
+
+    ⚠️ The published name is not always the built name. The APK is built as
+    RiploxSend-v1.0.5.apk and uploaded as RiploxSend_Android_v1.0.5.apk,
+    because the release before it used the underscore form and a name that
+    changes between releases is a name nobody can link to. A checksums file
+    that lists the BUILT name describes a file that does not exist on the
+    release - which is worse than publishing no checksum at all, because it
+    asks to be verified and then cannot be.
+    """
     app = version_of(ROOT / "src" / "app.py", r'^VERSION\s*=\s*"([^"]+)"')
     send = version_of(ROOT / "send-windows" / "src" / "app.py",
                       r'^VERSION\s*=\s*"([^"]+)"')
@@ -45,12 +55,15 @@ def wanted() -> list:
 
     here = ROOT / "dist_installer"
     return [
-        (here / ("Riplox_Setup_v%s.exe" % app), "the installer"),
-        (here / ("Riplox_Portable_v%s.zip" % app), "the portable build"),
+        (here / ("Riplox_Setup_v%s.exe" % app),
+         "Riplox_Setup_v%s.exe" % app, "the installer"),
+        (here / ("Riplox_Portable_v%s.zip" % app),
+         "Riplox_Portable_v%s.zip" % app, "the portable build"),
         (ROOT / "send-windows" / "dist_installer"
-             / ("RiploxSend_Setup_v%s.exe" % send), "the Windows sender"),
-        (ROOT / "send-android" / "dist"
-             / ("RiploxSend-v%s.apk" % apk), "the phone sender"),
+             / ("RiploxSend_Setup_v%s.exe" % send),
+         "RiploxSend_Setup_v%s.exe" % send, "the Windows sender"),
+        (ROOT / "send-android" / "dist" / ("RiploxSend-v%s.apk" % apk),
+         "RiploxSend_Android_v%s.apk" % apk, "the phone sender"),
     ]
 
 
@@ -64,13 +77,15 @@ def digest(path: Path) -> str:
 
 def main() -> int:
     missing, lines = [], []
-    for path, why in wanted():
+    for path, published, why in wanted():
         if not path.is_file():
             missing.append("  %-36s %s - NOT BUILT" % (path.name, why))
             continue
-        lines.append("%s  %s" % (digest(path), path.name))
-        print("  %-36s %11d B  %s" % (path.name, path.stat().st_size,
-                                      lines[-1][:16] + "..."))
+        # The PUBLISHED name goes in the file, not the built one - see wanted().
+        lines.append("%s  %s" % (digest(path), published))
+        note = "" if published == path.name else "  (upload as this name)"
+        print("  %-36s %11d B  %s%s" % (published, path.stat().st_size,
+                                        lines[-1][:16] + "...", note))
 
     if missing:
         print("\nmissing:")

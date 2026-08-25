@@ -164,6 +164,14 @@ def main():
             (r"(?m)^(\s*url64bit\s*=\s*)'.+'$", r"\g<1>'%s'" % url),
             (r"(?m)^(\s*checksum64\s*=\s*)'.+'$", r"\g<1>'%s'" % sha),
         ),
+        # ⚠️ The extension ships inside the installer and the portable ZIP, so
+        # its version is the app's version. Nothing used to bump it and it sat
+        # at 1.3.0 while the app moved on - which the Chrome Web Store would
+        # have caught as a listing that does not match the build it belongs to.
+        "../browser-extension/manifest.json": sub(
+            read("../browser-extension/manifest.json"),
+            (r'(?m)^(\s*"version":\s*)"[^"]+"', r'\g<1>"%s"' % version),
+        ),
     }
     for relpath, text in staged.items():
         write(relpath, text)
@@ -172,7 +180,7 @@ def main():
     # stable download name instead of the versioned one passes it cleanly - and
     # then pins a hash to a URL whose contents change at the next release, which
     # every installed user sees as a checksum mismatch. Nothing else catches
-    # that, so check it here, along with the six files agreeing on one version.
+    # that, so check it here, along with every file agreeing on one version.
     for relpath, text in staged.items():
         if url not in text and sha not in text and sha.lower() not in text:
             continue
