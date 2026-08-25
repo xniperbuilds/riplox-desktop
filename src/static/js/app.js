@@ -1432,7 +1432,11 @@
     pause:  ic('<path d="M9.3 5.2v13.6M14.7 5.2v13.6"/>'),
     fix:    ic('<path d="M12 2.8v3.4M12 17.8v3.4M2.8 12h3.4M17.8 12h3.4M5.5 5.5l2.4 2.4M16.1 16.1l2.4 2.4M18.5 5.5l-2.4 2.4M7.9 16.1l-2.4 2.4"/>'),
     trash:  ic('<path d="M4 7h16M10 7V4.8h4V7M6.4 7l.9 12.3A1.8 1.8 0 0 0 9.1 21h5.8a1.8 1.8 0 0 0 1.8-1.7L17.6 7"/>'),
-    note:   ic('<path d="M9.5 17.5V6l10-2v11.5"/><ellipse cx="7" cy="17.5" rx="2.5" ry="2.2"/><ellipse cx="17" cy="15.5" rx="2.5" ry="2.2"/>')
+    note:   ic('<path d="M9.5 17.5V6l10-2v11.5"/><ellipse cx="7" cy="17.5" rx="2.5" ry="2.2"/><ellipse cx="17" cy="15.5" rx="2.5" ry="2.2"/>'),
+    // Show/hide the log on the Failed page. It used to borrow the copy icon,
+    // which promised the one thing it did not do - press it expecting the text
+    // on your clipboard and all that happens is the error unfolds.
+    expand: ic('<path d="M7.5 10.2 12 14.7l4.5-4.5"/>')
   };
 
   var ACTIONS = {
@@ -1806,9 +1810,13 @@
         '<div><div class="t">' + esc(h.title) + '</div>' +
         '<div class="m">' + esc(labels[h.quality] || h.quality || "") +
         (h.size ? " · " + esc(h.size) : "") + " · " + esc(when) + "</div></div>" +
+        // One cell, however many buttons. .hrow has three columns, so loose
+        // buttons past the third wrap onto a second row and sit underneath
+        // the thumbnail - which is what this row did with just two of them.
+        '<div class="hrow-acts">' +
         '<button class="icon-btn" data-mp3="1" title="Convert to MP3" aria-label="Convert to MP3">' + ICON.note + "</button>" +
         '<button class="icon-btn go" data-open="1" title="Play file" aria-label="Play file">' + ICON.play + "</button>" +
-        "</div>";
+        "</div></div>";
     }).join("");
   }
 
@@ -1907,13 +1915,20 @@
         '<div class="m fail-why">' + esc(f.error || "No reason was recorded.") + "</div>" +
         (open ? '<pre class="fail-log">' + esc(f.log || "Nothing was logged.") + "</pre>" : "") +
         "</div>" +
-        '<button class="icon-btn" data-details="' + esc(f.id) + '" title="' +
-          (open ? "Hide details" : "Show details") + '">' + ICON.copy + "</button>" +
+        // All four in one grid cell - see .hrow-acts. Four loose buttons in a
+        // three-column grid put three of them on a row of their own.
+        '<div class="hrow-acts">' +
+        '<button class="icon-btn' + (open ? " is-open" : "") +
+          '" data-details="' + esc(f.id) + '" title="' +
+          (open ? "Hide details" : "Show details") + '">' + ICON.expand +
+          "</button>" +
+        '<button class="icon-btn" data-copyfail="' + esc(f.id) +
+          '" title="Copy the link and the reason">' + ICON.copy + "</button>" +
         '<button class="icon-btn go" data-refail="' + esc(f.id) +
           '" title="Try again">' + ICON.retry + "</button>" +
         '<button class="icon-btn" data-forget="' + esc(f.id) +
           '" title="Delete this row">' + ICON.trash + "</button>" +
-        "</div>";
+        "</div></div>";
     }).join("");
   }
 
@@ -1922,6 +1937,29 @@
     if (details) {
       failedOpen = failedOpen === details.dataset.details ? "" : details.dataset.details;
       renderFailed();
+      return;
+    }
+
+    // What somebody actually wants off this page: the link that would not
+    // download, and enough about the failure to be worth sending. Built from
+    // the row already in hand - the log is right there, so asking the server
+    // for it again would only add a way for this to fail.
+    var copy = e.target.closest("[data-copyfail]");
+    if (copy) {
+      var f = failedItems.find(function (one) {
+        return one.id === copy.dataset.copyfail;
+      });
+      if (!f) { toast("That row is gone.", "bad"); return; }
+
+      var lines = [f.url || "", f.title && f.title !== f.url ? f.title : "",
+                   [labels[f.quality] || f.quality || "", f.site || "",
+                    f.tries > 1 ? f.tries + " tries" : ""]
+                     .filter(Boolean).join(" · "),
+                   "", f.error || "No reason was recorded."];
+      if (f.log) lines.push("", f.log);
+      copyText(lines.filter(function (l, i) {
+        return l !== "" || i > 0;          // keep inner blank lines, not a lead
+      }).join("\n"));
       return;
     }
 

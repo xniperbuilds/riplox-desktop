@@ -1175,6 +1175,27 @@ button { font-family: var(--body); }
 }
 .hrow:hover { background: var(--panel); border-color: var(--line); }
 
+/* A grid track will not shrink below the minimum width of what is inside it,
+   and a shared link is one unbroken string hundreds of characters long - so
+   the 1fr column sized itself to the whole URL and took the page sideways
+   with it: buttons off screen, error text running past the right edge.
+   Fixed here rather than on .fail-row because every page built on .hrow has
+   the same track, and is one long unbroken title away from doing the same. */
+.hrow > * { min-width: 0; }
+
+/* The third column, and everything in it. A row's buttons have to be ONE grid
+   item: .hrow has three columns, so a fourth loose child starts a second row
+   and the buttons end up stacked under the thumbnail rather than beside the
+   text. Both pages built on .hrow were doing that.
+   align-self: start keeps them level with the title on the failed page, where
+   the middle column is several lines tall. */
+.hrow-acts {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  align-self: start;
+}
+
 .hrow img {
   width: 64px;
   aspect-ratio: 16 / 9;
@@ -1201,7 +1222,10 @@ button { font-family: var(--body); }
    why it did not work. The reason wraps rather than being cut off - a
    truncated error is a row that has to be opened to be any use at all. */
 .fail-row { align-items: start; }
-.fail-row .t { white-space: normal; }
+/* anywhere, not break-word: a failed row usually shows the URL itself, and a
+   URL offers no space to wrap at. Without this it stays one unbreakable word
+   however narrow the column gets. */
+.fail-row .t { white-space: normal; overflow-wrap: anywhere; }
 
 /* Two classes deep on purpose: .hrow .m sets the quiet grey these rows
    inherit, and a single class cannot outrank it however far down it sits. */
@@ -1209,9 +1233,15 @@ button { font-family: var(--body); }
   margin-top: 3px;
   color: var(--pink-ink);
   white-space: normal;
+  overflow-wrap: anywhere;
   letter-spacing: .03em;
   line-height: 1.45;
 }
+
+/* The chevron points down at a closed row and up at an open one, so the
+   button says which way it is about to go without a second icon. */
+.icon-btn.is-open svg { transform: rotate(180deg); }
+.icon-btn svg { transition: transform .18s; }
 
 /* A row that eventually downloaded is kept, not removed - so it has to look
    settled rather than shouting for attention. */
