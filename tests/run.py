@@ -49,6 +49,20 @@ NEEDS_A_SERVICE = {
     "test_relay_poll_latency.py": "cd relay && npx wrangler dev --port 8799 --local",
 }
 
+# The port those two need. They used to be held even when it was answering,
+# which meant the suite could never run them at all: you started the relay,
+# watched "40/40 passed", and two files had quietly sat it out. A summary that
+# says everything passed while skipping tests nobody can see is worse than a
+# red line. So ask the port instead of assuming.
+SERVICE_PORT = 8799
+
+
+def service_is_up(port: int = SERVICE_PORT) -> bool:
+    import socket
+    with socket.socket() as probe:
+        probe.settimeout(0.4)
+        return probe.connect_ex(("127.0.0.1", port)) == 0
+
 
 def main() -> int:
     picks = [a for a in sys.argv[1:] if not a.startswith("-")]
@@ -58,7 +72,9 @@ def main() -> int:
     # when somebody remembers to type "node tests/..." is a test that does not
     # exist. Its runner is chosen from the suffix a few lines below.
     files = sorted(list(HERE.glob("test_*.py")) + list(HERE.glob("test_*.mjs")))
-    held = [p for p in files if p.name in NEEDS_A_SERVICE and not picks]
+    running = service_is_up()
+    held = [p for p in files
+            if p.name in NEEDS_A_SERVICE and not picks and not running]
     files = [p for p in files if p not in held]
     if offline:
         files = [p for p in files if p.name not in ONLINE]
