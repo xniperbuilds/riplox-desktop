@@ -4272,6 +4272,16 @@ class DownloadManager:
         if lang:
             dub = f" [{_safe_name(lang)[:12]}]"
 
+        # And so does the re-upload quality, for the third time and the worst
+        # reason. "Best available" and "Highest" can settle on the same height
+        # - 2160p picked with H.264 preferred and 2160p picked at the highest
+        # bitrate are different files with identical names - and when they
+        # collide yt-dlp does not overwrite. It prints "has already been
+        # downloaded", exits 0, and the row goes green over the very file the
+        # user chose this quality to improve on. The rest of the intent was
+        # already here: extra_args deliberately keeps max out of the archive.
+        pick = " [max]" if job.quality == "max" else ""
+
         # The app's own name, at the end.
         #
         # At the END and not the front on purpose: a folder of downloads still
@@ -4288,7 +4298,7 @@ class DownloadManager:
 
         # Height belongs in the name: without it, grabbing the same video at
         # 720p and then at 1080p silently overwrote the first file.
-        return str(root / f"%(title).100B [%(id)s] %(height)sp{dub}{clip}{mark}.%(ext)s")
+        return str(root / f"%(title).100B [%(id)s] %(height)sp{pick}{dub}{clip}{mark}.%(ext)s")
 
     def _run_job(self, job: Job) -> None:
         """
