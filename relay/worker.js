@@ -130,7 +130,23 @@ export default {
 
     if (parts.length === 0) {
       return new Response(LANDING, {
-        headers: { "content-type": "text/html; charset=utf-8" },
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          /* no-transform, and it is not about caching.
+           *
+           * Cloudflare injects its Web Analytics beacon into HTML that passes
+           * through the proxy - a zone setting, nothing in this file. It was
+           * doing that to both pages here, so a phone opening the pairing page
+           * was loading a third-party script from static.cloudflareinsights.com.
+           *
+           * The privacy policy says this app carries no third-party trackers
+           * and the relay cannot see what it carries. Both stay true only if
+           * that injection stops, and no-transform is what stops it: it tells
+           * every intermediary not to alter the body. Turning it off in the
+           * dashboard would work today and silently come back the next time
+           * somebody clicks around in there; this travels with the code. */
+          "cache-control": "public, max-age=300, no-transform",
+        },
       });
     }
 
@@ -141,7 +157,11 @@ export default {
       return new Response(PAGE, {
         headers: {
           "content-type": "text/html; charset=utf-8",
-          "cache-control": "no-store",
+          /* no-store because the room id is in the address; no-transform to
+           * keep Cloudflare's analytics beacon out of the page a phone opens.
+           * no-store alone did NOT stop it - measured on the live relay, which
+           * was serving no-store and the injected script at the same time. */
+          "cache-control": "no-store, no-transform",
           /* The room id is in this page's own address. The key is not - it is
            * in the fragment, which a browser never sends anywhere. But a
            * Referer header carries the path, so following any link from this
