@@ -3,8 +3,8 @@ $ErrorActionPreference = 'Stop'
 $packageArgs = @{
     packageName    = 'riplox'
     fileType       = 'exe'
-    url64bit       = 'https://github.com/xniperbuilds/riplox-desktop/releases/download/v1.3.0/Riplox_Setup_v1.3.0.exe'
-    checksum64     = 'EB1D19D1BEE69AE28F1988AD5C8F30CCF45BB502CEA5DEBED8F1DF142B7E86C4'
+    url64bit       = 'https://github.com/xniperbuilds/riplox-desktop/releases/download/v1.4.0/Riplox_Setup_v1.4.0.exe'
+    checksum64     = '9C9F3328F87D241DDB6FD18CE01943653E169905EA0BB15AA564F6E0F0F8C2D6'
     checksumType64 = 'sha256'
     # Inno Setup 6. installer.iss sets PrivilegesRequired=lowest, so this lands
     # in the user's profile without an admin prompt.

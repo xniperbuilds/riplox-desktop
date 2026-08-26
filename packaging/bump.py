@@ -181,11 +181,27 @@ def main():
     # then pins a hash to a URL whose contents change at the next release, which
     # every installed user sees as a checksum mismatch. Nothing else catches
     # that, so check it here, along with every file agreeing on one version.
+    #
+    # ⚠️ The names are worked out here, not inside pick(). This loop used to
+    # reach for `name`, which only ever existed as a local inside pick(), so it
+    # raised NameError the first time anything got this far - AFTER all seven
+    # manifests had already been written. The 24 Aug dry run stopped earlier,
+    # on a missing asset, and never reached this code at all: a check that has
+    # never once run is not a check.
+    versioned = {url: ASSET.format(version=version),
+                 zip_url: PORTABLE.format(version=version)}
     for relpath, text in staged.items():
-        if url not in text and sha not in text and sha.lower() not in text:
-            continue
-        if name not in text and (url in text or sha in text):
-            raise SystemExit("ERROR: %s does not carry the versioned asset name %s" % (relpath, name))
+        for one_url, one_name in versioned.items():
+            if one_url in text and one_name not in text:
+                raise SystemExit(
+                    "ERROR: %s carries the download URL but not the versioned "
+                    "asset name %s" % (relpath, one_name))
+        if "releases/latest/download/" in text:
+            raise SystemExit(
+                "ERROR: %s points at a stable download name. What sits behind "
+                "that name changes at the next release, so the hash pinned "
+                "beside it turns into a checksum mismatch for every user."
+                % relpath)
     versions = {relpath: version in text for relpath, text in staged.items()}
     missing = [r for r, ok in versions.items() if not ok]
     if missing:
