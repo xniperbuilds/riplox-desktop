@@ -1,6 +1,6 @@
-"""Three bugs found on Nazim's own running copy, 25 Aug.
+"""Three bugs found on a real running copy, 25 Aug.
 
-He reported two things: one TikTok link stuck downloading for hours while other
+Two were reported from use: one TikTok link stuck downloading for hours while other
 videos finished, and Library's Play button opening a folder instead of playing.
 They turned out to be three separate faults, and all three were silent.
 

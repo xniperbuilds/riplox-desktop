@@ -2524,7 +2524,7 @@ _IG_WALLED = ("certain audiences", "not available to everyone",
 
 # The subset that means something narrower and far more useful: Instagram is
 # withholding this post from *the account asking*, not from everybody. Measured
-# on Nazim's own four failing reels - the API answered 400 with both "certain
+# on four real failing reels - the API answered 400 with both "certain
 # audiences" and "inappropriate" in the body, on the mobile and the web route
 # alike, while the same posts played normally in the phone app on that same
 # account and downloaded immediately once a second account with its sensitive
@@ -5023,7 +5023,7 @@ class DownloadManager:
         # ⚠️ THIS CALL IS THE WHOLE POINT OF tie_to_app, AND IT WAS MISSING.
         #
         # The job object was written, tested and then never wired up, so every
-        # yt-dlp Riplox started outlived it. Found on Nazim's own machine: three
+        # yt-dlp Riplox started outlived it. Found on a real machine: three
         # yt-dlp processes from dead Riploxes, started 4:02, 4:37 and 5:35 pm,
         # holding 3.7, 2.6 and 2.1 HOURS of CPU between them - about 87% of a
         # core each, for ever, on links that were never going to finish. Two of

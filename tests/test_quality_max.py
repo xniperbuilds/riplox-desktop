@@ -119,7 +119,7 @@ check("...and mp3 is still last", rungs[-1] == "mp3", rungs)
 
 print("")
 print("-- how big it will be, said before anything is pressed -------------")
-# Nazim met a 3.6 GB download by surprise: "Highest" on an 8K video means
+# A 3.6 GB download arrived by surprise: "Highest" on an 8K video means
 # 4320p AV1 at 50 Mbps, and the only place that showed was the progress bar,
 # which is far too late to find out.
 INFO = {"formats": [
