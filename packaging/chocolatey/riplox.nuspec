@@ -8,7 +8,11 @@
     <title>Riplox</title>
     <authors>XniperBuilds</authors>
     <projectUrl>https://xniperbuilds.com/riplox-desktop/</projectUrl>
-    <iconUrl>https://raw.githubusercontent.com/xniperbuilds/riplox-desktop/main/src/static/img/riplox.png</iconUrl>
+    <!-- jsDelivr rather than raw.githubusercontent, and pinned to a commit
+         rather than to main: the package listing keeps showing this icon long
+         after the branch has moved on, and a moderator reviewing it should be
+         looking at the same image a user will see. -->
+    <iconUrl>https://cdn.jsdelivr.net/gh/xniperbuilds/riplox-desktop@d6e93ee46bbd999d120aa000e6d0178de46c0342/src/static/img/riplox.png</iconUrl>
     <copyright>Copyright (c) XniperBuilds</copyright>
     <licenseUrl>https://github.com/xniperbuilds/riplox-desktop/blob/main/LICENSE</licenseUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
@@ -30,7 +34,7 @@ Riplox uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) (Unlicense) and [FFmpeg](
 
 ### Notes
 
-* Installs per user, so no administrator prompt is needed.
+* Installs for you alone unless you choose otherwise, so no administrator rights are needed.
 * Requires Windows 10 or newer, 64-bit.
 ]]></description>
     <releaseNotes>https://github.com/xniperbuilds/riplox-desktop/releases/tag/v1.4.0</releaseNotes>
