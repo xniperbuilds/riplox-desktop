@@ -20,7 +20,7 @@
     <description><![CDATA[
 Riplox downloads video and audio from YouTube, TikTok, Instagram, Facebook, X, Reddit and around a thousand other sites. Paste a link, choose 4K, 1440p, 1080p, 720p, 480p, 360p or MP3, and the file is yours.
 
-There are no download caps, no daily quota and no paid tier, and the installer carries the app and nothing else - no bundled software and no ads. Files come out as H.264 MP4 by default so they play in Windows Media Player, WhatsApp and on phones without extra codecs.
+There are no download caps, no daily quota and no paid tier, and the installer carries the app and nothing else - no bundled software and no ads. Files come out as MP4, in H.264 wherever a site offers that resolution in H.264, so they play in Windows Media Player, WhatsApp and on phones without extra codecs - and where the highest resolution exists only in a newer codec, Riplox takes the resolution rather than handing back a smaller file.
 
 Whole playlists and channel sections download in one click, several at a time, and the queue survives a restart.
 
