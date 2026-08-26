@@ -1,14 +1,32 @@
 # Riplox Desktop
 
-A free video downloader for Windows. Paste a link, pick a quality, keep the file.
+A free video downloader for Windows that your phone can drive. Share a link from
+any app and your PC downloads it — or paste a link here and keep the file.
 
 Works with YouTube, TikTok, Instagram, Facebook, X, Reddit and around a
 thousand other sites.
 
+[![Release](https://img.shields.io/github/v/release/xniperbuilds/riplox-desktop?label=Download&color=1E40FF)](https://github.com/xniperbuilds/riplox-desktop/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/xniperbuilds/riplox-desktop/total?color=1E40FF)](https://github.com/xniperbuilds/riplox-desktop/releases)
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE)
+![Windows](https://img.shields.io/badge/Windows-10%20%26%2011-0078D4?logo=windows&logoColor=white)
+
+<img src="docs/assets/banner.png" width="820" alt="Riplox - the downloader your phone can drive" />
+
+| Paste and pick | The queue | Your phone drives it | Everything you kept |
+|:---:|:---:|:---:|:---:|
+| ![Paste a link and pick a quality, with every size shown](docs/screens/capture.png) | ![Several downloads running at once](docs/screens/queue.png) | ![A paired phone with limits of its own](docs/screens/sharing.png) | ![The library of finished downloads](docs/screens/library.png) |
+
+- **Your phone can drive it.** Pair a phone once and its share sheet gains a
+  Riplox entry. On the same Wi-Fi the link never leaves your network and needs
+  no internet at all; anywhere else it travels sealed. Only the link travels —
+  your PC fetches the video on its own connection, and never opens a port.
 - **No limits.** No download caps, no daily quota, no paid tier.
 - **No bundled software.** The installer contains the app and nothing else.
-- **Plays anywhere.** Files come out as H.264 MP4 by default, so they open in
-  Windows Media Player, WhatsApp and on phones without extra codecs.
+- **Plays anywhere.** Files come out as MP4, in H.264 wherever a site offers
+  that resolution in H.264, so they open in Windows Media Player, WhatsApp and
+  on phones without extra codecs. Where the highest resolution exists only in a
+  newer codec, Riplox takes the resolution.
 - **Updates itself.** Sites change how they serve video; the download engine
   can be updated from inside the app without waiting for a new release.
 - **Keeps working when the engine does not.** Every desktop downloader is built

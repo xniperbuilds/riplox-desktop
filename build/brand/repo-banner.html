@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<!--
+  The GitHub README banner. 1600x520.
+
+  Deliberately the same system as the launch carousel - cobalt on cream,
+  Bricolage Grotesque over Sora, the phone -> arc -> PC vector - so the repo
+  page, the social post and the site all read as one product rather than three
+  separate efforts.
+
+  Render:  python <skill>/scripts/render.py build/brand/repo-banner.html
+             --size 1600x520 --out docs/assets/banner.png
+-->
+<html lang="en"><head><meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Sora:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1600px;height:520px;overflow:hidden}
+body{font-family:'Sora',sans-serif;color:#0B1B3A;-webkit-font-smoothing:antialiased}
+.canvas{position:relative;width:1600px;height:520px;overflow:hidden;isolation:isolate;
+  background:radial-gradient(70% 120% at 8% 0%, rgba(30,64,255,.14), transparent 58%),
+             radial-gradient(60% 110% at 96% 100%, rgba(11,27,58,.10), transparent 60%),
+             #F4F1E9;
+  display:flex;align-items:center;padding:0 70px;gap:56px}
+.grain{position:absolute;inset:0;z-index:9;opacity:.08;mix-blend-mode:multiply;pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+.left{position:relative;z-index:5;flex:1}
+.mark{display:flex;align-items:center;gap:16px;margin-bottom:22px}
+.mark img{width:56px;height:56px;border-radius:14px;
+  box-shadow:0 4px 0 rgba(11,27,58,.14), 0 14px 28px -10px rgba(11,27,58,.5)}
+.mark b{font-family:'Bricolage Grotesque',sans-serif;font-size:34px;font-weight:800;letter-spacing:-.03em}
+h1{font-family:'Bricolage Grotesque',sans-serif;font-size:62px;font-weight:800;
+  line-height:1.02;letter-spacing:-.035em;max-width:16ch;
+  text-shadow:2px 2px 0 rgba(11,27,58,.09), 4px 4px 0 rgba(11,27,58,.07),
+              6px 6px 0 rgba(11,27,58,.05), 10px 14px 26px rgba(11,27,58,.16)}
+h1 span{color:#1E40FF}
+p{margin-top:20px;font-size:22px;line-height:1.5;color:#5A6B8C;max-width:36ch}
+.tags{margin-top:26px;display:flex;gap:11px}
+.tag{background:rgba(255,255,255,.82);border:1.5px solid rgba(11,27,58,.1);border-radius:999px;
+  padding:10px 20px;font-size:17px;font-weight:600;
+  box-shadow:0 2px 0 rgba(11,27,58,.06), 0 10px 20px -10px rgba(11,27,58,.32)}
+.tag.on{background:#1E40FF;color:#fff;border-color:#1E40FF;
+  box-shadow:0 3px 0 rgba(11,27,58,.2), 0 14px 26px -10px rgba(30,64,255,.6)}
+/* 650 wide, not 600: at 600 the arc's download circle landed exactly on the
+   monitor's top-left corner and was cut in half by it. The arc needs room to
+   finish before the screen begins. */
+.right{position:relative;z-index:4;width:650px;height:330px}
+.right svg{position:absolute}
+.ph{width:150px;left:0;bottom:6px;transform:rotate(-7deg);
+  filter:drop-shadow(0 22px 30px rgba(11,27,58,.32))}
+.ar{width:200px;left:145px;top:30px}
+.mn{width:320px;right:0;bottom:24px;transform:rotate(4deg);
+  filter:drop-shadow(0 24px 34px rgba(11,27,58,.3))}
+</style></head>
+<body><div class="canvas">
+  <div class="left">
+    <div class="mark"><img src="riplox_1024.png" alt=""><b>Riplox</b></div>
+    <h1>The downloader your <span>phone</span> can drive.</h1>
+    <p>Share a link from any app and your PC downloads it &mdash; on the same
+       Wi&#8209;Fi, with no internet at all.</p>
+    <div class="tags">
+      <span class="tag on">Free &amp; open source</span>
+      <span class="tag">Windows 10 &amp; 11</span>
+      <span class="tag">No caps &middot; no account</span>
+    </div>
+  </div>
+  <div class="right">
+    <svg class="ph" viewBox="0 0 120 232" fill="none">
+      <rect x="3" y="3" width="114" height="226" rx="22" fill="#fff" stroke="#0B1B3A" stroke-width="6"/>
+      <rect x="43" y="14" width="34" height="7" rx="3.5" fill="#0B1B3A" opacity=".35"/>
+      <rect x="18" y="42" width="84" height="52" rx="9" fill="#1E40FF" opacity=".13"/>
+      <path d="M40 68h40M40 56h56" stroke="#0B1B3A" stroke-width="5" stroke-linecap="round" opacity=".4"/>
+      <circle cx="60" cy="132" r="21" fill="#1E40FF"/>
+      <path d="M53 132l5 5 10-11" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="18" y="170" width="84" height="9" rx="4.5" fill="#0B1B3A" opacity=".18"/>
+      <rect x="18" y="188" width="56" height="9" rx="4.5" fill="#0B1B3A" opacity=".12"/>
+    </svg>
+    <svg class="ar" viewBox="0 0 300 150" fill="none">
+      <path d="M14 118C60 34 240 34 286 118" stroke="#1E40FF" stroke-width="7"
+        stroke-linecap="round" stroke-dasharray="2 22"/>
+      <circle cx="150" cy="52" r="17" fill="#1E40FF"/>
+      <path d="M150 44v16M143 54l7 7 7-7" stroke="#fff" stroke-width="5"
+        stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <svg class="mn" viewBox="0 0 260 200" fill="none">
+      <rect x="3" y="3" width="254" height="160" rx="16" fill="#fff" stroke="#0B1B3A" stroke-width="6"/>
+      <rect x="3" y="3" width="254" height="34" rx="16" fill="#0B1B3A" opacity=".07"/>
+      <circle cx="26" cy="20" r="5" fill="#0B1B3A" opacity=".3"/>
+      <circle cx="44" cy="20" r="5" fill="#0B1B3A" opacity=".3"/>
+      <rect x="24" y="54" width="150" height="12" rx="6" fill="#0B1B3A" opacity=".22"/>
+      <rect x="24" y="78" width="212" height="16" rx="8" fill="#1E40FF" opacity=".18"/>
+      <rect x="24" y="78" width="150" height="16" rx="8" fill="#1E40FF"/>
+      <rect x="24" y="108" width="96" height="11" rx="5.5" fill="#0B1B3A" opacity=".16"/>
+      <rect x="24" y="128" width="180" height="11" rx="5.5" fill="#0B1B3A" opacity=".1"/>
+      <path d="M104 172h52M92 194h76" stroke="#0B1B3A" stroke-width="7" stroke-linecap="round" opacity=".5"/>
+    </svg>
+  </div>
+  <div class="grain"></div>
+</div></body></html>
