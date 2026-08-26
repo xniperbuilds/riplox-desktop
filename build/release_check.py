@@ -19,16 +19,27 @@ Reads nothing secret and changes nothing; it only looks and reports.
 """
 
 import json
+import re
 import sys
 import urllib.error
 import urllib.request
+from pathlib import Path
+
+# Where the site checkout sits when it is beside this one. Not required: the
+# script still runs without it, on the list below.
+SITE = Path(__file__).resolve().parents[2] / "XniperBuildsSite"
+
+LINK = re.compile(
+    r"github\.com/([^/\"'\s>]+/[^/\"'\s>]+)/releases/latest/download/([^\"'\s>]+)")
 
 # (repo, the name that must never change between releases)
 #
-# A list rather than a mapping because one release can owe more than one stable
-# name: the site's page has a Download button AND a portable link, and the
-# portable one was added without this noticing - a check that passes while half
-# the page 404s is worse than no check.
+# ONLY a fallback now. The real list is read from the site's own HTML, because
+# the failure this file exists to catch already happened once in the other
+# direction: a portable link was added to the page and this list did not know
+# about it, so the check passed while half the page 404ed. A hand-kept copy of
+# what the site links to will drift again. The site is the source of truth for
+# what the site promises.
 STABLE = [
     ("xniperbuilds/riplox-desktop", "Riplox_Setup.exe"),
     ("xniperbuilds/riplox-desktop", "Riplox_Portable.zip"),
@@ -36,6 +47,29 @@ STABLE = [
     ("xniperbuilds/riplox-tt",      "RiploxTT.apk"),
     ("xniperbuilds/riplox-ig",      "RiploxIG.apk"),
 ]
+
+
+def from_site():
+    """
+    Every stable-name link the site actually publishes, and the page it is on.
+
+    Returns None when the site is not checked out beside this repo, which is
+    the normal case for anyone who is not the author - the fallback list runs
+    instead and the report says so.
+    """
+    if not SITE.is_dir():
+        return None
+    found = {}
+    for page in sorted(SITE.rglob("*.html")):
+        try:
+            html = page.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for repo, name in LINK.findall(html):
+            found.setdefault((repo, name), set()).add(
+                page.relative_to(SITE).as_posix())
+    return found or None
+
 
 UA = {"User-Agent": "riplox-release-check", "Accept": "application/vnd.github+json"}
 
@@ -59,9 +93,19 @@ def reachable(repo, name):
 
 
 def main():
+    found = from_site()
+    if found:
+        targets = sorted(found)
+        print("checking the %d stable link(s) the site actually publishes"
+              % len(targets))
+    else:
+        targets = STABLE
+        print("no site checkout beside this repo - using the built-in list")
+    print()
+
     bad = []
     seen = {}          # one API call per repo: the allowance is 60 an hour
-    for repo, name in STABLE:
+    for repo, name in targets:
         try:
             if repo not in seen:
                 seen[repo] = latest(repo)
@@ -85,6 +129,9 @@ def main():
             print("      gh release upload %s <file renamed to %s> --repo %s"
                   % (tag, name, repo))
             print("      assets present: %s" % (", ".join(names) or "none"))
+            if found:
+                print("      linked from: %s"
+                      % ", ".join(sorted(found[(repo, name)])))
         elif status not in (200, 206):
             print("      listed on the release but the link answered %s" % status)
         elif "attachment" not in disp:
