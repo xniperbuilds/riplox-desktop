@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<!--
+  YouTube thumbnail, 1280x720.
+
+  ⚠️ Not a frame from the video. YouTube renders thumbnails as small as ~168px
+  wide in feeds; at that size the app's own UI text is gone entirely. A
+  thumbnail has to survive being a postage stamp, so it is three words and one
+  picture.
+
+  Same system as the launch carousel and the README banner - cobalt on cream,
+  Bricolage Grotesque, the phone -> arc -> PC vector - so someone who saw the
+  post recognises the video.
+
+  Render: python <skill>/scripts/render.py build/brand/yt-thumbnail.html
+            --size 1280x720 --out <out>.png
+-->
+<html lang="en"><head><meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Sora:wght@500;600&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1280px;height:720px;overflow:hidden}
+body{font-family:'Sora',sans-serif;color:#0B1B3A;-webkit-font-smoothing:antialiased}
+.c{position:relative;width:1280px;height:720px;overflow:hidden;isolation:isolate;
+  background:radial-gradient(65% 110% at 6% 0%, rgba(30,64,255,.16), transparent 56%),
+             radial-gradient(60% 110% at 98% 100%, rgba(11,27,58,.12), transparent 58%),
+             #F4F1E9;
+  display:flex;align-items:center;padding:0 56px;gap:26px}
+.grain{position:absolute;inset:0;z-index:9;opacity:.08;mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+/* 600, not 660: at 660 the art column was down to ~480px and the phone and the
+   monitor ended up touching, with the arc lying across both. The two devices
+   have to be visibly apart or the picture stops saying "from here to there". */
+.left{position:relative;z-index:5;width:600px}
+.kick{display:inline-block;background:#1E40FF;color:#F4F1E9;font-weight:600;
+  font-size:22px;letter-spacing:.16em;text-transform:uppercase;padding:11px 24px;
+  border-radius:999px;margin-bottom:26px;
+  box-shadow:0 5px 0 rgba(11,27,58,.18), 0 14px 26px rgba(30,64,255,.3)}
+h1{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:92px;
+  line-height:.94;letter-spacing:-.04em;
+  text-shadow:3px 3px 0 rgba(11,27,58,.10), 6px 6px 0 rgba(11,27,58,.08),
+              9px 9px 0 rgba(11,27,58,.06), 14px 18px 30px rgba(11,27,58,.2)}
+h1 span{color:#1E40FF}
+.right{position:relative;z-index:4;flex:1;height:400px}
+.right svg{position:absolute}
+.ph{width:150px;left:0;bottom:22px;transform:rotate(-8deg);
+  filter:drop-shadow(0 24px 32px rgba(11,27,58,.34))}
+/* The arc lives in the GAP between them - that gap is the whole message. */
+.ar{width:180px;left:132px;top:62px}
+.mn{width:262px;right:0;bottom:36px;transform:rotate(5deg);
+  filter:drop-shadow(0 26px 34px rgba(11,27,58,.32))}
+</style></head>
+<body><div class="c">
+  <div class="left">
+    <span class="kick">Free &middot; Windows</span>
+    <h1>Laptop&rsquo;s off.<br>Send it <span>anyway.</span></h1>
+  </div>
+  <div class="right">
+    <svg class="ph" viewBox="0 0 120 232" fill="none">
+      <rect x="3" y="3" width="114" height="226" rx="22" fill="#fff" stroke="#0B1B3A" stroke-width="6"/>
+      <rect x="43" y="14" width="34" height="7" rx="3.5" fill="#0B1B3A" opacity=".35"/>
+      <rect x="18" y="42" width="84" height="52" rx="9" fill="#1E40FF" opacity=".13"/>
+      <path d="M40 68h40M40 56h56" stroke="#0B1B3A" stroke-width="5" stroke-linecap="round" opacity=".4"/>
+      <circle cx="60" cy="132" r="21" fill="#1E40FF"/>
+      <path d="M53 132l5 5 10-11" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="18" y="170" width="84" height="9" rx="4.5" fill="#0B1B3A" opacity=".18"/>
+      <rect x="18" y="188" width="56" height="9" rx="4.5" fill="#0B1B3A" opacity=".12"/>
+    </svg>
+    <svg class="ar" viewBox="0 0 300 150" fill="none">
+      <path d="M14 118C60 34 240 34 286 118" stroke="#1E40FF" stroke-width="8"
+        stroke-linecap="round" stroke-dasharray="2 22"/>
+      <circle cx="150" cy="52" r="19" fill="#1E40FF"/>
+      <path d="M150 43v18M142 54l8 8 8-8" stroke="#fff" stroke-width="5.5"
+        stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <!-- the screen is dark, because the headline says it is off -->
+    <svg class="mn" viewBox="0 0 260 200" fill="none">
+      <rect x="3" y="3" width="254" height="160" rx="16" fill="#0B1B3A" stroke="#0B1B3A" stroke-width="6"/>
+      <rect x="14" y="14" width="232" height="138" rx="9" fill="#16294A"/>
+      <rect x="14" y="14" width="232" height="138" rx="9" fill="url(#g)" opacity=".5"/>
+      <circle cx="130" cy="150" r="4" fill="#1E40FF"/>
+      <path d="M104 172h52M92 194h76" stroke="#0B1B3A" stroke-width="7" stroke-linecap="round" opacity=".5"/>
+      <defs><linearGradient id="g" x1="14" y1="14" x2="246" y2="152">
+        <stop stop-color="#fff" stop-opacity=".14"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+      </linearGradient></defs>
+    </svg>
+  </div>
+  <div class="grain"></div>
+</div></body></html>
