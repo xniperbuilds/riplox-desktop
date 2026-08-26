@@ -1,6 +1,6 @@
 RIPLOX DESKTOP - TERMS AND CONDITIONS
 XniperBuilds
-Terms version 1.1, for Riplox Desktop 1.4.0 - please read before installing.
+Terms version 1.2, for Riplox Desktop 1.4.0 - please read before installing.
 
 
 1. WHAT RIPLOX IS
@@ -83,9 +83,13 @@ Riplox makes network connections only for these purposes:
      sites require, which then runs entirely on your own computer;
   e) if you sign in through Riplox for private videos, the sign-in goes to
      that site and the session is stored encrypted on this machine only;
-  f) if you turn on Sharing, an encrypted message carrying only a link, sent
-     between your own paired devices. The content of a video never passes
-     through anyone else's server.
+  f) if you turn on Sharing, an encrypted message sent between your own paired
+     devices. It carries what you chose to send and nothing else: a link, or a
+     short piece of text such as a key, a password or a Wi-Fi code. Whichever
+     it is, it is sealed on the device that sends it and can only be opened by
+     the device you paired it with - nobody in between, including XniperBuilds,
+     can read it. The content of a video never passes through anyone else's
+     server.
 
 If you turn on the optional sponsor-segment feature, Riplox asks a public
 community database about the video you are downloading. If you would rather
