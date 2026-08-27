@@ -1891,6 +1891,44 @@ def section_arg(start: str, end: str, exact: bool = False) -> list:
     return args
 
 
+# yt-dlp takes --download-sections as a REGEX, never as a literal title. A
+# chapter called "C++ (part 1)" is not a string to it, it is a pattern - and
+# a broken one: measured on the bundled 2026.07.04 binary it refuses to start,
+# with `invalid --download-sections regex "C++ (part 1)" - multiple repeat at
+# position 2`. The titles that compile are the dangerous ones, because they
+# compile into a pattern that is not the title the user ticked.
+def chapter_regex(title: str) -> str:
+    """One chapter title as a pattern matching that title and nothing else."""
+    title = (title or "").strip()
+    if not title:
+        return ""
+    # Anchoring is not tidiness here, it is the point. yt-dlp searches the
+    # pattern anywhere inside a chapter title, so an unanchored "Data Types"
+    # also selects "Data Types (List, Tuple, Set, Dictionary)" - measured on
+    # a real video: one ticked box, two sections back, the second twenty
+    # minutes long and never asked for. ^...$ is also what stops a title that
+    # begins with * from being read as a time range instead of a chapter.
+    return "^" + re.escape(title) + "$"
+
+
+def chapter_args(titles: list) -> list:
+    """--download-sections once per wanted chapter, or nothing."""
+    args, seen = [], set()
+    for title in titles or []:
+        pattern = chapter_regex(title)
+        # A chapter ticked twice would be fetched and written twice.
+        if not pattern or pattern in seen:
+            continue
+        seen.add(pattern)
+        args += ["--download-sections", pattern]
+    if not args:
+        return []
+    # Sections are cut by ffmpeg, and --print turns --quiet on implicitly,
+    # which silences ffmpeg completely - the same silence that left the queue
+    # reading 0.0% for three and a half minutes on trimmed downloads.
+    return ["--no-quiet"] + args
+
+
 def needs_ffmpeg(settings: dict, quality: str) -> list:
     """
     Which switched-on options cannot be honoured without ffmpeg.
