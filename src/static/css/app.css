@@ -2213,6 +2213,19 @@ button { font-family: var(--body); }
 /* A chapter title can run the width of the screen. It wraps rather than
    pushing the whole panel sideways. */
 .chapter-list .ch-title { min-width: 0; overflow-wrap: anywhere; }
+/* Two chapters under one title. Marked here rather than explained later,
+   because the folder is the wrong place to learn it. */
+.chapter-list .ch-twin {
+  display: inline-block;
+  margin-left: 7px;
+  padding: 0 5px;
+  border-radius: var(--r-s);
+  background: rgba(var(--cyan-rgb), .12);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--cyan-ink);
+  cursor: help;
+}
 
 /* --- who you download from ----------------------------------------------- */
 

@@ -418,9 +418,26 @@
     note.hidden = !known || rows.length > 0;
     $("chapterCount").textContent =
       rows.length === 1 ? "1 chapter" : rows.length + " chapters";
+    // Two chapters can carry the same title - measured on a real 63-chapter
+    // video, which says "An aerial view of the Rocky Mountains in
+    // Switzerland." at 2:30 and again at 17:15. yt-dlp picks chapters by a
+    // regex over the title and has no way to be told "the one at 2:30", so
+    // asking for either of them always brings the other. That is not a thing
+    // to find out afterwards in the download folder, so the rows that share a
+    // title say so before anything is pressed.
+    var byTitle = {};
+    rows.forEach(function (c) { (byTitle[c.title] = byTitle[c.title] || []).push(c); });
     $("chapterList").innerHTML = rows.map(function (c) {
-      return '<li><span class="ch-at">' + esc(chapterAt(c.start)) + "</span>"
-        + '<span class="ch-title">' + esc(c.title) + "</span></li>";
+      var at = chapterAt(c.start), group = byTitle[c.title], mark = "";
+      if (group.length > 1) {
+        var others = group.filter(function (o) { return o !== c; })
+                          .map(function (o) { return chapterAt(o.start) || "?"; });
+        mark = ' <span class="ch-twin" title="' + esc("Same title at "
+          + others.join(", ") + " - chapters are asked for by their title, so "
+          + "these arrive together.") + '">&times;' + group.length + "</span>";
+      }
+      return '<li><span class="ch-at">' + esc(at) + "</span>"
+        + '<span class="ch-title">' + esc(c.title) + mark + "</span></li>";
     }).join("");
   }
 

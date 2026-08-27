@@ -162,6 +162,10 @@ check("a playlist is told apart from a video with none",
       "isList ? null : info.chapters" in js)
 check("the list can scroll rather than being cut short",
       ".chapter-list" in css and "overflow-y: auto" in css)
+check("chapters sharing a title are marked on screen",
+      "ch-twin" in js and "ch-twin" in css)
+check("and the mark says why, before anything is pressed",
+      "arrive together" in js)
 
 print("\n" + "=" * 68)
 print(f"  {len(PASS)} passed, {len(FAIL)} failed")
