@@ -581,7 +581,8 @@
            ? " The " + moments + " moments made " + clips.length
              + ": some were close enough together to run into one."
            : "")
-        + " Only these parts are downloaded, not the whole video.";
+        + " Only these parts are downloaded, not the whole video."
+        + chapterMarkNote();
       $("trimBlock").hidden = true;
       if ($("trimOn").checked) { $("trimOn").checked = false; resetTrim(); }
     } else if (current && current.kind === "video" && S.hasFfmpeg
@@ -662,7 +663,8 @@
       line.textContent = (all ? "All " + chapterRows.length + " chapters"
                               : chapterPicks.length + " of " + chapterRows.length + " chapters")
         + " - each one its own file, in a folder named after the video. "
-        + "Only these parts are downloaded, not the whole video.";
+        + "Only these parts are downloaded, not the whole video."
+        + chapterMarkNote();
     }
     syncCutButton();
     syncNameField();
@@ -682,6 +684,16 @@
       : (current && current.kind === "playlist")
         ? "One name cannot cover a playlist"
         : "%(title)s [%(id)s].%(ext)s";
+  }
+
+  /* "Chapter marks" is a setting, and it is switched off for a cut: the marks
+     describe the whole video, and writing them into a piece of it makes the
+     piece claim the whole video's length. Said here rather than left as a
+     setting that quietly does not happen. */
+  function chapterMarkNote() {
+    return settings.embed_chapters
+      ? " Chapter marks are left out of a part - they belong to the whole video."
+      : "";
   }
 
   function syncCutButton() {

@@ -2050,7 +2050,13 @@ def extra_args(settings: dict, quality: str, trimmed: bool = False) -> list:
             if settings.get("embed_subs"):
                 args.append("--embed-subs")
 
-    if settings.get("embed_chapters") and not audio_only and have_ff:
+    # Not on a piece of a video. The marks describe the WHOLE video, and
+    # embedding them in a cut writes every one of them into it - measured on a
+    # 17-second chapter of a 20-minute upload: 63 chapter marks, the last of
+    # them ending at 1214 seconds. Players read that track and show the length
+    # of the original, so a seventeen-second file reports twenty minutes.
+    if settings.get("embed_chapters") and not audio_only and have_ff \
+            and not trimmed:
         args.append("--embed-chapters")
 
     if settings.get("sponsorblock") and have_ff:

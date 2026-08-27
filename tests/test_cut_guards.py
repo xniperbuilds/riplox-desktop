@@ -66,6 +66,32 @@ r = client.post("/api/add", headers=HEAD,
 check("a name on its own is still allowed", r.status_code == 200, str(r.status_code))
 
 
+print("\n-- a piece of a video does not carry the whole video's marks ------")
+# Found by Nazim in real use: a 17-second chapter reported twenty minutes.
+# yt-dlp had written all 63 of the source's chapter marks into it, the last of
+# them ending at 1214 seconds, and players read that track for the length.
+man = engine.DownloadManager()
+MARKED = dict(engine.DEFAULT_SETTINGS, download_dir=str(SANDBOX),
+              embed_chapters=True)
+
+
+def marks(opts, start="", end="", quality="1080"):
+    job = engine.Job(url="https://www.youtube.com/watch?v=abc", quality=quality,
+                     opts=opts)
+    job.start, job.end = start, end
+    return "--embed-chapters" in man.build_args(job, MARKED, "", None)
+
+
+check("a whole video still gets its chapter marks", marks({}))
+check("a chapter download does not", not marks({"chapters": ["Intro"]}))
+check("nor does all-chapters", not marks({"chapters_all": True}))
+check("nor do clips", not marks({"clips": [{"start": 10, "end": 40}]}))
+check("nor does a trim", not marks({}, start="1:00", end="2:00"))
+check("and the screen says so rather than dropping it quietly",
+      "belong to the whole video" in
+      (SRC / "static" / "js" / "app.js").read_text(encoding="utf-8"))
+
+
 print("\n-- what cannot be cut is not offered -----------------------------")
 js = (SRC / "static" / "js" / "app.js").read_text(encoding="utf-8")
 html = (SRC / "templates" / "index.html").read_text(encoding="utf-8")
