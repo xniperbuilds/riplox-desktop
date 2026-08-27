@@ -92,6 +92,45 @@ check("and the screen says so rather than dropping it quietly",
       (SRC / "static" / "js" / "app.js").read_text(encoding="utf-8"))
 
 
+print("\n-- cutting on the mark, when it is asked for ---------------------")
+# Reported from real use: about half a second of the part before showed at the
+# start of a chapter. Sections are cut on the video's own keyframes, so ffmpeg
+# has to begin at the keyframe before the mark. The only way past it is to
+# re-encode - measured at 218s against 94s for the same two-minute clip - so
+# it is offered rather than assumed, exactly as the trim already offers it.
+def exact_in(opts, exact, start="", end=""):
+    job = engine.Job(url="https://www.youtube.com/watch?v=abc", quality="1080",
+                     opts=opts)
+    job.start, job.end, job.exact = start, end, exact
+    return "--force-keyframes-at-cuts" in man.build_args(job, MARKED, "", None)
+
+
+for label, opts in (("chapters", {"chapters": ["Intro"]}),
+                    ("all chapters", {"chapters_all": True}),
+                    ("clips", {"clips": [{"start": 10, "end": 40}]})):
+    check(f"{label}: off by default, so the fast cut stays the default",
+          not exact_in(opts, False))
+    check(f"{label}: on when it is asked for", exact_in(opts, True))
+
+check("a trim still has it too", exact_in({}, True, start="1:00", end="2:00"))
+check("and a whole video never does", not exact_in({}, True))
+
+js_now = (SRC / "static" / "js" / "app.js").read_text(encoding="utf-8")
+html_now = (SRC / "templates" / "index.html").read_text(encoding="utf-8")
+check("there is a box for it", "cutExact" in html_now and "cutExact" in js_now)
+check("it is only shown while something is being cut into parts",
+      '$("cutExactWrap").hidden = !cutting;' in js_now)
+check("it is cleared for every new link, like the rest of this screen",
+      '$("cutExact").checked = false;' in js_now)
+check("the label says what it costs, not just what it does",
+      "slower" in html_now and "re-encoded" in html_now)
+
+
+check("the shown command and the real one are built in one place",
+      "function applyCut(body)" in js_now
+      and js_now.count("applyCut(body);") == 2)
+
+
 print("\n-- what cannot be cut is not offered -----------------------------")
 js = (SRC / "static" / "js" / "app.js").read_text(encoding="utf-8")
 html = (SRC / "templates" / "index.html").read_text(encoding="utf-8")

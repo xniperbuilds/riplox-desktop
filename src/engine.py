@@ -1952,7 +1952,8 @@ def chapter_regex(title: str) -> str:
     return "^" + re.escape(title) + "$"
 
 
-def chapter_args(titles: list, every: bool = False) -> list:
+def chapter_args(titles: list, every: bool = False,
+                 exact: bool = False) -> list:
     """--download-sections once per wanted chapter, or nothing."""
     # Every chapter is one pattern, not two hundred. A title runs to eighty
     # characters once escaped, and Windows takes 32767 in a whole command -
@@ -1960,7 +1961,7 @@ def chapter_args(titles: list, every: bool = False) -> list:
     # not fit. It still matches on the title, so a video with no chapters
     # selects nothing rather than quietly selecting the whole video.
     if every:
-        return ["--no-quiet", "--download-sections", ".*"]
+        return ["--no-quiet", "--download-sections", ".*"] + _exact_cut(exact)
     args, seen = [], set()
     for title in titles or []:
         pattern = chapter_regex(title)
@@ -1974,7 +1975,7 @@ def chapter_args(titles: list, every: bool = False) -> list:
     # Sections are cut by ffmpeg, and --print turns --quiet on implicitly,
     # which silences ffmpeg completely - the same silence that left the queue
     # reading 0.0% for three and a half minutes on trimmed downloads.
-    return ["--no-quiet"] + args
+    return ["--no-quiet"] + args + _exact_cut(exact)
 
 
 def needs_ffmpeg(settings: dict, quality: str) -> list:
@@ -2723,7 +2724,21 @@ def peak_clips(peaks: list, seconds: int, duration: float = 0) -> list:
     return [{"start": s, "end": e} for s, e in merged]
 
 
-def clip_args(clips: list) -> list:
+def _exact_cut(exact: bool) -> list:
+    """
+    Cut on the mark rather than on the video's own keyframes.
+
+    Without this ffmpeg copies the streams, so it has to start at the keyframe
+    before the mark and a moment of whatever came before appears at the start -
+    reported from real use as about half a second. Removing it means
+    re-encoding the part, which measured 218s against 94s for the same
+    two-minute clip. So it is offered rather than assumed, the same way the
+    trim has offered it all along.
+    """
+    return ["--force-keyframes-at-cuts"] if exact else []
+
+
+def clip_args(clips: list, exact: bool = False) -> list:
     """--download-sections once per wanted moment, or nothing."""
     args = []
     for span in clips or []:
@@ -2738,7 +2753,7 @@ def clip_args(clips: list) -> list:
         return []
     # Same reason as a trim and a chapter: ffmpeg does the cutting, and --print
     # turns --quiet on implicitly, which silences its progress completely.
-    return ["--no-quiet"] + args
+    return ["--no-quiet"] + args + _exact_cut(exact)
 
 
 def _is_upscale(f: dict) -> bool:
@@ -5290,9 +5305,10 @@ class DownloadManager:
                      "--sub-langs", opts["sub_langs"]]
         if wants_chapters:
             args += chapter_args(opts.get("chapters"),
-                                 every=bool(opts.get("chapters_all")))
+                                 every=bool(opts.get("chapters_all")),
+                                 exact=job.exact)
         elif wants_clips:
-            args += clip_args(opts["clips"])
+            args += clip_args(opts["clips"], exact=job.exact)
         else:
             args += section_arg(job.start, job.end, job.exact)
         args += [

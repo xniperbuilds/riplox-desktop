@@ -227,6 +227,14 @@
                The trim block is hidden for the same reason a few lines up;
                these are shown but not offered, because the list itself is
                still worth reading. -->
+          <!-- Off by default, and the trim has always made the same offer for
+               the same reason: cutting on the mark means re-encoding the part,
+               measured at roughly twice the time. -->
+          <label class="chapter-all" id="cutExactWrap" hidden
+                 title="Parts are cut on the video's own keyframes, so a moment of whatever came before can appear at the start. Cutting exactly removes it, but the part has to be re-encoded - measured at about twice as long.">
+            <input type="checkbox" id="cutExact">
+            <span>Cut exactly at the mark - slower, but no tail of the part before</span>
+          </label>
           <p class="hint warn" id="cutNoFf" hidden>Chapters and moments can be
             shown but not downloaded separately: cutting a video needs the
             media tool, which is missing from this install. Reinstall Riplox

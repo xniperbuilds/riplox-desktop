@@ -363,6 +363,7 @@
     // Cleared for every new link: wanting the audio of one video says nothing
     // about wanting the audio of the next.
     $("alsoAudio").checked = false;
+    $("cutExact").checked = false;
     syncAlsoAudio();
     // A playlist is told apart from a video with no chapters here, not in
     // there - null and [] have to mean different things on that screen.
@@ -603,6 +604,8 @@
     syncClips();
   });
 
+  $("cutExact").addEventListener("change", refreshCommand);
+
   $("clipLens").addEventListener("click", function (e) {
     var chip = e.target.closest(".chip");
     if (!chip) return;
@@ -696,7 +699,17 @@
       : "";
   }
 
+  /* Shown only while something is about to be cut into parts, because that
+     is the only time it means anything. */
+  function syncExactCut() {
+    var cutting = chapterPicks.length > 0
+      || ($("clipOn") && $("clipOn").checked && currentClips().length > 0);
+    $("cutExactWrap").hidden = !cutting;
+    if (!cutting) $("cutExact").checked = false;
+  }
+
   function syncCutButton() {
+    syncExactCut();
     var chapters = chapterPicks.length;
     var clips = $("clipOn") && $("clipOn").checked ? currentClips().length : 0;
     $("downloadBtn").textContent =
@@ -1501,6 +1514,36 @@
   });
 
   var cmdTimer = null;
+  /* What the screen is asking to be cut, put onto a request.
+
+     Both the Download button and the command preview call this. The preview
+     used to build its own body and knew nothing about chapters or clips, so
+     it showed a command without them in it - and a preview that disagrees
+     with what will actually run is worse than no preview at all, which is the
+     reason the panel exists.
+
+     "All of them" travels as a flag rather than as two hundred titles,
+     because every title is its own argument and a command line has a ceiling.
+     Not inside moreOpts(): that answers with nothing while More options is
+     closed, and this sits above it. */
+  function applyCut(body) {
+    if (!current || current.kind === "playlist") return body;
+    if (chapterPicks.length) {
+      if (chapterPicks.length === chapterRows.length) body.opts.chapters_all = true;
+      else body.opts.chapters = pickedTitles();
+    } else if ($("clipOn").checked && currentClips().length) {
+      // The ranges the engine worked out, sent back as they came. Nothing
+      // here recalculates them - a second copy of that sum can drift.
+      body.opts.clips = currentClips();
+    } else {
+      return body;
+    }
+    // One idea, one field: the trim has always sent this, and a chapter or a
+    // clip is the same kind of cut asking the same thing of ffmpeg.
+    body.exact = $("cutExact").checked;
+    return body;
+  }
+
   function refreshCommand() {
     if (!$("moreBox").open || !current || current.kind === "channel") return;
     clearTimeout(cmdTimer);
@@ -1510,6 +1553,7 @@
         quality: quality,
         opts: moreOpts()
       };
+      applyCut(body);
       if (current.kind !== "playlist" && $("trimOn").checked) {
         var t = trimTimes();
         if (t) { body.start = t.start; body.end = t.end; body.exact = $("exactCut").checked; }
@@ -1571,20 +1615,7 @@
     // The extras ride along with the main choice rather than replacing it,
     // so the video is still what the row says it is.
     if (quality !== "mp3" && $("alsoAudio").checked) body.also = ["mp3"];
-    /* Ticked chapters. "All of them" travels as a flag rather than as two
-       hundred titles, because every title is its own argument and a command
-       line has a ceiling. Not inside moreOpts(): that answers with nothing at
-       all while More options is closed, and this sits above it. */
-    if (current.kind !== "playlist" && chapterPicks.length) {
-      if (chapterPicks.length === chapterRows.length) body.opts.chapters_all = true;
-      else body.opts.chapters = pickedTitles();
-    } else if (current.kind !== "playlist" && $("clipOn").checked
-               && currentClips().length) {
-      // The ranges the engine worked out, sent back as they came. Nothing
-      // here recalculates them - a second copy of that sum is a second copy
-      // that can drift.
-      body.opts.clips = currentClips();
-    }
+    applyCut(body);
     if (current.kind !== "playlist" && $("trimOn").checked) {
       var range = readTrim();
       if (range === null) return;             // readTrim already complained
