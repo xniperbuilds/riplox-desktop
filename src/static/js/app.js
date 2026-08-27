@@ -367,6 +367,7 @@
     // A playlist is told apart from a video with no chapters here, not in
     // there - null and [] have to mean different things on that screen.
     renderChapters(isList ? null : info.chapters);
+    renderHeatmap(isList ? null : info);
     fillFormats(info);
     restoreOpts();
     // A playlist has no single format table, and a name for one file makes no
@@ -435,10 +436,10 @@
       (byTitle[c.title] = byTitle[c.title] || []).push(i);
     });
     $("chapterList").innerHTML = chapterRows.map(function (c, i) {
-      var at = chapterAt(c.start), group = byTitle[c.title], mark = "";
+      var at = atTime(c.start), group = byTitle[c.title], mark = "";
       if (group.length > 1) {
         var others = group.filter(function (n) { return n !== i; })
-                          .map(function (n) { return chapterAt(chapterRows[n].start) || "?"; });
+                          .map(function (n) { return atTime(chapterRows[n].start) || "?"; });
         mark = ' <span class="ch-twin" title="' + esc("Same title at "
           + others.join(", ") + " - chapters are asked for by their title, so "
           + "these arrive together.") + '">&times;' + group.length + "</span>";
@@ -451,9 +452,78 @@
   }
 
   // fmtDuration answers "" for zero, which is right for a video whose length
-  // is unknown and wrong for a chapter that starts at the beginning.
-  function chapterAt(sec) {
+  // is unknown and wrong for a moment that starts at the beginning.
+  function atTime(sec) {
     return typeof sec === "number" ? (fmtDuration(sec) || "0:00") : "";
+  }
+
+  /* ------------------------------------------------------------ replayed */
+
+  /* The rewatch curve, read-only.
+
+     It is an undocumented field. It can stop arriving the day YouTube changes
+     the shape of its answer, and it will do that by simply not being there -
+     no error, no warning. So the empty case is the ordinary one here, and it
+     is said out loud: an empty graph looks like a broken feature and silence
+     looks like a missing one.
+
+     The line is only shown for YouTube. "YouTube has no data for this" under
+     a TikTok link would be noise about something never on offer there. */
+  function renderHeatmap(info) {
+    var box = $("heatBox"), note = $("heatNote");
+    if (!box) return;
+    var rows = (info && info.heatmap) || [];
+    var peaks = (info && info.peaks) || [];
+    var youtube = !!info && info.kind === "video"
+      && String(info.extractor || "").indexOf("youtube") === 0;
+
+    box.open = false;
+    box.hidden = !rows.length;
+    note.hidden = !youtube || rows.length > 0;
+    if (!rows.length) return;
+
+    // Drawn from the numbers rather than fetched as a picture: it is the same
+    // data the peaks are chosen from, so the graph cannot disagree with the
+    // list under it.
+    var W = 100, H = 30;
+    var span = rows[rows.length - 1].end || 1;
+    var x = function (t) { return Math.max(0, Math.min(W, (t / span) * W)); };
+    var pts = rows.map(function (r) {
+      return x((r.start + r.end) / 2).toFixed(2) + ","
+        + (H - r.value * (H - 2)).toFixed(2);
+    });
+    var firstY = pts[0].split(",")[1], lastY = pts[pts.length - 1].split(",")[1];
+    var line = "M0," + firstY + " L" + pts.join(" L") + " L" + W + "," + lastY;
+    var marks = peaks.map(function (p) {
+      var at = x((p.start + p.end) / 2).toFixed(2);
+      return '<line class="heat-mark" x1="' + at + '" y1="0" x2="' + at
+        + '" y2="' + H + '"></line>';
+    }).join("");
+
+    $("heatGraph").innerHTML =
+      '<svg viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="none" '
+      + 'role="img" aria-label="How often each part of this video was '
+      + 'replayed">' + marks
+      + '<path class="heat-area" d="' + line + " L" + W + "," + H + " L0," + H
+      + ' Z"></path>'
+      + '<path class="heat-line" vector-effect="non-scaling-stroke" d="'
+      + line + '"></path></svg>';
+
+    /* No percentage beside a moment. The number YouTube sends is how busy a
+       moment is COMPARED WITH THE BUSIEST ONE in the same video - "100%" next
+       to the top moment would read as a share of viewers, which it is not. A
+       bar says "relative" without claiming a figure. */
+    $("heatPeaks").innerHTML = peaks.map(function (p) {
+      return '<li><span class="heat-rank">' + p.rank + "</span>"
+        + '<span class="heat-at">' + esc(atTime(p.start)) + "</span>"
+        + '<span class="heat-bar" title="Compared with the most replayed '
+        + 'moment of this video"><i style="width:'
+        + Math.round(p.value * 100) + '%"></i></span></li>';
+    }).join("");
+
+    $("heatSummary").textContent = peaks.length
+      ? "Most replayed - top moment at " + atTime(peaks[0].start)
+      : "Most replayed";
   }
 
   // The titles that were ticked. Same title ticked twice is one pattern to

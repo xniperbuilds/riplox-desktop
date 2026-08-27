@@ -2158,6 +2158,12 @@ def analyze(url: str, settings: dict) -> dict:
         # "15 chapters" and list them, which is worth having on its own
         # and is the list the ticking will hang off next.
         "chapters": _chapter_rows(info),
+        # What people actually rewatched. Riplox has been fetching this on
+        # every YouTube analyse since long before anything looked at it, and
+        # throwing it away. An empty list is the ordinary answer, not a
+        # failure - see _heatmap_rows.
+        "heatmap": _heatmap_rows(info),
+        "peaks": heatmap_peaks(_heatmap_rows(info)),
         # Everything below feeds "More options". The closed screen never shows
         # any of it, so it costs nothing to carry.
         "formats": _format_rows(info),
@@ -2519,8 +2525,12 @@ def _chapter_rows(info: dict) -> list:
     screen; eight chapters out of forty is the app quietly deciding which
     parts of the video exist.
     """
+    entries = info.get("chapters")
+    if not isinstance(entries, list):
+        return []
+
     rows = []
-    for entry in info.get("chapters") or []:
+    for entry in entries:
         if not isinstance(entry, dict):
             continue
         title = str(entry.get("title") or "").strip()
@@ -2554,6 +2564,68 @@ def written_bytes(path) -> int:
     if target.is_dir():
         return sum(f.stat().st_size for f in target.rglob("*") if f.is_file())
     return target.stat().st_size
+
+
+def _heatmap_rows(info: dict) -> list:
+    """
+    The rewatch curve, when YouTube has one.
+
+    ⚠️ `heatmap` does not appear in `yt-dlp --help` at all. It is not a
+    documented field, so no deprecation applies to it and it can stop
+    arriving the day YouTube changes the shape of its answer - with no error
+    anywhere, because the field simply becomes absent. So "missing" is the
+    ordinary case here, not the exceptional one, and everything above this
+    has to be able to say so out loud.
+
+    Measured on real videos: YouTube always sends exactly 100 buckets
+    covering the whole video, so a bucket is a hundredth of the duration -
+    2.5 seconds on a four-minute video and 73 seconds on a two-hour one. It
+    is not a fixed window, and nothing here may assume one.
+    """
+    points = info.get("heatmap")
+    if not isinstance(points, list):
+        return []
+
+    rows = []
+    for point in points:
+        if not isinstance(point, dict):
+            continue
+        start = point.get("start_time")
+        end = point.get("end_time")
+        value = point.get("value")
+        if not all(isinstance(n, (int, float)) for n in (start, end, value)):
+            continue
+        if end <= start:
+            continue
+        rows.append({
+            "start": float(start),
+            "end": float(end),
+            # Sent as 0-1 with the busiest bucket at 1.0. Clamped rather than
+            # trusted: the graph's height is drawn straight from this.
+            "value": max(0.0, min(1.0, float(value))),
+        })
+    return rows
+
+
+def heatmap_peaks(rows: list, want: int = 5) -> list:
+    """The moments people went back to, most replayed first."""
+    if not rows or max(r["value"] for r in rows) <= 0:
+        # A curve that is flat at zero has no moments in it. Marking five of
+        # them anyway would be the app inventing a claim about the video.
+        return []
+
+    order = sorted(range(len(rows)), key=lambda i: rows[i]["value"], reverse=True)
+    taken = []
+    for i in order:
+        if len(taken) >= want:
+            break
+        # One hump is several buckets wide and its shoulders are not separate
+        # moments. Without this, "the five most replayed" came back as one
+        # peak and the four buckets leaning against it.
+        if any(abs(i - j) < 3 for j in taken):
+            continue
+        taken.append(i)
+    return [dict(rows[i], rank=n + 1) for n, i in enumerate(taken)]
 
 
 def _is_upscale(f: dict) -> bool:

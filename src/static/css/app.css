@@ -2243,6 +2243,96 @@ button { font-family: var(--body); }
   cursor: help;
 }
 
+/* --- what people went back to -------------------------------------------- */
+
+/* Same shape as the chapter list on purpose: they sit under the same chips,
+   they are both read-only, and two different-looking panels there would read
+   as two different kinds of thing. */
+.heatmap { margin-top: 12px; }
+.heatmap > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  cursor: pointer;
+  list-style: none;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  transition: color .18s;
+}
+.heatmap > summary::-webkit-details-marker { display: none; }
+.heatmap > summary::before {
+  content: "";
+  width: 5.5px; height: 5.5px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform .2s var(--ease);
+}
+.heatmap[open] > summary::before { transform: rotate(45deg) translate(-1px, -1px); }
+.heatmap > summary:hover { color: var(--ink-dim); }
+
+.heat-graph {
+  margin-top: 9px;
+  padding: 8px 10px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--well);
+}
+/* The viewBox is stretched to whatever width the panel has, so the curve
+   keeps its shape while the box does not have to. */
+.heat-graph svg { display: block; width: 100%; height: 64px; }
+.heat-area { fill: rgba(var(--cyan-rgb), .16); stroke: none; }
+.heat-line { fill: none; stroke: var(--cyan-ink); stroke-width: 1.4; }
+/* Behind the curve, not over it: a marker that hides the shape it is marking
+   is worse than no marker. */
+.heat-mark { stroke: rgba(var(--cyan-rgb), .42); stroke-width: 1; }
+
+.heat-peaks {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.heat-peaks li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 2px;
+  font-size: 12.5px;
+  color: var(--ink-dim);
+}
+.heat-rank {
+  flex: none;
+  width: 17px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-faint);
+}
+.heat-at {
+  flex: none;
+  min-width: 46px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+/* A bar, deliberately without a number on it - see the comment where it is
+   built. It says "busier than that one" and claims nothing more. */
+.heat-bar {
+  flex: 1;
+  min-width: 40px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--line-soft);
+  overflow: hidden;
+  cursor: help;
+}
+.heat-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--cyan-ink);
+}
+
 /* --- who you download from ----------------------------------------------- */
 
 .accounts {

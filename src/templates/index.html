@@ -199,6 +199,21 @@
             <p class="hint" id="chapterPicked" hidden></p>
           </details>
           <p class="hint" id="chapterNote" hidden>This video has no chapters.</p>
+
+          <!-- What people actually went back to. YouTube publishes it, and
+               Riplox has been fetching it on every analyse since long before
+               anything looked at it.
+
+               The field is undocumented - it is not in yt-dlp's help at all -
+               so it can stop arriving with no notice and no error. The line
+               below is not decoration: on the day it goes, the app has to say
+               so rather than draw an empty box. -->
+          <details class="heatmap" id="heatBox" hidden>
+            <summary id="heatSummary">Most replayed</summary>
+            <div class="heat-graph" id="heatGraph"></div>
+            <ol class="heat-peaks" id="heatPeaks"></ol>
+          </details>
+          <p class="hint" id="heatNote" hidden>YouTube has no most-replayed data for this video.</p>
         </div>
 
         <!-- One quiet line, closed on every install and after every link. It
