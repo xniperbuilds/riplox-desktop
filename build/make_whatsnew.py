@@ -73,20 +73,23 @@ def collect() -> list:
     if not raw:
         return []
 
-    items, hidden = [], False
+    items, hidden = [], 0
     for message in raw.split("\x00"):
         for found in TRAILER.finditer(message):
             line = " ".join(found.group(1).split())
             if not line or line.lower() == "skip" or line in items:
                 continue
             if any(mark in line for mark in INTERNAL):
-                hidden = True        # real work, but nothing a user can act on
+                hidden += 1          # real work, but nothing a user can act on
                 continue
             items.append(line)
 
-    # The plumbing still gets one honest line rather than being pretended away.
+    # The panel lists features and nothing else - Nazim, 28 Aug: "whatsnew man
+    # sirf features daalna, fixes khatam kr do". The plumbing used to get one
+    # summary line here; it is a changelog's job, not this panel's. `hidden`
+    # is still counted so the run says how many lines it left out.
     if hidden:
-        items.append("Plus the usual fixes and small improvements underneath.")
+        print(f"  {hidden} internal line(s) left out - this panel is features only")
     return items[:MAX_ITEMS]
 
 
