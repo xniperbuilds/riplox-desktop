@@ -405,6 +405,11 @@
      absent and the line beneath it says so out loud: someone who came for
      this feature has to be able to tell "this video has not got any" from
      "this is broken", and an empty box says the wrong one of those. */
+  // Which chapters are ticked, by their place in the list, and the rows they
+  // belong to. Cleared for every new link: what was wanted from one video
+  // says nothing about the next.
+  var chapterRows = [], chapterPicks = [];
+
   function renderChapters(rows) {
     var box = $("chapterBox"), note = $("chapterNote");
     if (!box) return;
@@ -412,33 +417,37 @@
     // not a true thing to say about forty videos at once, so neither the
     // list nor the line appears - the question was never asked.
     var known = !!rows;
-    rows = rows || [];
+    chapterRows = rows || [];
+    chapterPicks = [];
     box.open = false;
-    box.hidden = !rows.length;
-    note.hidden = !known || rows.length > 0;
-    $("chapterCount").textContent =
-      rows.length === 1 ? "1 chapter" : rows.length + " chapters";
+    box.hidden = !chapterRows.length;
+    note.hidden = !known || chapterRows.length > 0;
+    $("chapterAll").checked = false;
+
     // Two chapters can carry the same title - measured on a real 63-chapter
     // video, which says "An aerial view of the Rocky Mountains in
     // Switzerland." at 2:30 and again at 17:15. yt-dlp picks chapters by a
     // regex over the title and has no way to be told "the one at 2:30", so
-    // asking for either of them always brings the other. That is not a thing
-    // to find out afterwards in the download folder, so the rows that share a
-    // title say so before anything is pressed.
+    // asking for either of them always brings the other. They therefore tick
+    // as a pair, and say so on the row rather than in the download folder.
     var byTitle = {};
-    rows.forEach(function (c) { (byTitle[c.title] = byTitle[c.title] || []).push(c); });
-    $("chapterList").innerHTML = rows.map(function (c) {
+    chapterRows.forEach(function (c, i) {
+      (byTitle[c.title] = byTitle[c.title] || []).push(i);
+    });
+    $("chapterList").innerHTML = chapterRows.map(function (c, i) {
       var at = chapterAt(c.start), group = byTitle[c.title], mark = "";
       if (group.length > 1) {
-        var others = group.filter(function (o) { return o !== c; })
-                          .map(function (o) { return chapterAt(o.start) || "?"; });
+        var others = group.filter(function (n) { return n !== i; })
+                          .map(function (n) { return chapterAt(chapterRows[n].start) || "?"; });
         mark = ' <span class="ch-twin" title="' + esc("Same title at "
           + others.join(", ") + " - chapters are asked for by their title, so "
           + "these arrive together.") + '">&times;' + group.length + "</span>";
       }
-      return '<li><span class="ch-at">' + esc(at) + "</span>"
-        + '<span class="ch-title">' + esc(c.title) + mark + "</span></li>";
+      return '<li><label><input type="checkbox" class="ch-pick" data-i="' + i + '">'
+        + '<span class="ch-at">' + esc(at) + "</span>"
+        + '<span class="ch-title">' + esc(c.title) + mark + "</span></label></li>";
     }).join("");
+    syncChapters();
   }
 
   // fmtDuration answers "" for zero, which is right for a video whose length
@@ -446,6 +455,80 @@
   function chapterAt(sec) {
     return typeof sec === "number" ? (fmtDuration(sec) || "0:00") : "";
   }
+
+  // The titles that were ticked. Same title ticked twice is one pattern to
+  // the engine, so it is one entry here.
+  function pickedTitles() {
+    var out = [];
+    chapterPicks.forEach(function (i) {
+      var title = chapterRows[i] && chapterRows[i].title;
+      if (title && out.indexOf(title) === -1) out.push(title);
+    });
+    return out;
+  }
+
+  function syncChapters() {
+    var boxes = $("chapterList").querySelectorAll(".ch-pick");
+    chapterPicks = [];
+    boxes.forEach(function (b) {
+      if (b.checked) chapterPicks.push(parseInt(b.dataset.i, 10));
+    });
+    var all = chapterRows.length > 0 && chapterPicks.length === chapterRows.length;
+    $("chapterAll").checked = all;
+
+    // The closed summary is all most people ever see of this, so it carries
+    // the count both ways round: how many the video has, and how many are
+    // ticked - otherwise closing the list hides what is about to happen.
+    $("chapterCount").textContent =
+      (chapterRows.length === 1 ? "1 chapter" : chapterRows.length + " chapters")
+      + (chapterPicks.length ? " - " + chapterPicks.length + " ticked" : "");
+
+    /* Both a trim and a chapter selection speak through the same engine
+       option, and it adds them together rather than choosing - so asking for
+       both would hand back the chapters AND the trimmed range. One of the two
+       has to go, and the one being pressed right now is the one to keep. */
+    var picking = chapterPicks.length > 0;
+    if (picking && $("trimOn").checked) { $("trimOn").checked = false; resetTrim(); }
+    $("trimBlock").hidden = picking || !current || current.kind === "playlist"
+                            || !S.hasFfmpeg;
+
+    var line = $("chapterPicked");
+    line.hidden = !picking;
+    if (picking) {
+      // Said before it is pressed, because a folder appearing where a file
+      // was expected is the kind of surprise this app tries not to hand out.
+      line.textContent = (all ? "All " + chapterRows.length + " chapters"
+                              : chapterPicks.length + " of " + chapterRows.length + " chapters")
+        + " - each one its own file, in a folder named after the video. "
+        + "Only these parts are downloaded, not the whole video.";
+    }
+    $("downloadBtn").textContent = picking
+      ? "Download " + chapterPicks.length + (chapterPicks.length === 1 ? " chapter" : " chapters")
+      : "Download";
+  }
+
+  $("chapterList").addEventListener("change", function (e) {
+    var box = e.target.closest(".ch-pick");
+    if (!box) return;
+    // The pair the ×2 mark promised. Ticking one of two chapters that share a
+    // title cannot mean "only this one" - the engine has no way to say it -
+    // so the other follows visibly rather than turning up unannounced.
+    var title = (chapterRows[parseInt(box.dataset.i, 10)] || {}).title;
+    $("chapterList").querySelectorAll(".ch-pick").forEach(function (other) {
+      var row = chapterRows[parseInt(other.dataset.i, 10)];
+      if (row && row.title === title) other.checked = box.checked;
+    });
+    syncChapters();
+  });
+
+  $("chapterAll").addEventListener("change", function () {
+    var on = this.checked;
+    $("chapterList").querySelectorAll(".ch-pick").forEach(function (b) {
+      b.checked = on;
+    });
+    syncChapters();
+  });
+
 
   /* -------------------------------------------------------------- channel */
 
@@ -1282,6 +1365,14 @@
     // The extras ride along with the main choice rather than replacing it,
     // so the video is still what the row says it is.
     if (quality !== "mp3" && $("alsoAudio").checked) body.also = ["mp3"];
+    /* Ticked chapters. "All of them" travels as a flag rather than as two
+       hundred titles, because every title is its own argument and a command
+       line has a ceiling. Not inside moreOpts(): that answers with nothing at
+       all while More options is closed, and this sits above it. */
+    if (current.kind !== "playlist" && chapterPicks.length) {
+      if (chapterPicks.length === chapterRows.length) body.opts.chapters_all = true;
+      else body.opts.chapters = pickedTitles();
+    }
     if (current.kind !== "playlist" && $("trimOn").checked) {
       var range = readTrim();
       if (range === null) return;             // readTrim already complained

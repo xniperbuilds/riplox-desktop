@@ -1504,7 +1504,11 @@ _OPT_KEYS = ("format_id", "audio_lang", "sub_langs", "outtmpl", "dest_dir",
              "subs_only", "live_from_start", "thumb_all",
              # Which cover picture to keep, chosen from the ones the site
              # offers. An address, so it is checked like one - see safe_image.
-             "thumb_url")
+             "thumb_url",
+             # The chapters ticked on the list, and the tick that means all of
+             # them. Two keys rather than one, because "all" is a single
+             # pattern to the engine and a list of two hundred titles is not.
+             "chapters", "chapters_all")
 
 
 def safe_image(raw: str) -> str:
@@ -1578,8 +1582,23 @@ def clean_opts(opts) -> dict:
             path = Path(str(value)).expanduser()
             if path.is_dir():
                 out[key] = str(path)
-        elif key in ("no_cookies", "subs_only", "live_from_start", "thumb_all"):
+        elif key in ("no_cookies", "subs_only", "live_from_start", "thumb_all",
+                     "chapters_all"):
             out[key] = True
+        elif key == "chapters":
+            # Chapter titles ticked on the list. Each becomes an anchored
+            # regex where it is used, so nothing here trusts their contents;
+            # what this has to stop is a value that is not a list of titles.
+            # How long the whole selection is gets checked by the caller,
+            # which can say so out loud - dropping it quietly here would turn
+            # "these three chapters" into "the entire video".
+            titles = []
+            for item in value if isinstance(value, list) else []:
+                text = str(item or "").strip()
+                if text and text not in titles:
+                    titles.append(text)
+            if titles:
+                out[key] = titles[:500]
         elif key == "thumb_url":
             address = safe_image(value)
             if address:
@@ -1911,8 +1930,15 @@ def chapter_regex(title: str) -> str:
     return "^" + re.escape(title) + "$"
 
 
-def chapter_args(titles: list) -> list:
+def chapter_args(titles: list, every: bool = False) -> list:
     """--download-sections once per wanted chapter, or nothing."""
+    # Every chapter is one pattern, not two hundred. A title runs to eighty
+    # characters once escaped, and Windows takes 32767 in a whole command -
+    # so "split all of it" on a long video is the one selection that could
+    # not fit. It still matches on the title, so a video with no chapters
+    # selects nothing rather than quietly selecting the whole video.
+    if every:
+        return ["--no-quiet", "--download-sections", ".*"]
     args, seen = [], set()
     for title in titles or []:
         pattern = chapter_regex(title)
@@ -2510,6 +2536,24 @@ def _chapter_rows(info: dict) -> list:
             "end": end if isinstance(end, (int, float)) else None,
         })
     return rows
+
+
+def written_bytes(path) -> int:
+    """
+    What a finished download actually left on the disk.
+
+    A chapter download produces a folder rather than a file, and .stat() on a
+    directory does not raise. It succeeds, and answers with the size of the
+    directory entry - a few kilobytes - so a 500 MB folder of chapters was
+    recorded, shown and counted against the allowance as about 4 KB, with
+    nothing anywhere saying it was wrong. The except clause around the caller
+    made it worse: it is written to swallow a failure, and there was no
+    failure to swallow.
+    """
+    target = Path(path)
+    if target.is_dir():
+        return sum(f.stat().st_size for f in target.rglob("*") if f.is_file())
+    return target.stat().st_size
 
 
 def _is_upscale(f: dict) -> bool:
@@ -4384,6 +4428,23 @@ class DownloadManager:
         # already here: extra_args deliberately keeps max out of the archive.
         pick = " [max]" if job.quality == "max" else ""
 
+        if opts.get("chapters") or opts.get("chapters_all"):
+            # One folder per video, holding one file per chapter.
+            #
+            # The id is in the folder name because two different videos can
+            # share a title, and the quality is there for the same reason it
+            # is in an ordinary file name: the same chapters at 720p and at
+            # 1080p are different files, and without it the second run finds
+            # the first already downloaded and stops with nothing said.
+            #
+            # Numbered from one. yt-dlp counts sections from zero, and a
+            # folder that starts at "00 - Intro" reads as a fault; the
+            # template can do the arithmetic - measured, not assumed.
+            stamp = " [mp3]" if job.quality == "mp3" else " %(height)sp"
+            folder = f"%(title).100B [%(id)s]{stamp}{pick}{dub}"
+            return str(root / "Chapters" / folder /
+                       "%(section_number+1)02d - %(section_title)s.%(ext)s")
+
         # The app's own name, at the end.
         #
         # At the END and not the front on purpose: a folder of downloads still
@@ -5003,7 +5064,14 @@ class DownloadManager:
         else:
             args += format_args(job.quality, settings, opts.get("audio_lang", ""))
 
-        trimmed = bool(job.start or job.end)
+        # Chapters and a trim both speak through --download-sections, and
+        # yt-dlp unions everything it is given - so asking for both would hand
+        # back the chapters AND the trimmed range. They are exclusive here,
+        # and the screen hides the trim while chapters are ticked.
+        wants_chapters = bool(opts.get("chapters") or opts.get("chapters_all"))
+        # Either way this is part of a video rather than the video, so it stays
+        # out of the download archive for the same reason a trim does.
+        trimmed = bool(job.start or job.end) or wants_chapters
         args += extra_args(settings, job.quality, trimmed)
 
         # A site that has actually refused gets the strict treatment: a real
@@ -5020,7 +5088,11 @@ class DownloadManager:
         if opts.get("sub_langs"):
             args += ["--write-subs", "--write-auto-subs",
                      "--sub-langs", opts["sub_langs"]]
-        args += section_arg(job.start, job.end, job.exact)
+        if wants_chapters:
+            args += chapter_args(opts.get("chapters"),
+                                 every=bool(opts.get("chapters_all")))
+        else:
+            args += section_arg(job.start, job.end, job.exact)
         args += [
             "--newline",
             # --print implies --quiet, which would swallow every progress line.
@@ -5183,6 +5255,13 @@ class DownloadManager:
                 else:
                     # An older engine, or a format with no height at all.
                     job.filepath = rest
+                # A chapter download writes this line once per chapter, so the
+                # last one would win and the job would point at whichever
+                # chapter happened to finish last. What it produced is the
+                # folder, so that is what it remembers - Play opens it, the
+                # Library names it, and the size below adds it up.
+                if job.opts.get("chapters") or job.opts.get("chapters_all"):
+                    job.filepath = str(Path(job.filepath).parent)
             elif line.startswith(THUMB_TAG):
                 # Only fills gaps. A link analysed on this PC already carries
                 # the picture and the title the user saw before pressing
@@ -5265,7 +5344,7 @@ class DownloadManager:
             # only the last stream. The finished file on disk is the truth.
             written = 0
             try:
-                written = Path(job.filepath).stat().st_size
+                written = written_bytes(job.filepath)
                 job.size = human_bytes(written)
             except (OSError, ValueError):
                 pass

@@ -288,6 +288,21 @@ def api_add():
     if batch:
         opts.pop("format_id", None)
         opts.pop("outtmpl", None)
+        # Chapters belong to the one video they were read from. The second
+        # video in a playlist has its own, so carrying these titles across
+        # forty of them would ask each for chapters it has never had.
+        opts.pop("chapters", None)
+        opts.pop("chapters_all", None)
+
+    # Every ticked title travels as its own argument, and Windows takes 32767
+    # characters in a whole command. Nobody ticks two hundred long titles by
+    # hand, but a request that quietly became a whole-video download would be
+    # the worst possible answer to one that did.
+    if sum(len(name) for name in opts.get("chapters") or []) > 20000:
+        return jsonify({"ok": False,
+                        "error": "That is too many chapters to ask for by "
+                                 "name at once. Tick All chapters instead, "
+                                 "or choose fewer."}), 400
 
     # More than one output from one press: the video AND the mp3, rather than
     # downloading the same link twice by hand. Only qualities the engine
@@ -1446,19 +1461,22 @@ def api_open():
 
     path = Path(target)
     if not _inside_downloads(path):
-        return jsonify({"ok": False, "error": "That file is outside the download folder."}), 403
+        return jsonify({"ok": False,
+                        "error": "That download is outside the download "
+                                 "folder."}), 403
 
     if not path.exists():
         # Moved or deleted since it was downloaded - show the folder instead.
         parent = path.parent
         if not parent.exists() or not _inside_downloads(parent):
-            return jsonify({"ok": False, "error": "That file is no longer there."}), 404
+            return jsonify({"ok": False,
+                            "error": "That download is no longer there."}), 404
         os.startfile(str(parent))  # noqa: S606
         # The note is the whole point of this branch. It used to be returned
         # and never shown, so pressing Play opened a folder and said nothing -
         # which reads as the button being broken rather than the file having
         # moved.
-        return jsonify({"ok": True, "note": "That file is not where Riplox "
+        return jsonify({"ok": True, "note": "That download is not where Riplox "
                                             "left it, so its folder is open "
                                             "instead."})
 
