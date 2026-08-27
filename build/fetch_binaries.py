@@ -41,6 +41,33 @@ FFMPEG_URL = ("https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/"
 # ffplay is a media player we never invoke; skipping it saves ~17 MB.
 FFMPEG_SKIP = {"ffplay.exe"}
 
+# The WebView2 Evergreen Bootstrapper - ~1.7 MB, and the reason it is here is a
+# real bug rather than a nicety.
+#
+# Setup used to show a message box when the Runtime was missing and wait for an
+# answer. A silent install has nobody to answer it, so the installer HUNG:
+# Chocolatey's verifier ran it on Windows Server 2019 (no WebView2) and killed
+# it after 45 minutes. winget installs silently too, so the same hang would
+# have reached every user on a machine without the Runtime.
+#
+# Microsoft permits shipping this and documents the switches:
+#   "download the bootstrapper and package it with your WebView2 app"
+#   MicrosoftEdgeWebview2Setup.exe /silent /install
+#   https://learn.microsoft.com/microsoft-edge/webview2/concepts/distribution
+#
+# The other two options were weighed and rejected: the Standalone Installer is
+# ~130 MB, and Microsoft's own docs say the Fixed Version binaries are "over
+# 250 MB". Against a 71 MB installer, only the bootstrapper is affordable.
+#
+# ⚠ It downloads the Runtime at install time, so it needs a network. That is
+# acceptable here - Riplox is a downloader - and Setup no longer blocks when it
+# fails, it carries on and lets the app explain itself.
+#
+# Not checksummed on purpose: Microsoft revises this stub, and a pinned hash
+# would turn every one of their updates into a failed build. The link is theirs
+# and it is served over TLS.
+WEBVIEW2_URL = "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
+
 
 def download(url: str) -> bytes:
     print(f"  {url}")
@@ -98,12 +125,28 @@ def fetch_ffmpeg() -> None:
     print(f"  -> {written} files")
 
 
+def fetch_webview2() -> None:
+    target = BIN / "MicrosoftEdgeWebview2Setup.exe"
+    print("webview2 bootstrapper:")
+    body = download(WEBVIEW2_URL)
+
+    # A redirect that lands on an error page would otherwise be written out as
+    # an "installer" that Setup then tries to run.
+    if len(body) < 500_000 or body[:2] != b"MZ":
+        raise SystemExit(f"  that is not a Windows executable "
+                         f"({len(body)} bytes) - refusing to write")
+
+    target.write_bytes(body)
+    print(f"  -> {target.name} ({target.stat().st_size / 1e6:.1f} MB)")
+
+
 def main() -> None:
     BIN.mkdir(parents=True, exist_ok=True)
     try:
         fetch_ytdlp()
         fetch_qjs()
         fetch_ffmpeg()
+        fetch_webview2()
     except (urllib.error.URLError, OSError) as exc:
         raise SystemExit(f"download failed: {exc}")
 

@@ -2,7 +2,7 @@
 ; Build the app first:  pyinstaller build\riplox.spec --noconfirm
 
 #define AppName      "Riplox"
-#define AppVersion   "1.4.0"
+#define AppVersion   "1.4.1"
 #define AppPublisher "XniperBuilds"
 #define AppURL       "https://xniperbuilds.com"
 #define AppExe       "Riplox.exe"
@@ -81,7 +81,13 @@ Source: "..\browser-extension\*"; DestDir: "{app}\browser-extension"; Flags: ign
 ; recursesubdirs because yt-dlp ships as a folder now (yt-dlp.exe beside its
 ; _internal): the single-file build unpacked itself into temp on every run,
 ; which was 1.4 seconds before any request went out.
-Source: "..\bin\*"; DestDir: "{app}\bin"; Flags: ignoreversion recursesubdirs createallsubdirs
+; ⚠ The WebView2 bootstrapper is excluded here on purpose. It is a prerequisite
+; installer, not part of the app, and copying it into {app}\bin would leave
+; 1.7 MB of dead weight on every user's disk forever.
+Source: "..\bin\*"; DestDir: "{app}\bin"; Excludes: "MicrosoftEdgeWebview2Setup.exe"; Flags: ignoreversion recursesubdirs createallsubdirs
+; dontcopy: extracted to {tmp} on demand by PrepareToInstall and never
+; installed. See the WebView2 note in build\fetch_binaries.py for why it ships.
+Source: "..\bin\MicrosoftEdgeWebview2Setup.exe"; Flags: dontcopy
 ; The terms the user accepted, and the licence they were told about, both
 ; readable after the fact rather than only during setup.
 Source: "..\TERMS.txt"; DestDir: "{app}"; Flags: ignoreversion
@@ -193,21 +199,56 @@ begin
   DataDir := ExpandConstant('{localappdata}\RiploxDesktop');
   if not DirExists(DataDir) then
     Exit;
-  if MsgBox('Remove your Riplox settings, sign-ins, download history and unfinished queue as well?' + #13#10 + #13#10 +
+  { ⚠ SuppressibleMsgBox, not MsgBox - a silent uninstall has nobody to answer,
+    and a plain MsgBox would hang it exactly as the WebView2 one hung Setup.
+    The suppressed answer is IDNO, which keeps the user's data: that is both the
+    documented default and the safe direction to be wrong in. }
+  if SuppressibleMsgBox('Remove your Riplox settings, sign-ins, download history and unfinished queue as well?' + #13#10 + #13#10 +
             'Choose No if you are reinstalling or upgrading - everything will be exactly where you left it when Riplox starts again.' + #13#10 + #13#10 +
             'Choose Yes only if you want no trace of Riplox left on this PC. Downloaded files are never touched either way.',
-            mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
+            mbConfirmation, MB_YESNO or MB_DEFBUTTON2, IDNO) = IDYES then
     DelTree(DataDir, True, True, True);
 end;
 
-function InitializeSetup(): Boolean;
+{ Install the WebView2 Runtime when it is missing, rather than asking about it.
+
+  ⚠ This replaced a plain MsgBox, and the reason matters. MsgBox is NOT
+  suppressed by /SUPPRESSMSGBOXES - only SuppressibleMsgBox is. So on a machine
+  without the Runtime, a silent install had nobody to answer the dialog and the
+  installer simply HUNG. Chocolatey's verifier proved it on Windows Server 2019:
+  killed after 45 minutes. winget installs silently too, so every user without
+  the Runtime would have met the same hang.
+
+  PrepareToInstall rather than InitializeSetup: it runs inside the wizard, so
+  the bootstrapper's ~1-2 minutes can say what it is doing instead of looking
+  like a frozen window.
+
+  Returning '' always. A failed prerequisite must not fail the install - the
+  app is still worth having on disk, and it explains itself when it starts. }
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  Code: Integer;
 begin
-  Result := True;
-  if not WebView2Installed() then
-  begin
-    if MsgBox('Riplox needs the Microsoft Edge WebView2 Runtime, which is not installed on this PC.' + #13#10 + #13#10 +
-              'It is a free Microsoft component. Install it from microsoft.com (search "WebView2 Runtime"), then run this setup again.' + #13#10 + #13#10 +
-              'Continue anyway?', mbConfirmation, MB_YESNO) = IDNO then
-      Result := False;
-  end;
+  Result := '';
+  if WebView2Installed() then
+    Exit;
+
+  WizardForm.PreparingLabel.Caption :=
+    'Installing the Microsoft Edge WebView2 Runtime, which Riplox needs.' + #13#10 +
+    'This is a free Microsoft component and only happens once.';
+
+  ExtractTemporaryFile('MicrosoftEdgeWebview2Setup.exe');
+  Exec(ExpandConstant('{tmp}\MicrosoftEdgeWebview2Setup.exe'), '/silent /install',
+       '', SW_HIDE, ewWaitUntilTerminated, Code);
+
+  if WebView2Installed() then
+    Exit;
+
+  { Still missing - no network, or Microsoft's servers refused. Say so, but
+    never block: suppressed installs take the default and carry on. }
+  SuppressibleMsgBox(
+    'Riplox could not install the Microsoft Edge WebView2 Runtime, which it needs to show its window.' + #13#10 + #13#10 +
+    'This usually means there was no internet connection during setup. Riplox will be installed anyway.' + #13#10 + #13#10 +
+    'If it does not open, install the WebView2 Runtime from microsoft.com and start Riplox again.',
+    mbInformation, MB_OK, IDOK);
 end;
