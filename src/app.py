@@ -298,6 +298,18 @@ def api_add():
     # characters in a whole command. Nobody ticks two hundred long titles by
     # hand, but a request that quietly became a whole-video download would be
     # the worst possible answer to one that did.
+    # A name typed by hand names ONE file. A chapter or clip download makes a
+    # folder of them, and yt-dlp resolves every section to that same name -
+    # measured: two chapters, one "my name.webm", the second landing on the
+    # first. Refused rather than resolved, because which of the two the user
+    # meant is not something this can know.
+    if opts.get("outtmpl") and (opts.get("chapters") or opts.get("chapters_all")
+                                or opts.get("clips")):
+        return jsonify({"ok": False,
+                        "error": "A file name of your own covers one file, "
+                                 "and this makes a folder of them. Clear the "
+                                 "name, or download the whole video."}), 400
+
     if sum(len(name) for name in opts.get("chapters") or []) > 20000:
         return jsonify({"ok": False,
                         "error": "That is too many chapters to ask for by "

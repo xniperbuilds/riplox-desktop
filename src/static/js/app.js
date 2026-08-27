@@ -435,6 +435,10 @@
     chapterRows.forEach(function (c, i) {
       (byTitle[c.title] = byTitle[c.title] || []).push(i);
     });
+    // Without the encoder the list is still worth reading, so it is shown -
+    // but nothing is offered that cannot be done.
+    var canCut = !!S.hasFfmpeg;
+    $("chapterAllWrap").hidden = !canCut;
     $("chapterList").innerHTML = chapterRows.map(function (c, i) {
       var at = atTime(c.start), group = byTitle[c.title], mark = "";
       if (group.length > 1) {
@@ -444,7 +448,8 @@
           + others.join(", ") + " - chapters are asked for by their title, so "
           + "these arrive together.") + '">&times;' + group.length + "</span>";
       }
-      return '<li><label><input type="checkbox" class="ch-pick" data-i="' + i + '">'
+      return "<li><label>"
+        + (canCut ? '<input type="checkbox" class="ch-pick" data-i="' + i + '">' : "")
         + '<span class="ch-at">' + esc(at) + "</span>"
         + '<span class="ch-title">' + esc(c.title) + mark + "</span></label></li>";
     }).join("");
@@ -480,9 +485,12 @@
     box.open = false;
     box.hidden = !rows.length;
     note.hidden = !youtube || rows.length > 0;
+    // One line for both panels, so it is said once rather than twice.
+    $("cutNoFf").hidden = S.hasFfmpeg
+      || !(chapterRows.length || (rows || []).length);
     // Wanting clips of one video says nothing about wanting them of the next.
     $("clipOn").checked = false;
-    $("clipOnWrap").hidden = !peaks.length;
+    $("clipOnWrap").hidden = !peaks.length || !S.hasFfmpeg;
     renderClipLengths();
     syncClips();
     if (!rows.length) return;
@@ -581,6 +589,7 @@
       $("trimBlock").hidden = false;
     }
     syncCutButton();
+    syncNameField();
   }
 
   $("clipOn").addEventListener("change", function () {
@@ -656,6 +665,23 @@
         + "Only these parts are downloaded, not the whole video.";
     }
     syncCutButton();
+    syncNameField();
+  }
+
+  /* A name typed by hand names one file. A playlist already disables this for
+     that reason; chapters and clips make a folder of files and need the same
+     answer, or the name silently lands on every one of them. */
+  function syncNameField() {
+    var many = chapterPicks.length > 0
+      || ($("clipOn") && $("clipOn").checked && currentClips().length > 0);
+    var box = $("optName");
+    if (!box) return;
+    if (many && box.value.trim()) box.value = "";
+    box.disabled = many || (current && current.kind === "playlist");
+    box.placeholder = many ? "One name cannot cover a folder of parts"
+      : (current && current.kind === "playlist")
+        ? "One name cannot cover a playlist"
+        : "%(title)s [%(id)s].%(ext)s";
   }
 
   function syncCutButton() {

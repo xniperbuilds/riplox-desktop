@@ -221,6 +221,16 @@
             </div>
           </details>
           <p class="hint" id="clipNote" hidden></p>
+          <!-- Cutting a video into parts is ffmpeg's work, and yt-dlp refuses
+               outright without it: "You have requested downloading the video
+               partially, but ffmpeg is not installed. Aborting" - measured.
+               The trim block is hidden for the same reason a few lines up;
+               these are shown but not offered, because the list itself is
+               still worth reading. -->
+          <p class="hint warn" id="cutNoFf" hidden>Chapters and moments can be
+            shown but not downloaded separately: cutting a video needs the
+            media tool, which is missing from this install. Reinstall Riplox
+            to get it back.</p>
           <p class="hint" id="heatNote" hidden>YouTube has no most-replayed data for this video.</p>
         </div>
 
