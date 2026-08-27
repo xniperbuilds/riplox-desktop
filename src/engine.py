@@ -1508,7 +1508,9 @@ _OPT_KEYS = ("format_id", "audio_lang", "sub_langs", "outtmpl", "dest_dir",
              # The chapters ticked on the list, and the tick that means all of
              # them. Two keys rather than one, because "all" is a single
              # pattern to the engine and a list of two hundred titles is not.
-             "chapters", "chapters_all")
+             "chapters", "chapters_all",
+             # The most-replayed moments to cut out, as ranges in seconds.
+             "clips")
 
 
 def safe_image(raw: str) -> str:
@@ -1599,6 +1601,23 @@ def clean_opts(opts) -> dict:
                     titles.append(text)
             if titles:
                 out[key] = titles[:500]
+        elif key == "clips":
+            # Time ranges in seconds, as the screen worked them out. Checked
+            # rather than trusted: these go straight onto a command line, and
+            # a pair that is not two numbers would become a pattern yt-dlp
+            # reads as a chapter name.
+            spans = []
+            for span in value if isinstance(value, list) else []:
+                if not isinstance(span, dict):
+                    continue
+                try:
+                    start, end = int(span.get("start")), int(span.get("end"))
+                except (TypeError, ValueError):
+                    continue
+                if 0 <= start < end:
+                    spans.append({"start": start, "end": end})
+            if spans:
+                out[key] = spans[:50]
         elif key == "thumb_url":
             address = safe_image(value)
             if address:
@@ -2138,6 +2157,8 @@ def analyze(url: str, settings: dict) -> dict:
         }
 
     rungs = _available_qualities(info, settings)
+    heat = _heatmap_rows(info)
+    peaks = heatmap_peaks(heat)
     return {
         "kind": "video",
         "url": info.get("webpage_url") or url,
@@ -2162,8 +2183,13 @@ def analyze(url: str, settings: dict) -> dict:
         # every YouTube analyse since long before anything looked at it, and
         # throwing it away. An empty list is the ordinary answer, not a
         # failure - see _heatmap_rows.
-        "heatmap": _heatmap_rows(info),
-        "peaks": heatmap_peaks(_heatmap_rows(info)),
+        "heatmap": heat,
+        "peaks": peaks,
+        # The ranges each offered length would cut, worked out here rather
+        # than in the browser: the screen then shows exactly what it is about
+        # to ask for, and there is only one copy of the merging rule.
+        "clips": {str(n): peak_clips(peaks, n, info.get("duration") or 0)
+                  for n in CLIP_LENGTHS},
         # Everything below feeds "More options". The closed screen never shows
         # any of it, so it costs nothing to carry.
         "formats": _format_rows(info),
@@ -2626,6 +2652,84 @@ def heatmap_peaks(rows: list, want: int = 5) -> list:
             continue
         taken.append(i)
     return [dict(rows[i], rank=n + 1) for n, i in enumerate(taken)]
+
+
+# How long a cut-out moment is. YouTube's own buckets cannot be used as clips:
+# it always sends exactly 100 of them, so a bucket is a hundredth of the video
+# - two and a half seconds on a four-minute upload and seventy-three on a
+# two-hour one. Neither is a clip. These are lengths a person would actually
+# post, and the moment sits in the middle of one.
+CLIP_LENGTHS = (15, 30, 60)
+
+
+def peak_clips(peaks: list, seconds: int, duration: float = 0) -> list:
+    """
+    Clip ranges around the most replayed moments, in order, merged where they
+    would overlap.
+
+    Two moments can be seconds apart - the peaks are only required to be three
+    buckets from each other, and on a short video three buckets is under ten
+    seconds. Cutting both would hand back two clips of nearly the same footage
+    and call them different moments. Where the windows touch they become one
+    longer clip instead, which is what a person would have done by hand.
+    """
+    try:
+        seconds = int(seconds)
+    except (TypeError, ValueError):
+        return []
+    if seconds <= 0 or not peaks:
+        return []
+
+    limit = float(duration or 0)
+    spans = []
+    for peak in peaks:
+        try:
+            middle = (float(peak["start"]) + float(peak["end"])) / 2
+        except (KeyError, TypeError, ValueError):
+            continue
+        # A clip that runs off either end of the video is pulled back inside
+        # it rather than shortened: a moment near the start is still worth the
+        # full length, it just cannot begin before the video does.
+        start = middle - seconds / 2
+        if limit and start + seconds > limit:
+            start = limit - seconds
+        start = int(max(0, start))
+        # The end is measured from the whole-second start rather than rounded
+        # on its own. Rounding the two independently made a "60 second clip"
+        # that was sixty-one, which is the kind of small lie that turns up
+        # later as an off-by-one somewhere it matters.
+        end = start + seconds
+        if limit and end > limit:
+            end = int(limit)
+        if end > start:
+            spans.append((start, end))
+
+    spans.sort()
+    merged = []
+    for start, end in spans:
+        if merged and start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+    return [{"start": s, "end": e} for s, e in merged]
+
+
+def clip_args(clips: list) -> list:
+    """--download-sections once per wanted moment, or nothing."""
+    args = []
+    for span in clips or []:
+        try:
+            start, end = int(span["start"]), int(span["end"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if end <= start:
+            continue
+        args += ["--download-sections", f"*{start}-{end}"]
+    if not args:
+        return []
+    # Same reason as a trim and a chapter: ffmpeg does the cutting, and --print
+    # turns --quiet on implicitly, which silences its progress completely.
+    return ["--no-quiet"] + args
 
 
 def _is_upscale(f: dict) -> bool:
@@ -4500,6 +4604,20 @@ class DownloadManager:
         # already here: extra_args deliberately keeps max out of the archive.
         pick = " [max]" if job.quality == "max" else ""
 
+        if opts.get("clips") and not (opts.get("chapters")
+                                      or opts.get("chapters_all")):
+            # One folder per video, holding one file per moment.
+            #
+            # Named by the second it starts at, zero-padded so the folder
+            # sorts in the order the moments happen. It cannot be named after
+            # the moment itself: measured on the bundled binary, a time range
+            # comes back with section_title AND section_number both NA - those
+            # only exist when the section was picked by chapter name.
+            stamp = " [mp3]" if job.quality == "mp3" else " %(height)sp"
+            folder = f"%(title).100B [%(id)s]{stamp}{pick}{dub}"
+            return str(root / "Clips" / folder /
+                       "%(section_start)05ds-%(section_end)05ds.%(ext)s")
+
         if opts.get("chapters") or opts.get("chapters_all"):
             # One folder per video, holding one file per chapter.
             #
@@ -5141,9 +5259,10 @@ class DownloadManager:
         # back the chapters AND the trimmed range. They are exclusive here,
         # and the screen hides the trim while chapters are ticked.
         wants_chapters = bool(opts.get("chapters") or opts.get("chapters_all"))
+        wants_clips = bool(opts.get("clips")) and not wants_chapters
         # Either way this is part of a video rather than the video, so it stays
         # out of the download archive for the same reason a trim does.
-        trimmed = bool(job.start or job.end) or wants_chapters
+        trimmed = bool(job.start or job.end) or wants_chapters or wants_clips
         args += extra_args(settings, job.quality, trimmed)
 
         # A site that has actually refused gets the strict treatment: a real
@@ -5163,6 +5282,8 @@ class DownloadManager:
         if wants_chapters:
             args += chapter_args(opts.get("chapters"),
                                  every=bool(opts.get("chapters_all")))
+        elif wants_clips:
+            args += clip_args(opts["clips"])
         else:
             args += section_arg(job.start, job.end, job.exact)
         args += [
@@ -5332,7 +5453,8 @@ class DownloadManager:
                 # chapter happened to finish last. What it produced is the
                 # folder, so that is what it remembers - Play opens it, the
                 # Library names it, and the size below adds it up.
-                if job.opts.get("chapters") or job.opts.get("chapters_all"):
+                if (job.opts.get("chapters") or job.opts.get("chapters_all")
+                        or job.opts.get("clips")):
                     job.filepath = str(Path(job.filepath).parent)
             elif line.startswith(THUMB_TAG):
                 # Only fills gaps. A link analysed on this PC already carries

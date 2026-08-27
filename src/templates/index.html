@@ -212,7 +212,15 @@
             <summary id="heatSummary">Most replayed</summary>
             <div class="heat-graph" id="heatGraph"></div>
             <ol class="heat-peaks" id="heatPeaks"></ol>
+            <label class="chapter-all" id="clipOnWrap">
+              <input type="checkbox" id="clipOn">
+              <span>Cut these moments into clips</span>
+            </label>
+            <div class="clip-row" id="clipRow" hidden>
+              <div class="chips" id="clipLens"></div>
+            </div>
           </details>
+          <p class="hint" id="clipNote" hidden></p>
           <p class="hint" id="heatNote" hidden>YouTube has no most-replayed data for this video.</p>
         </div>
 

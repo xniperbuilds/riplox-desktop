@@ -480,6 +480,11 @@
     box.open = false;
     box.hidden = !rows.length;
     note.hidden = !youtube || rows.length > 0;
+    // Wanting clips of one video says nothing about wanting them of the next.
+    $("clipOn").checked = false;
+    $("clipOnWrap").hidden = !peaks.length;
+    renderClipLengths();
+    syncClips();
     if (!rows.length) return;
 
     // Drawn from the numbers rather than fetched as a picture: it is the same
@@ -526,6 +531,77 @@
       : "Most replayed";
   }
 
+  /* ---------------------------------------------------------------- clips */
+
+  /* Which length of clip the moments get cut into.
+
+     The moments come from YouTube; the clips do not. YouTube always sends
+     exactly 100 buckets, so a bucket is a hundredth of the video - two and a
+     half seconds on a four-minute upload and seventy-three on a two-hour one.
+     Neither is a clip, so a length is chosen and the moment sits in the
+     middle of it. The ranges themselves are worked out by the engine and
+     arrive with the analysis, so this shows exactly what it is about to ask
+     for rather than a second guess at the same sum. */
+  var clipSeconds = 30;
+
+  function currentClips() {
+    var sets = (current && current.clips) || {};
+    return sets[String(clipSeconds)] || [];
+  }
+
+  function renderClipLengths() {
+    var sets = (current && current.clips) || {};
+    var lengths = Object.keys(sets).map(Number).sort(function (a, b) { return a - b; });
+    if (lengths.length && lengths.indexOf(clipSeconds) === -1) clipSeconds = lengths[0];
+    $("clipLens").innerHTML = lengths.map(function (n) {
+      return '<button type="button" class="chip' + (n === clipSeconds ? " is-on" : "")
+        + '" data-len="' + n + '">' + n + "s</button>";
+    }).join("");
+  }
+
+  function syncClips() {
+    var on = $("clipOn") && $("clipOn").checked;
+    var clips = on ? currentClips() : [];
+    $("clipRow").hidden = !on;
+    $("clipNote").hidden = !on;
+    if (on) {
+      var moments = ((current && current.peaks) || []).length;
+      $("clipNote").textContent = clips.length
+        + (clips.length === 1 ? " clip" : " clips") + " of " + clipSeconds
+        + " seconds, each one its own file, in a folder named after the video."
+        + (clips.length < moments
+           ? " The " + moments + " moments made " + clips.length
+             + ": some were close enough together to run into one."
+           : "")
+        + " Only these parts are downloaded, not the whole video.";
+      $("trimBlock").hidden = true;
+      if ($("trimOn").checked) { $("trimOn").checked = false; resetTrim(); }
+    } else if (current && current.kind === "video" && S.hasFfmpeg
+               && !chapterPicks.length) {
+      $("trimBlock").hidden = false;
+    }
+    syncCutButton();
+  }
+
+  $("clipOn").addEventListener("change", function () {
+    if (this.checked && chapterPicks.length) {
+      $("chapterList").querySelectorAll(".ch-pick").forEach(function (b) {
+        b.checked = false;
+      });
+      syncChapters();
+    }
+    syncClips();
+  });
+
+  $("clipLens").addEventListener("click", function (e) {
+    var chip = e.target.closest(".chip");
+    if (!chip) return;
+    clipSeconds = parseInt(chip.dataset.len, 10);
+    renderClipLengths();
+    syncClips();
+  });
+
+
   // The titles that were ticked. Same title ticked twice is one pattern to
   // the engine, so it is one entry here.
   function pickedTitles() {
@@ -559,6 +635,13 @@
        has to go, and the one being pressed right now is the one to keep. */
     var picking = chapterPicks.length > 0;
     if (picking && $("trimOn").checked) { $("trimOn").checked = false; resetTrim(); }
+    // Chapters and clips are both cuts of the same video and the engine can
+    // only make one kind at a time. Whichever was just pressed wins, and the
+    // other is visibly let go rather than quietly ignored.
+    if (picking && $("clipOn") && $("clipOn").checked) {
+      $("clipOn").checked = false;
+      syncClips();
+    }
     $("trimBlock").hidden = picking || !current || current.kind === "playlist"
                             || !S.hasFfmpeg;
 
@@ -572,8 +655,15 @@
         + " - each one its own file, in a folder named after the video. "
         + "Only these parts are downloaded, not the whole video.";
     }
-    $("downloadBtn").textContent = picking
-      ? "Download " + chapterPicks.length + (chapterPicks.length === 1 ? " chapter" : " chapters")
+    syncCutButton();
+  }
+
+  function syncCutButton() {
+    var chapters = chapterPicks.length;
+    var clips = $("clipOn") && $("clipOn").checked ? currentClips().length : 0;
+    $("downloadBtn").textContent =
+      chapters ? "Download " + chapters + (chapters === 1 ? " chapter" : " chapters")
+      : clips ? "Download " + clips + (clips === 1 ? " clip" : " clips")
       : "Download";
   }
 
@@ -1442,6 +1532,12 @@
     if (current.kind !== "playlist" && chapterPicks.length) {
       if (chapterPicks.length === chapterRows.length) body.opts.chapters_all = true;
       else body.opts.chapters = pickedTitles();
+    } else if (current.kind !== "playlist" && $("clipOn").checked
+               && currentClips().length) {
+      // The ranges the engine worked out, sent back as they came. Nothing
+      // here recalculates them - a second copy of that sum is a second copy
+      // that can drift.
+      body.opts.clips = currentClips();
     }
     if (current.kind !== "playlist" && $("trimOn").checked) {
       var range = readTrim();

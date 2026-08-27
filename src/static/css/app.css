@@ -2860,3 +2860,6 @@ select:focus { border-color: rgba(var(--cyan-rgb), .45); }
   .status { padding: 6px; justify-content: center; }
   .status span:not(.dot) { display: none; }
 }
+
+.clip-row { margin-top: 9px; }
+.clip-row .chips { gap: 6px; }
