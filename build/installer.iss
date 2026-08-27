@@ -2,7 +2,7 @@
 ; Build the app first:  pyinstaller build\riplox.spec --noconfirm
 
 #define AppName      "Riplox"
-#define AppVersion   "1.4.1"
+#define AppVersion   "1.5.0"
 #define AppPublisher "XniperBuilds"
 #define AppURL       "https://xniperbuilds.com"
 #define AppExe       "Riplox.exe"
