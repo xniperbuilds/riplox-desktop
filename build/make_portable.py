@@ -115,7 +115,12 @@ def stage(into: Path) -> Path:
     # is portable, not whatever happened to be lying around.
     shutil.copytree(DIST, app, dirs_exist_ok=True,
                     ignore=shutil.ignore_patterns(MARKER))
-    shutil.copytree(ROOT / "bin", app / "bin", dirs_exist_ok=True)
+    # ⚠ The WebView2 bootstrapper lives in bin/ for the installer to pick up,
+    # and has no business here. The portable build installs nothing - it is
+    # unzipped and run - so a 1.7 MB prerequisite installer riding along in the
+    # ZIP is weight that nothing would ever execute.
+    shutil.copytree(ROOT / "bin", app / "bin", dirs_exist_ok=True,
+                    ignore=shutil.ignore_patterns("MicrosoftEdgeWebview2Setup.exe"))
     shutil.copytree(ROOT / "browser-extension", app / "browser-extension",
                     dirs_exist_ok=True)
     shutil.copy2(ROOT / "TERMS.txt", app / "TERMS.txt")
