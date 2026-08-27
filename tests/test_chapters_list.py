@@ -86,6 +86,20 @@ check("a time that is not a number becomes no time, not a crash",
 check("...and the chapter itself is still listed", len(odd) == 1)
 
 
+print("\n-- two chapters can carry the same title, and both are real -------")
+# Not invented: youtube.com/watch?v=linlz7-Pnvw has 63 chapters and says "An
+# aerial view of the Rocky Mountains in Switzerland." twice, at 2:30 and at
+# 17:15. Collapsing them on screen would be the app deciding one of the two
+# does not exist.
+twins = engine._chapter_rows({"chapters": [
+    {"start_time": 150, "title": "An aerial view of the Rocky Mountains.", "end_time": 161},
+    {"start_time": 1035, "title": "An aerial view of the Rocky Mountains.", "end_time": 1061},
+]})
+check("both are listed, not folded into one", len(twins) == 2, str(len(twins)))
+check("and they keep their own times",
+      twins[0]["start"] == 150 and twins[1]["start"] == 1035)
+
+
 print("\n-- nothing is quietly left out ------------------------------------")
 many = engine._chapter_rows({"chapters": [
     {"start_time": i * 10, "title": f"Chapter {i}", "end_time": i * 10 + 10}
