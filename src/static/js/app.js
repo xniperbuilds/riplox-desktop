@@ -1266,6 +1266,7 @@
     $("optSubLang").value = "";
     $("optSubsOnly").checked = false;
     $("optThumbAll").checked = false;
+    $("optWriteDesc").checked = false;
     $("optLiveFromStart").checked = false;
     // Only a stream that is live right now can be joined from its beginning.
     // Hidden otherwise rather than shown and ignored.
@@ -1294,6 +1295,7 @@
     if ($("optCookies").value === "off") o.no_cookies = true;
     if ($("optSubsOnly").checked) o.subs_only = true;
     if ($("optThumbAll").checked) o.thumb_all = true;
+    if ($("optWriteDesc").checked) o.write_desc = true;
     if (pickedThumb) o.thumb_url = pickedThumb;
     if ($("optLiveFromStart").checked) o.live_from_start = true;
     return o;
@@ -1480,7 +1482,13 @@
     }, 180);
   }
 
-  ["optName", "optCookies", "optClient", "optAudioLang", "optSubLang"].forEach(function (id) {
+  /* The tick boxes were missing from this list, so the shown command did not
+     change when one was pressed - and a preview that drifts from what will
+     actually run is worse than no preview at all, which is the reason the
+     panel exists. */
+  ["optName", "optCookies", "optClient", "optAudioLang", "optSubLang",
+   "optSubsOnly", "optThumbAll", "optWriteDesc", "optLiveFromStart"
+  ].forEach(function (id) {
     $(id).addEventListener("change", refreshCommand);
   });
   $("optName").addEventListener("input", refreshCommand);

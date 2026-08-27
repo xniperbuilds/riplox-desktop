@@ -1502,6 +1502,9 @@ _OPT_KEYS = ("format_id", "audio_lang", "sub_langs", "outtmpl", "dest_dir",
              # One download's shape, not a setting: wanting only the subtitles
              # of this video says nothing about the next one.
              "subs_only", "live_from_start", "thumb_all",
+             # The text under the video, saved beside it. Asked for on the
+             # biggest competitor and never answered there.
+             "write_desc",
              # Which cover picture to keep, chosen from the ones the site
              # offers. An address, so it is checked like one - see safe_image.
              "thumb_url",
@@ -1585,7 +1588,7 @@ def clean_opts(opts) -> dict:
             if path.is_dir():
                 out[key] = str(path)
         elif key in ("no_cookies", "subs_only", "live_from_start", "thumb_all",
-                     "chapters_all"):
+                     "chapters_all", "write_desc"):
             out[key] = True
         elif key == "chapters":
             # Chapter titles ticked on the list. Each becomes an anchored
@@ -5312,6 +5315,12 @@ class DownloadManager:
         # has is one (the default) or all of them. So "choose the thumbnail"
         # means saving the set and letting a person pick, which is what the
         # request actually wanted: sites often serve a poor default.
+        if opts.get("write_desc"):
+            # yt-dlp writes nothing when a site gives no description, and says
+            # nothing about it either. That is the site's answer rather than a
+            # failure, so it is not claimed as one - but it is why the label
+            # promises the description and not a file.
+            args.append("--write-description")
         if opts.get("thumb_all"):
             args.append("--write-all-thumbnails")
         elif settings.get("write_thumbnail"):
