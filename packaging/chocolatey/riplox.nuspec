@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>riplox</id>
-    <version>1.4.0</version>
+    <version>1.4.1</version>
     <packageSourceUrl>https://github.com/xniperbuilds/riplox-desktop/tree/main/packaging/chocolatey</packageSourceUrl>
     <owners>XniperBuilds</owners>
     <title>Riplox</title>
@@ -37,7 +37,7 @@ Riplox uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) (Unlicense) and [FFmpeg](
 * Installs for you alone unless you choose otherwise, so no administrator rights are needed.
 * Requires Windows 10 or newer, 64-bit.
 ]]></description>
-    <releaseNotes>https://github.com/xniperbuilds/riplox-desktop/releases/tag/v1.4.0</releaseNotes>
+    <releaseNotes>https://github.com/xniperbuilds/riplox-desktop/releases/tag/v1.4.1</releaseNotes>
   </metadata>
   <files>
     <file src="tools\**" target="tools" />
