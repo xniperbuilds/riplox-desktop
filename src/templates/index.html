@@ -178,6 +178,22 @@
             <input type="checkbox" id="alsoAudio">
             <span>Also save the audio as MP3</span>
           </label>
+
+          <!-- The video's own chapters. A <details> because fifteen titles
+               standing between the quality chips and the Download button
+               would push the button off the screen on exactly the videos
+               this is for - and because the browser already knows how to
+               open and close one.
+
+               Absent, not greyed out, when a video has none: a control that
+               is visible but never usable teaches people to ignore the whole
+               area. The line below it is what stops that absence from
+               reading as broken. -->
+          <details class="chapters" id="chapterBox" hidden>
+            <summary id="chapterCount"></summary>
+            <ol class="chapter-list" id="chapterList"></ol>
+          </details>
+          <p class="hint" id="chapterNote" hidden>This video has no chapters.</p>
         </div>
 
         <!-- One quiet line, closed on every install and after every link. It

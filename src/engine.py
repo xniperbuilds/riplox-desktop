@@ -2128,6 +2128,10 @@ def analyze(url: str, settings: dict) -> dict:
         # choice is offered at all - a checkbox on every ordinary video is
         # clutter on the one screen that has to stay simple.
         "is_live": bool(info.get("is_live")),
+        # The video's own chapters. Read-only here: the screen can say
+        # "15 chapters" and list them, which is worth having on its own
+        # and is the list the ticking will hang off next.
+        "chapters": _chapter_rows(info),
         # Everything below feeds "More options". The closed screen never shows
         # any of it, so it costs nothing to carry.
         "formats": _format_rows(info),
@@ -2473,6 +2477,38 @@ def _thumb_rows(info: dict) -> list:
         })
         if len(rows) >= 8:
             break
+    return rows
+
+
+def _chapter_rows(info: dict) -> list:
+    """
+    The video's own chapters, as the screen needs them.
+
+    Most videos have none, and a site can say so in two ways - by leaving the
+    field out, or by setting it to null - so both have to arrive here as the
+    same empty list. A chapter carrying no title is dropped rather than shown
+    as a blank row: it cannot be read, and it cannot be asked for by name.
+
+    Not capped, deliberately. Eight thumbnails out of forty is a tidier
+    screen; eight chapters out of forty is the app quietly deciding which
+    parts of the video exist.
+    """
+    rows = []
+    for entry in info.get("chapters") or []:
+        if not isinstance(entry, dict):
+            continue
+        title = str(entry.get("title") or "").strip()
+        if not title:
+            continue
+        start, end = entry.get("start_time"), entry.get("end_time")
+        rows.append({
+            "title": title,
+            # A time is shown only when there really is one. Sites have sent
+            # strings and nulls here, and "0:00" invented from a missing
+            # start would be a claim about the video, not a blank.
+            "start": start if isinstance(start, (int, float)) else None,
+            "end": end if isinstance(end, (int, float)) else None,
+        })
     return rows
 
 

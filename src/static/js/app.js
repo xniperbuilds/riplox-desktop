@@ -364,6 +364,9 @@
     // about wanting the audio of the next.
     $("alsoAudio").checked = false;
     syncAlsoAudio();
+    // A playlist is told apart from a video with no chapters here, not in
+    // there - null and [] have to mean different things on that screen.
+    renderChapters(isList ? null : info.chapters);
     fillFormats(info);
     restoreOpts();
     // A playlist has no single format table, and a name for one file makes no
@@ -392,6 +395,39 @@
     });
     $("endMin").disabled = true;
     $("endSec").disabled = true;
+  }
+
+  /* ------------------------------------------------------------ chapters */
+
+  /* The video's own chapters, read-only for now.
+
+     Shown only when there really are some. When there are none the list is
+     absent and the line beneath it says so out loud: someone who came for
+     this feature has to be able to tell "this video has not got any" from
+     "this is broken", and an empty box says the wrong one of those. */
+  function renderChapters(rows) {
+    var box = $("chapterBox"), note = $("chapterNote");
+    if (!box) return;
+    // null is a playlist or a grabbed page. "This video has no chapters" is
+    // not a true thing to say about forty videos at once, so neither the
+    // list nor the line appears - the question was never asked.
+    var known = !!rows;
+    rows = rows || [];
+    box.open = false;
+    box.hidden = !rows.length;
+    note.hidden = !known || rows.length > 0;
+    $("chapterCount").textContent =
+      rows.length === 1 ? "1 chapter" : rows.length + " chapters";
+    $("chapterList").innerHTML = rows.map(function (c) {
+      return '<li><span class="ch-at">' + esc(chapterAt(c.start)) + "</span>"
+        + '<span class="ch-title">' + esc(c.title) + "</span></li>";
+    }).join("");
+  }
+
+  // fmtDuration answers "" for zero, which is right for a video whose length
+  // is unknown and wrong for a chapter that starts at the beginning.
+  function chapterAt(sec) {
+    return typeof sec === "number" ? (fmtDuration(sec) || "0:00") : "";
   }
 
   /* -------------------------------------------------------------- channel */

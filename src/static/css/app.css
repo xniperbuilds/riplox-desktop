@@ -2156,6 +2156,64 @@ button { font-family: var(--body); }
 .also-audio input { cursor: pointer; }
 .also-audio:hover { color: var(--ink); }
 
+/* --- the video's own chapters -------------------------------------------- */
+
+.chapters { margin-top: 12px; }
+.chapters > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  cursor: pointer;
+  list-style: none;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  transition: color .18s;
+}
+.chapters > summary::-webkit-details-marker { display: none; }
+.chapters > summary::before {
+  content: "";
+  width: 5.5px; height: 5.5px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform .2s var(--ease);
+}
+.chapters[open] > summary::before { transform: rotate(45deg) translate(-1px, -1px); }
+.chapters > summary:hover { color: var(--ink-dim); }
+
+/* A video can have two hundred chapters and not one of them may be hidden,
+   so the list scrolls instead of being cut short. */
+.chapter-list {
+  margin: 9px 0 0;
+  padding: 6px 0;
+  max-height: 232px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--well);
+  list-style: none;
+}
+.chapter-list li {
+  display: flex;
+  gap: 11px;
+  padding: 5px 13px;
+  font-size: 12.5px;
+  color: var(--ink-dim);
+}
+.chapter-list .ch-at {
+  flex: none;
+  min-width: 46px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+/* A chapter title can run the width of the screen. It wraps rather than
+   pushing the whole panel sideways. */
+.chapter-list .ch-title { min-width: 0; overflow-wrap: anywhere; }
+
 /* --- who you download from ----------------------------------------------- */
 
 .accounts {
