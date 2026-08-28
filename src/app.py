@@ -686,6 +686,12 @@ def api_job_log():
     return jsonify({"ok": True, "log": manager.job_log(job_id)})
 
 
+@app.get("/api/insights")
+def api_insights():
+    """What the library already knows. Reads two files; fetches nothing."""
+    return jsonify(engine.insights())
+
+
 @app.post("/api/clear-finished")
 def api_clear_finished():
     manager.clear_finished()

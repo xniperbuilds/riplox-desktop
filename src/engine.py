@@ -800,6 +800,107 @@ def record_failure(entry: dict) -> None:
         _write_failed(items)
 
 
+_SIZE_UNITS = {"B": 1, "KB": 1024, "MB": 1024 ** 2, "GB": 1024 ** 3, "TB": 1024 ** 4}
+
+
+def _bytes_of(size: str) -> int:
+    """"412 MB" as a number. The library stores sizes the way it shows them."""
+    try:
+        number, unit = str(size).split()
+        return int(float(number) * _SIZE_UNITS[unit.upper()])
+    except (ValueError, KeyError, AttributeError):
+        return 0
+
+
+def _pretty(total: int) -> str:
+    for unit in ("TB", "GB", "MB", "KB"):
+        step = _SIZE_UNITS[unit]
+        if total >= step:
+            return f"{total / step:.1f} {unit}"
+    return f"{total} B"
+
+
+def insights() -> dict:
+    """
+    What the library already knows, counted.
+
+    Reads history.json and failed.json and nothing else - no request, no new
+    file, no new permission. Every number here is one the app already had and
+    had never shown back.
+    """
+    import time
+
+    history = load_history()
+    failed = load_failed()
+
+    done_by_site: dict = {}
+    bytes_by_site: dict = {}
+    total_bytes = 0
+    week = 0
+    week_bytes = 0
+    earliest = ""
+    cutoff = time.time() - 7 * 86400
+
+    for item in history:
+        site = site_of(item.get("url", "")) or "elsewhere"
+        done_by_site[site] = done_by_site.get(site, 0) + 1
+        size = _bytes_of(item.get("size", ""))
+        bytes_by_site[site] = bytes_by_site.get(site, 0) + size
+        total_bytes += size
+
+        when = str(item.get("when", ""))
+        if when and (not earliest or when < earliest):
+            earliest = when
+        try:
+            stamp = time.mktime(time.strptime(when[:19], "%Y-%m-%dT%H:%M:%S"))
+            if stamp >= cutoff:
+                week += 1
+                week_bytes += size
+        except (ValueError, TypeError):
+            pass
+
+    # A failure that was later fixed still failed the first time, which is the
+    # thing being measured: how often this site works first go.
+    failed_by_site: dict = {}
+    for item in failed:
+        site = site_of(item.get("url", "")) or "elsewhere"
+        failed_by_site[site] = failed_by_site.get(site, 0) + 1
+
+    sites = []
+    for site in sorted(set(done_by_site) | set(failed_by_site),
+                       key=lambda s: -(done_by_site.get(s, 0))):
+        ok = done_by_site.get(site, 0)
+        bad = failed_by_site.get(site, 0)
+        sites.append({
+            "site": site,
+            "done": ok,
+            "failed": bad,
+            "size": _pretty(bytes_by_site.get(site, 0)),
+            # Out of everything tried on that site, not out of what worked.
+            "rate": round(100.0 * bad / (ok + bad), 1) if (ok + bad) else 0.0,
+        })
+
+    total_failed = sum(failed_by_site.values())
+    tried = len(history) + total_failed
+    top = sites[0]["site"] if sites and sites[0]["done"] else ""
+
+    return {
+        "ok": True,
+        "files": len(history),
+        "size": _pretty(total_bytes),
+        "since": earliest[:10],
+        "week": week,
+        "week_size": _pretty(week_bytes),
+        "first_try": round(100.0 * len(history) / tried, 1) if tried else 0.0,
+        "first_try_of": tried,
+        "failed": total_failed,
+        "top": top,
+        "top_share": round(100.0 * sites[0]["done"] / len(history), 1)
+                     if (sites and len(history)) else 0.0,
+        "sites": sites[:8],
+    }
+
+
 def note_failure_fixed(url: str, quality: str) -> None:
     """
     A remembered failure has now downloaded. Mark it, or clear it away.

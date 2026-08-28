@@ -3405,6 +3405,43 @@ select:focus { border-color: var(--accent); }
 .fr-card > .check { margin-top: 4px; }
 .fr-note { margin-right: auto; font-size: 12px; color: var(--faint); }
 
+/* Four numbers and a breakdown. */
+.ins-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.ins-tiles h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--faint);
+}
+.ins-tiles b {
+  display: block;
+  font-size: 31px;
+  font-weight: 500;
+  line-height: 1.1;
+  margin-bottom: 5px;
+}
+.ins-tiles span { font-size: 12px; color: var(--faint); }
+.ins-sites { margin-top: 12px; }
+.ins-row { margin-bottom: 12px; }
+.ins-row:last-child { margin-bottom: 0; }
+.ins-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+.ins-bad { font-style: normal; color: var(--bad); }
+@media (max-width: 900px) {
+  .ins-tiles { grid-template-columns: repeat(2, 1fr); }
+}
+
 /* --- one way in ---------------------------------------------------------- */
 
 /* Near the top rather than centred: the list grows downwards, and a box that

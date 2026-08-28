@@ -295,6 +295,50 @@
     if (e.key === "Enter") { e.preventDefault(); runPalette(palIndex); }
   });
 
+  /* -------------------------------------------------------------- insights */
+
+  $("openInsights").addEventListener("click", function () {
+    $("insights").hidden = false;
+    api("/api/insights").then(function (r) {
+      if (!r || !r.ok) return;
+      $("insSub").textContent = r.files
+        ? r.files + " files \u00b7 " + r.size + (r.since ? " \u00b7 since " + r.since : "")
+        : "Nothing downloaded yet.";
+      $("insFiles").textContent = r.files;
+      $("insSize").textContent = r.size;
+      $("insWeek").textContent = r.week;
+      $("insWeekSize").textContent = r.week_size;
+      $("insFirst").textContent = r.first_try + "%";
+      $("insFirstOf").textContent = r.files + " of " + r.first_try_of;
+      $("insTop").textContent = r.top || "\u2014";
+      $("insTopShare").textContent = r.top ? r.top_share + "% of the library" : "";
+
+      /* The failure rate per site is the useful part: "it feels broken
+         lately" becomes a number about one site rather than an average that
+         hides which one. */
+      var most = (r.sites[0] && r.sites[0].done) || 1;
+      $("insSites").innerHTML = r.sites.map(function (s) {
+        var width = Math.max(2, Math.round(100 * s.done / most));
+        return '<div class="ins-row">' +
+          '<div class="ins-head"><span>' + esc(s.site) + "</span>" +
+          '<span class="pal-hint">' + s.done + " \u00b7 " + esc(s.size) +
+          (s.failed
+            ? ' \u00b7 <em class="ins-bad">' + s.rate + "% failed</em>"
+            : "") +
+          "</span></div>" +
+          '<div class="meter"><i style="width:' + width + '%"></i></div>' +
+          "</div>";
+      }).join("") || '<p class="pal-none">Nothing to count yet.</p>';
+    });
+  });
+
+  $("insightsClose").addEventListener("click", function () {
+    $("insights").hidden = true;
+  });
+  $("insights").addEventListener("click", function (e) {
+    if (e.target === $("insights")) $("insights").hidden = true;
+  });
+
   /* ------------------------------------------------------------ first run */
 
   /* Nothing here is a new setting - all three exist and all three have

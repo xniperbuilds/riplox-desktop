@@ -574,6 +574,7 @@
     <div class="view-head">
       <h2>Library</h2>
       <div class="row-gap">
+        <button class="ghost small" id="openInsights">Insights</button>
         <button class="ghost small" id="openConvert">Convert to audio…</button>
         <button class="ghost small" id="openFolder">Open folder</button>
         <button class="ghost small danger" id="clearHistory">Clear history</button>
@@ -1719,6 +1720,36 @@
 <!-- Riplox opened straight onto an empty screen, so every default was found
      out later - usually by being wrong once. Three questions, and the third
      is not a question. -->
+<!-- Riplox already records the site, the size and the date of every finished
+     download, and the failures separately. It had never shown any of it back.
+     Nothing here is fetched or stored - it is those two files, counted. -->
+<div class="scrim" id="insights" hidden>
+  <div class="dlg dlg-wide" role="dialog" aria-modal="true" aria-labelledby="insightsTitle">
+    <div class="dlg-head">
+      <div>
+        <h3 id="insightsTitle">Insights</h3>
+        <p class="dlg-msg" id="insSub"></p>
+      </div>
+    </div>
+
+    <div class="ins-tiles">
+      <div class="panel tight"><h4>Downloaded</h4><b id="insFiles"></b><span id="insSize"></span></div>
+      <div class="panel tight"><h4>This week</h4><b id="insWeek"></b><span id="insWeekSize"></span></div>
+      <div class="panel tight"><h4>Worked first try</h4><b id="insFirst"></b><span id="insFirstOf"></span></div>
+      <div class="panel tight"><h4>Most from</h4><b id="insTop"></b><span id="insTopShare"></span></div>
+    </div>
+
+    <div class="panel tight">
+      <b>Where it comes from, and how often it works</b>
+      <div class="ins-sites" id="insSites"></div>
+    </div>
+
+    <div class="dlg-foot">
+      <button class="ghost" id="insightsClose">Close</button>
+    </div>
+  </div>
+</div>
+
 <div class="scrim" id="firstRun" hidden>
   <div class="dlg dlg-wide" role="dialog" aria-modal="true" aria-labelledby="firstRunTitle">
     <div class="dlg-head">
