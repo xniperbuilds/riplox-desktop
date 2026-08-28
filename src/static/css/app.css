@@ -561,42 +561,57 @@ main {
 
 button { font-family: var(--font); }
 
+/* The one accent, on the one action. Flat rather than a gradient, and with no
+   shadow: a coloured glow under a button reads as decoration, and the accent
+   says more when nothing else on the screen is wearing it. */
 .primary {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  height: 44px;
   min-width: 108px;
-  padding: 11px 21px;
-  border: 0;
+  padding: 0 21px;
+  border: 1px solid transparent;
   border-radius: var(--r-s);
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  background: var(--accent);
   color: var(--on-accent);
-  font-size: 14px;
-  font-weight: 600;
+  font: 500 16px var(--font);
+  white-space: nowrap;
   cursor: pointer;
-  transition: transform .16s var(--ease), box-shadow .2s, filter .2s;
-  box-shadow: 0 10px 26px -14px rgba(var(--accent-rgb), .9);
+  transition: filter .18s var(--ease), background .18s;
 }
-.primary:hover { transform: translateY(-1px); filter: brightness(1.07); box-shadow: 0 16px 34px -14px rgba(var(--accent-rgb), .95); }
-.primary:active { transform: translateY(0); }
-.primary:disabled { opacity: .45; cursor: default; transform: none; box-shadow: none; }
-.primary.big { padding: 13px 28px; font-size: 15px; }
+.primary:hover { filter: brightness(1.06); }
+.primary:active { filter: brightness(.97); }
+.primary:disabled { opacity: .45; cursor: default; filter: none; }
+.primary.big { height: 48px; padding: 0 28px; font-size: 17px; }
 
+/* The workhorse - 65 uses against the primary's 12 - so it is a real button
+   with a surface under it, not an outline that fills in on hover. */
 .ghost {
-  padding: 10px 16px;
-  border: 1px solid var(--line);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--line-mid);
   border-radius: var(--r-s);
-  background: transparent;
-  color: var(--muted);
-  font-size: 13px;
+  background: var(--surface);
+  color: var(--text);
+  font: 500 15px var(--font);
+  white-space: nowrap;
   cursor: pointer;
   transition: color .18s, border-color .18s, background .18s;
 }
-.ghost:hover { color: var(--text); border-color: var(--line-mid); background: var(--surface); }
-.ghost.small { padding: 7px 13px; font-size: 12.5px; }
-.ghost.danger:hover { color: var(--bad-ink); border-color: rgba(var(--bad-rgb), .4); }
+.ghost:hover { background: var(--raise); }
+.ghost.small { height: 36px; padding: 0 12px; font-size: 13px; }
+/* Destructive, and it says so at rest. Every one of these deletes something -
+   Clear history, Delete all, Remove all - and a button that only turns red
+   once the pointer is already on it warns nobody. */
+.ghost.danger { color: var(--bad); border-color: var(--bad-dim); }
+.ghost.danger:hover { background: var(--bad-dim); border-color: var(--bad); }
 
 .spinner {
   width: 14px; height: 14px;
@@ -806,37 +821,51 @@ button { font-family: var(--font); }
   color: var(--faint);
 }
 
-.chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
 
+/* Not a pill. A pill should mean something - a tag, a count - and these are a
+   set of mutually exclusive choices, so they take the same control radius as
+   every other control. */
 .chip {
-  padding: 7px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
   border: 1px solid var(--line);
-  border-radius: 20px;
-  background: transparent;
+  border-radius: var(--r-s);
+  background: var(--surface-2);
   color: var(--muted);
-  font-size: 12.5px;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all .18s var(--ease);
+  transition: color .18s var(--ease), background .18s, border-color .18s;
 }
-.chip:hover { color: var(--text); border-color: rgba(var(--accent-rgb), .4); }
+.chip:hover { color: var(--text); border-color: var(--line-mid); }
+/* A chip carries its size, and the upscale note, in an <em> - which no rule
+   had ever claimed, so both rendered in the browser's default italic on a
+   screen where nothing else is. Found by the class contract test rather than
+   by anyone looking at it. */
 /* A chip carries its size, and the upscale note, in an <em> - which no rule
    had ever claimed, so both rendered in the browser's default italic on a
    screen where nothing else is. Found by the class contract test rather than
    by anyone looking at it. */
 .chip em, .chip .chip-size {
   font-style: normal;
-  font-size: 11.5px;
-  opacity: .7;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--faint);
 }
-.chip.is-on em { opacity: .8; }
+/* Tinted, not filled. A solid accent chip shouted louder than the primary
+   action sitting next to it, which left the accent meaning nothing. */
 .chip.is-on {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
-  font-weight: 600;
-  box-shadow: 0 6px 18px -10px var(--accent);
+  background: var(--accent-dim);
+  border-color: var(--accent-line);
+  color: var(--accent-ink);
 }
-.chip.audio.is-on { background: var(--bad); border-color: var(--bad); color: var(--on-bad); box-shadow: 0 6px 18px -10px var(--bad); }
+.chip.is-on em, .chip.is-on .chip-size { color: var(--accent-ink); opacity: .75; }
+.chip.audio.is-on { background: var(--bad-dim); border-color: var(--bad); color: var(--bad); }
+.chip.audio.is-on em, .chip.audio.is-on .chip-size { color: var(--bad); opacity: .75; }
 
 .preview-actions { display: flex; align-items: center; gap: 10px; }
 
@@ -1062,7 +1091,7 @@ button { font-family: var(--font); }
 .chip.upscaled { border-color: rgba(var(--warn-rgb), .45); }
 .chip.upscaled em {
   font-style: normal;
-  font-size: 10.5px;
+  font-size: 10px;
   color: var(--warn-ink);
   margin-left: 2px;
 }
@@ -1229,21 +1258,22 @@ button { font-family: var(--font); }
 .job.done .meter i { background: var(--accent); }
 .job.error .meter i { background: var(--bad); box-shadow: none; }
 
-.job-actions { display: flex; gap: 5px; }
+.job-actions { display: flex; gap: 8px; }
 
 .icon-btn {
-  width: 29px; height: 29px;
+  width: 36px; height: 36px;
   display: grid;
   place-items: center;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  background: transparent;
+  border-radius: var(--r-s);
+  background: var(--surface-2);
   color: var(--muted);
   cursor: pointer;
   font-size: 14px;
-  transition: all .18s;
+  flex: none;
+  transition: color .18s, border-color .18s, background .18s;
 }
-.icon-btn svg { width: 15px; height: 15px; display: block; }
+.icon-btn svg { width: 16px; height: 16px; display: block; }
 .icon-btn:hover { color: var(--text); border-color: var(--line-mid); background: var(--surface); }
 .icon-btn.go:hover { color: var(--accent-ink); border-color: rgba(var(--accent-rgb), .45); }
 .icon-btn.stop:hover { color: var(--bad-ink); border-color: rgba(var(--bad-rgb), .45); }
@@ -1286,7 +1316,7 @@ button { font-family: var(--font); }
    the middle column is several lines tall. */
 .hrow-acts {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
   align-self: start;
 }
@@ -1670,7 +1700,7 @@ button { font-family: var(--font); }
 .in-row.waiting { border-left: 3px solid var(--warn); }
 .in-row .primary.small,
 .dev-row .ghost.small { flex: none; }
-.primary.small { min-width: 0; padding: 7px 14px; font-size: 12.5px; }
+.primary.small { height: 36px; min-width: 0; padding: 0 14px; font-size: 14px; }
 .in-state {
   flex: none;
   font-family: var(--mono);
@@ -2635,11 +2665,12 @@ button { font-family: var(--font); }
    Deeper than the --bad accent on purpose: the accent is tuned to carry text
    ON the background, and dark ink over it only reaches 4.1:1. This carries
    white at 6:1, and being a fixed colour it reads the same in both themes. */
-.primary.danger {
-  background: linear-gradient(135deg, #C11742, #A21038);
-  color: #FFFFFF;
-}
-.primary.danger:hover { filter: brightness(1.08); }
+/* The confirm button on a dialog that deletes something. The script puts
+   `danger` on it at runtime, which is why it looks unused in the markup.
+   It was two hardcoded reds that ignored the theme; --bad carries --on-bad at
+   5.9:1 in dark and 5.3:1 in light, both measured. */
+.primary.danger { background: var(--bad); color: var(--on-bad); }
+.primary.danger:hover { filter: brightness(1.06); }
 
 .qr-note.dim { color: var(--faint); opacity: .85; }
 .credit a { color: var(--accent-ink); text-decoration: none; }
