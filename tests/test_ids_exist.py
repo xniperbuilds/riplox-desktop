@@ -73,6 +73,19 @@ FEATURE_IDS = [
 for i in FEATURE_IDS:
     check(f"#{i}", i in defined)
 
+print("\n-- and the page uses each id once -----------------------------------")
+# getElementById returns the first match and ignores the rest, so a duplicate
+# is a lookup that silently resolves to the wrong element - or to the right one
+# by luck, until someone reorders the markup. I added one of these while
+# building the summary panel: the element already existed, and what was
+# actually missing was its CSS.
+from collections import Counter
+counts = Counter(re.findall(r'\bid="([A-Za-z][\w-]*)"', HTML))
+dupes = sorted(name for name, n in counts.items() if n > 1)
+check("no id is used twice in the page",
+      not dupes, ", ".join(dupes) if dupes else "")
+
+
 print("\n-- every data attribute the script reads has somewhere to come from -")
 
 

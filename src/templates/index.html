@@ -73,6 +73,15 @@
     </button>
   </nav>
 
+  <!-- What is downloading, in the rail, so it is answerable from any room.
+       Nothing here is fetched for it: the queue poll already carries all four
+       values. Hidden entirely when nothing is running, because a panel that
+       says "nothing" is a panel you learn to ignore. -->
+  <div class="rail-live" id="railLive" hidden>
+    <div class="live-head"><span>Downloading</span><em id="liveCount"></em></div>
+    <div id="liveRows"></div>
+  </div>
+
   <div class="side-foot">
     <div class="theme-pick" id="themePick" role="group" aria-label="Appearance">
       <button type="button" data-theme="auto"><b>A</b><span>Auto</span></button>

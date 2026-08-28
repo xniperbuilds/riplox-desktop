@@ -484,6 +484,46 @@ body::before {                       /* faint technical grid */
 
 @keyframes pulse { 50% { opacity: .3; } }
 
+/* --- what is downloading, in the rail ----------------------------------- */
+
+/* margin-top:auto pushes it down so it sits above the foot however few nav
+   items there are. */
+.rail-live {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.live-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 12px;
+}
+.live-head span {
+  font-size: 10px;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: 500;
+}
+.live-head em { font-style: normal; font-size: 11px; color: var(--muted); }
+.live-row { padding: 8px; border-radius: var(--r-s); }
+.live-title {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.live-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 7px;
+  font-size: 10px;
+  color: var(--faint);
+}
+
 /* --- layout -------------------------------------------------------------- */
 
 main {
@@ -1059,9 +1099,10 @@ button { font-family: var(--font); }
   background: var(--ground-2);
   font-size: 12px;
   color: var(--muted);
-  line-height: 1.6;
+  line-height: 1.75;
 }
 .summary b { color: var(--text); font-weight: 500; }
+.summary:empty { display: none; }
 
 /* The quality tiles. Two columns and a 64px tile are the design's; the number
    of rows is not, because the app lists whatever the site actually has - four
@@ -1296,8 +1337,9 @@ button { font-family: var(--font); }
 .playlist-bar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
-  padding: 10px 13px;
+  padding: 12px;
   border-bottom: 1px solid var(--line);
 }
 .pl-all {
@@ -1333,7 +1375,6 @@ button { font-family: var(--font); }
 
 /* The bar now holds six controls, so it wraps rather than squeezing the
    filter box down to nothing on a narrow window. */
-.playlist-bar { flex-wrap: wrap; }
 .playlist-bar select { flex: none; padding: 6px 9px; font-size: 12.5px; }
 .playlist-bar .ghost.small { flex: none; }
 
@@ -3352,7 +3393,8 @@ select:focus { border-color: var(--accent); }
   /* Below this width the labels are what has to go, not the navigation. */
   .sidebar { width: 72px; padding: 20px 8px 16px; align-items: center; }
   .brand { padding: 4px 0 0; }
-  .wordmark, .tab-label, .theme-pick button span { display: none; }
+  .wordmark, .tab-label, .theme-pick button span,
+  .rail-live { display: none; }
   .theme-pick button b { display: block; }
   .tabs { width: 100%; }
   .tab { justify-content: center; padding: 0; }

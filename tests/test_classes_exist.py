@@ -110,6 +110,36 @@ check("...and the script really does author markup", len(authored) >= 20,
       str(len(authored)))
 
 
+print("\n-- one class, one block ---------------------------------------------")
+# This stylesheet keeps each class in one place, in the section it belongs to,
+# and 236 of them follow that. A second bare `.name {` block somewhere else is
+# how a rule gets written twice and the later one silently wins - which is
+# exactly what happened when I added a .summary that the file already had.
+from collections import Counter
+
+blocks, buf, depth = [], [], 0
+for ch in re.sub(r"/\*.*?\*/", " ", CSS, flags=re.S):
+    if ch == "{":
+        if depth == 0:
+            prelude = "".join(buf).strip()
+            if not prelude.startswith("@"):
+                blocks.append(" ".join(prelude.split()))
+        buf = []
+        depth += 1
+    elif ch == "}":
+        depth -= 1
+        buf = []
+    else:
+        buf.append(ch)
+
+bare = Counter(s for s in blocks if re.fullmatch(r"\.[a-z][\w-]*", s))
+split = sorted(name for name, n in bare.items() if n > 1)
+check("no class is defined in two separate blocks",
+      not split, ", ".join(split) if split else "")
+check("...and there are enough of them for that to mean something",
+      len(bare) >= 100, str(len(bare)))
+
+
 print("\n-- the reading is of selectors, not of comments --------------------")
 # Guarding the guard. A comment that names a class must not be able to keep
 # this file green after the rule itself is gone.

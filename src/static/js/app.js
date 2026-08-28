@@ -1843,6 +1843,7 @@
     badge.textContent = active;
     badge.hidden = active === 0;
     syncActivity();
+    syncRailLive(jobs);
 
     $("queueEmpty").hidden = jobs.length > 0;
 
@@ -1986,6 +1987,32 @@
       set.unshift(["fix", ICON.fix, "Fix this and try again", "go"]);
     }
     return set.concat([["remove", ICON.trash, "Remove", ""]]);
+  }
+
+  /* The rail's live panel. Two rows at most: it is a glance, not a list, and
+     the list is one click away in Activity. */
+  function syncRailLive(jobs) {
+    var live = jobs.filter(function (j) {
+      return j.status === "downloading" || j.status === "converting";
+    });
+    $("railLive").hidden = live.length === 0;
+    if (!live.length) { $("liveRows").innerHTML = ""; return; }
+
+    $("liveCount").textContent = live.length > 2
+      ? "2 of " + live.length : String(live.length);
+
+    $("liveRows").innerHTML = live.slice(0, 2).map(function (j) {
+      var pct = j.stage && j.percent < 1 ? 0 : j.percent;
+      var left = j.stage && j.percent < 1
+        ? esc(j.stage)
+        : pct.toFixed(0) + "%" + (j.size ? " · " + esc(j.size) : "");
+      return '<div class="live-row">' +
+        '<div class="live-title">' + esc(j.title || "") + "</div>" +
+        '<div class="meter"><i style="width:' + pct.toFixed(0) + '%"></i></div>' +
+        '<div class="live-meta"><span>' + left + "</span>" +
+        "<span>" + (j.speed ? esc(j.speed) : "") + "</span></div>" +
+        "</div>";
+    }).join("");
   }
 
   function updateRow(row, j) {
