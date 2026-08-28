@@ -1713,6 +1713,28 @@
 <!-- What one download actually did. The log has always been kept; until now
      the only thing you could do with it was copy it blind and paste it
      somewhere else to read it. -->
+<!-- One way in. The app has four search boxes - queue, library, settings,
+     sites - and six rooms, and the commonest thing anybody does here is paste
+     a link. Ctrl+K takes all of it. -->
+<div class="scrim scrim-top" id="palette" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-label="Search Riplox">
+    <div class="omni">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+           stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+      <input type="text" id="paletteInput" autocomplete="off" spellcheck="false"
+             placeholder="Search, or paste a link&hellip;">
+      <kbd>esc</kbd>
+    </div>
+    <div class="sheet-body" id="paletteList"></div>
+    <div class="sheet-foot">
+      <span><kbd>&uarr;</kbd><kbd>&darr;</kbd> move</span>
+      <span><kbd>&crarr;</kbd> run</span>
+      <span class="grow"></span>
+      <span>Paste a link here and it is analysed straight away</span>
+    </div>
+  </div>
+</div>
+
 <div class="scrim" id="jobDetail" hidden>
   <div class="dlg dlg-wide" role="dialog" aria-modal="true" aria-labelledby="jobDetailTitle">
     <div class="dlg-head">

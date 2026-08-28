@@ -143,6 +143,158 @@
     return h ? h + ":" + pad(m) + ":" + pad(s) : m + ":" + pad(s);
   }
 
+  /* ------------------------------------------------------- the palette */
+
+  /* Everything below is already on the page. The rooms are the rail's own
+     buttons and their badges; the settings rows are the labels the settings
+     search already reads; the library is the array the library screen holds.
+     Opening this fetches nothing. */
+
+  var palIndex = 0;
+  var palRows = [];
+
+  function palResults(term) {
+    var q = term.trim().toLowerCase();
+    var out = [];
+
+    // A link is the commonest thing anybody does here, so it comes first and
+    // it is offered as itself rather than as a search result.
+    if (/^https?:\/\//i.test(term.trim())) {
+      out.push({ group: "Do", label: "Analyse this link", hint: "and pick a quality",
+                 run: function () { $("urlInput").value = term.trim(); analyze(term.trim()); } });
+      out.push({ group: "Do", label: "Find every video on that page", hint: "reads the page",
+                 run: function () { $("urlInput").value = term.trim(); grabPage(term.trim()); } });
+      return out;
+    }
+    if (!q) return out;
+
+    // Go to - the rail, with whatever its badges say.
+    document.querySelectorAll(".tab").forEach(function (tab) {
+      var label = tab.querySelector(".tab-label");
+      var name = label ? label.textContent.trim() : "";
+      if (!name || name.toLowerCase().indexOf(q) < 0) return;
+      var badge = tab.querySelector(".badge");
+      out.push({
+        group: "Go to", label: name,
+        hint: badge && !badge.hidden ? badge.textContent + " waiting" : "",
+        run: function () { show(tab.dataset.view); }
+      });
+    });
+
+    // Do - every settings row, found the way the settings search finds them.
+    document.querySelectorAll("#view-settings .field").forEach(function (row) {
+      var label = row.querySelector("label");
+      var name = label ? label.textContent.trim() : "";
+      if (!name || name.toLowerCase().indexOf(q) < 0) return;
+      var group = row.closest(".panel");
+      var head = group && group.previousElementSibling;
+      out.push({
+        group: "Do", label: name,
+        hint: head && head.classList.contains("group-head")
+          ? "Settings \u2192 " + head.textContent.trim() : "Settings",
+        run: function () {
+          show("settings");
+          row.scrollIntoView({ block: "center" });
+          row.classList.add("has-hit");
+          setTimeout(function () { row.classList.remove("has-hit"); }, 1600);
+        }
+      });
+    });
+
+    // In your library - what is already downloaded.
+    libraryItems.forEach(function (h) {
+      if (out.length > 24) return;
+      if (!h.title || h.title.toLowerCase().indexOf(q) < 0) return;
+      out.push({
+        group: "In your library", label: h.title,
+        hint: (h.quality || "") + (h.size ? " \u00b7 " + h.size : ""),
+        run: function () { show("library"); $("libSearch").value = h.title;
+                           $("libSearch").dispatchEvent(new Event("input")); }
+      });
+    });
+
+    return out;
+  }
+
+  function renderPalette() {
+    var rows = palResults($("paletteInput").value);
+    palRows = rows;
+    if (palIndex >= rows.length) palIndex = Math.max(0, rows.length - 1);
+
+    var box = $("paletteList");
+    if (!rows.length) {
+      box.innerHTML = '<p class="pal-none">'
+        + ($("paletteInput").value.trim()
+            ? "Nothing matches that."
+            : "Type to search, or paste a link.")
+        + "</p>";
+      return;
+    }
+    var html = "", group = "";
+    rows.forEach(function (r, i) {
+      if (r.group !== group) {
+        group = r.group;
+        html += '<div class="rail-label">' + esc(group) + "</div>";
+      }
+      html += '<div class="lrow' + (i === palIndex ? " is-on" : "") + '" data-i="' + i + '">' +
+        '<span class="grow">' + esc(r.label) + "</span>" +
+        (r.hint ? '<span class="pal-hint">' + esc(r.hint) + "</span>" : "") +
+        "</div>";
+    });
+    box.innerHTML = html;
+    var on = box.querySelector(".lrow.is-on");
+    if (on) on.scrollIntoView({ block: "nearest" });
+  }
+
+  function openPalette() {
+    $("palette").hidden = false;
+    $("paletteInput").value = "";
+    palIndex = 0;
+    renderPalette();
+    $("paletteInput").focus();
+  }
+
+  function closePalette() { $("palette").hidden = true; }
+
+  function runPalette(i) {
+    var row = palRows[i];
+    if (!row) return;
+    closePalette();
+    row.run();
+  }
+
+  $("paletteInput").addEventListener("input", function () {
+    palIndex = 0;
+    renderPalette();
+  });
+
+  $("paletteList").addEventListener("click", function (e) {
+    var row = e.target.closest(".lrow");
+    if (row) runPalette(+row.dataset.i);
+  });
+
+  $("palette").addEventListener("click", function (e) {
+    if (e.target === $("palette")) closePalette();
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) {
+      e.preventDefault();
+      if ($("palette").hidden) openPalette(); else closePalette();
+      return;
+    }
+    if ($("palette").hidden) return;
+    if (e.key === "Escape") { e.preventDefault(); closePalette(); return; }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (!palRows.length) return;
+      palIndex = (palIndex + (e.key === "ArrowDown" ? 1 : -1) + palRows.length) % palRows.length;
+      renderPalette();
+      return;
+    }
+    if (e.key === "Enter") { e.preventDefault(); runPalette(palIndex); }
+  });
+
   /* --------------------------------------------------------------- theme */
 
   // Three choices, and "auto" means the system decides - so the media query is
