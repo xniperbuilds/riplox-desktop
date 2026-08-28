@@ -2315,7 +2315,12 @@ def grab(url: str, settings: dict) -> dict:
     except Exception:
         pass                      # a half-read page still yields what it had
 
+    # Counted rather than discarded in silence. A page with sixty links that
+    # comes back with twelve owes the reader an account of the other
+    # forty-eight, and the three reasons are genuinely different: a repeat, a
+    # site we have no extractor for, and simply too many.
     entries, seen = [], {page.rstrip("/")}
+    skipped = {"duplicates": 0, "unsupported": 0, "capped": 0}
     for raw, title in parser.found:
         raw = (raw or "").strip()
         if not raw or raw.lower().startswith(_SKIP_SCHEME):
@@ -2326,6 +2331,7 @@ def grab(url: str, settings: dict) -> dict:
 
         bare = full.split("#")[0].rstrip("/")
         if bare in seen:
+            skipped["duplicates"] += 1
             continue
 
         path = urlsplit(full).path.lower()
@@ -2334,6 +2340,12 @@ def grab(url: str, settings: dict) -> dict:
         # address is plainly a media file. Everything else on a page is
         # navigation.
         if not (path.endswith(_MEDIA_EXT) or site in known_sites()):
+            # A page's own navigation was never a candidate, so it is not
+            # something that was "left out" - counting it would put "48 from
+            # sites Riplox has no reader for" under every page and make the
+            # line worth ignoring. Only links that leave the site count.
+            if site != site_of(page):
+                skipped["unsupported"] += 1
             continue
 
         seen.add(bare)
@@ -2343,8 +2355,12 @@ def grab(url: str, settings: dict) -> dict:
             "duration": None,
             "thumbnail": "",
             "timestamp": None,
+            # Where it came from. site_of() has already been called to decide
+            # whether to keep it at all, so this is free.
+            "site": site,
         })
         if len(entries) >= _GRAB_CAP:
+            skipped["capped"] = 1
             break
 
     if not entries:
@@ -2360,6 +2376,7 @@ def grab(url: str, settings: dict) -> dict:
         "count": len(entries),
         "thumbnail": "",
         "entries": entries,
+        "skipped": skipped,
     }
 
 

@@ -276,11 +276,30 @@
       }
       current = res.info;
       renderPreview(res.info);
+      grabNote(res.info);
       toast(res.info.count + " found on that page", "good");
     }).catch(function () {
       setBusy(false);
       toast("The app lost contact with its engine.", "bad");
     });
+  }
+
+  /* What did not make it onto the list, and why. Three different reasons,
+     said as three different things - "48 left out" would be true and useless. */
+  function grabNote(info) {
+    var s = info.skipped || {};
+    var bits = [];
+    if (s.duplicates) bits.push(s.duplicates + " already listed");
+    if (s.unsupported) {
+      bits.push(s.unsupported + " from sites Riplox has no reader for");
+    }
+    if (s.capped) bits.push("and it stopped at " + info.count);
+
+    var note = $("plNote");
+    if (!bits.length) { note.hidden = true; return; }
+    note.hidden = false;
+    note.textContent = "Left out: " + bits.join(", ")
+      + ". Any of them may still work if you paste the link on its own.";
   }
 
   function renderPreview(info) {
