@@ -88,6 +88,35 @@ if shared:
     print("        " + " ".join(shared))
 
 
+print("\n-- the typeface is on disk, not on the internet --------------------")
+# A missing font file is silent in the worst way: @font-face fails, the next
+# family in the stack is used, and the app looks almost right. Since the whole
+# reason Poppins is bundled rather than linked is that Riplox must look correct
+# with no network, "almost right" is exactly the failure to catch.
+STATIC = Path(__file__).resolve().parent.parent / "src" / "static"
+wanted = re.findall(r'url\("\.\./([^"]+\.woff2)"\)', CSS)
+print(f"      {len(wanted)} font files asked for by the stylesheet")
+
+absent = sorted({f for f in wanted if not (STATIC / f).is_file()})
+check("every font the stylesheet asks for is in the app",
+      not absent, ", ".join(absent) if absent else "")
+check("...and it asks for some", len(wanted) >= 2, str(len(wanted)))
+
+empty = sorted({f for f in wanted
+                if (STATIC / f).is_file() and (STATIC / f).stat().st_size < 2000})
+check("none of them is a stub", not empty, ", ".join(empty) if empty else "")
+
+# Poppins is under the SIL Open Font License, which requires the licence to
+# travel with the font. It is in the same folder, so it ships with it.
+check("the font licence ships beside the font",
+      (STATIC / "fonts" / "OFL.txt").is_file()
+      and "SIL OPEN FONT LICENSE" in (STATIC / "fonts" / "OFL.txt").read_text(
+          encoding="utf-8", errors="ignore"))
+
+check("the stylesheet leads with the bundled face, and keeps a fallback",
+      re.search(r'--font:\s*"Poppins",\s*"Segoe', CSS) is not None)
+
+
 print("\n-- the theme is chosen by an attribute the page must carry ---------")
 # :root[data-theme="..."] is the whole mechanism. It is also one of the eight
 # data attributes test_ids_exist.py guards, and this is the other half of why

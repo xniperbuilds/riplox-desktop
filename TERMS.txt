@@ -109,9 +109,10 @@ remove.
 6. THIRD-PARTY COMPONENTS
 
 Riplox uses independent open-source components, each under its own licence,
-including yt-dlp and FFmpeg. Those components are the work of their own
-authors, are not owned by XniperBuilds, and carry their own terms and their
-own absence of warranty. Their licences are included with the installation.
+including yt-dlp, FFmpeg and the Poppins typeface. Those components are the
+work of their own authors, are not owned by XniperBuilds, and carry their own
+terms and their own absence of warranty. Their licences are included with the
+installation.
 
 
 7. SIGNING IN TO WEBSITES
