@@ -176,7 +176,7 @@
 
   /* ---------------------------------------------------------------- tabs */
 
-  var views = ["capture", "queue", "library", "failed", "convert", "watch",
+  var views = ["capture", "queue", "library", "convert", "watch",
                "sharing", "settings"];
 
   function show(view) {
@@ -187,9 +187,9 @@
       b.classList.toggle("is-active", b.dataset.view === view);
     });
 
-    if (view === "queue") pollJobs();
+    // One room, so both lists are fetched when it opens.
+    if (view === "queue") { pollJobs(); loadFailed(); }
     if (view === "library") loadHistory();
-    if (view === "failed") loadFailed();
     if (view === "convert") loadConvert();
     if (view === "watch") loadWatch();
     if (view === "sharing") loadSharing();
@@ -1760,6 +1760,7 @@
     var badge = $("queueBadge");
     badge.textContent = active;
     badge.hidden = active === 0;
+    syncActivity();
 
     $("queueEmpty").hidden = jobs.length > 0;
 
@@ -1989,6 +1990,31 @@
       row.lastStatus = shape;
     }
   }
+
+  /* The chips only set an attribute; the stylesheet does the hiding. The
+     counts are read off the rows themselves, so they cannot drift from what
+     the list is actually showing. */
+  function syncActivity() {
+    var rows = $("jobs").children;
+    var running = 0, waiting = 0;
+    for (var i = 0; i < rows.length; i++) {
+      var c = rows[i].className;
+      if (/\b(downloading|converting|starting)\b/.test(c)) running++;
+      else if (/\b(queued|paused)\b/.test(c)) waiting++;
+    }
+    $("countAll").textContent = rows.length || "";
+    $("countRunning").textContent = running || "";
+    $("countWaiting").textContent = waiting || "";
+  }
+
+  $("actFilters").addEventListener("click", function (e) {
+    var chip = e.target.closest(".chip");
+    if (!chip) return;
+    $("actFilters").querySelectorAll(".chip").forEach(function (c) {
+      c.classList.toggle("is-on", c === chip);
+    });
+    $("view-queue").dataset.filter = chip.dataset.filter;
+  });
 
   $("jobs").addEventListener("click", function (e) {
     var btn = e.target.closest("[data-act]");
@@ -2324,6 +2350,10 @@
     if (!badge) return;
     badge.textContent = count;
     badge.hidden = !count;
+    /* Same rule the queue's own buttons follow: a button that is always there
+       and usually does nothing teaches people to stop reading the row. */
+    $("failedRetryAll").hidden = !count;
+    $("failedClear").hidden = !count;
   }
 
   function loadFailed() {

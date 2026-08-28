@@ -31,12 +31,12 @@
       </svg>
       <span class="tab-label">Capture</span>
     </button>
-    <button class="tab" data-view="queue" role="tab" title="Queue">
+    <button class="tab" data-view="queue" role="tab" title="Activity">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/>
       </svg>
-      <span class="tab-label">Queue</span>
+      <span class="tab-label">Activity</span>
       <em class="badge" id="queueBadge" hidden>0</em>
     </button>
     <button class="tab" data-view="library" role="tab" title="Library">
@@ -45,14 +45,6 @@
         <path d="M3 7a2 2 0 0 1 2-2h3.5l2 2.5H19a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
       </svg>
       <span class="tab-label">Library</span>
-    </button>
-    <button class="tab" data-view="failed" role="tab" title="Failed">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
-           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <circle cx="12" cy="12" r="8.4"/><path d="M12 7.8v4.7M12 16h.01"/>
-      </svg>
-      <span class="tab-label">Failed</span>
-      <em class="badge" id="failedBadge" hidden>0</em>
     </button>
     <button class="tab" data-view="convert" role="tab" title="Convert">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
@@ -478,7 +470,7 @@
   <!-- ============================= QUEUE ============================= -->
   <section class="view" id="view-queue">
     <div class="view-head">
-      <h2>Queue</h2>
+      <h2>Activity</h2>
       <!-- Each of these shows only while it has something to act on. A row of
            buttons that is always there but usually does nothing teaches
            people to stop reading the row. -->
@@ -486,6 +478,22 @@
       <button class="ghost small" id="resumeAllTop" hidden>Resume all</button>
       <button class="ghost small" id="retryAll" hidden>Retry all</button>
       <button class="ghost small" id="clearFinished">Clear finished</button>
+      <button class="ghost small" id="failedRetryAll" hidden>Retry all failed</button>
+      <button class="ghost small danger" id="failedClear" hidden>Delete all failed</button>
+    </div>
+
+    <!-- One list, four ways to look at it. The counts are on the chips because
+         "what is happening and what did not work" is a question about numbers
+         first - and because a filter that does not say how much it would show
+         is a filter nobody presses twice.
+
+         Nothing is re-rendered to filter: the script already writes each job's
+         status onto its own row, so this only sets an attribute. -->
+    <div class="filters" id="actFilters" role="group" aria-label="Filter">
+      <button type="button" class="chip is-on" data-filter="all">All<em class="k" id="countAll"></em></button>
+      <button type="button" class="chip" data-filter="running">Running<em class="k" id="countRunning"></em></button>
+      <button type="button" class="chip" data-filter="waiting">Waiting<em class="k" id="countWaiting"></em></button>
+      <button type="button" class="chip" data-filter="failed">Failed<em class="k badge" id="failedBadge" hidden>0</em></button>
     </div>
     <!-- Appears once the queue is long enough to need it. A search box over
          four rows is furniture; over eighty it is the only way to find the
@@ -516,6 +524,34 @@
       <span>Analyzed links land here.</span>
     </div>
     <div class="jobs" id="jobs"></div>
+
+    <!-- What came over from the Failed room. It is one block so the chips
+         can show or hide it whole - a failed download is not a row in the
+         queue, it is a row that left the queue. -->
+    <div class="failed-part">
+      <p class="conv-note">Kept until you delete them, so a link that would not
+        download is still here tomorrow. Retry puts it back in the queue.</p>
+
+      <!-- The one thing this page is allowed to tidy by itself, and only after
+           being told to. Off means a link that downloads in the end stays here
+           with "downloaded later" beside it; on means the page is a list of
+           what is still outstanding. -->
+      <div class="field">
+        <div class="field-text">
+          <label>Remove a row once it downloads</label>
+          <span>Off, a link that works on a later try stays here marked
+                <b>downloaded later</b>. On, it is taken off this page.</span>
+        </div>
+        <button class="toggle {% if settings.failed_clear_on_success %}on{% endif %}"
+                id="setFailedTidy" role="switch"><i></i></button>
+      </div>
+
+      <div class="empty" id="failedEmpty">
+        <p>Nothing has failed.</p>
+        <span>A download that will not finish is listed here, with the reason.</span>
+      </div>
+      <div class="history" id="failedList"></div>
+    </div>
   </section>
 
   <!-- ============================ LIBRARY ============================ -->
@@ -560,38 +596,6 @@
        still having the next day was the one thing that did not last. Nothing
        here disappears on its own: no age limit, no count limit, and every
        button that removes a row is pressed by hand. -->
-  <section class="view" id="view-failed">
-    <div class="view-head">
-      <h2>Failed downloads</h2>
-      <div class="row-gap">
-        <button class="ghost small" id="failedRetryAll">Retry all</button>
-        <button class="ghost small danger" id="failedClear">Delete all</button>
-      </div>
-    </div>
-
-    <p class="conv-note">Kept until you delete them, so a link that would not
-      download is still here tomorrow. Retry puts it back in the queue.</p>
-
-    <!-- The one thing this page is allowed to tidy by itself, and only after
-         being told to. Off means a link that downloads in the end stays here
-         with "downloaded later" beside it; on means the page is a list of
-         what is still outstanding. -->
-    <div class="field">
-      <div class="field-text">
-        <label>Remove a row once it downloads</label>
-        <span>Off, a link that works on a later try stays here marked
-              <b>downloaded later</b>. On, it is taken off this page.</span>
-      </div>
-      <button class="toggle {% if settings.failed_clear_on_success %}on{% endif %}"
-              id="setFailedTidy" role="switch"><i></i></button>
-    </div>
-
-    <div class="empty" id="failedEmpty">
-      <p>Nothing has failed.</p>
-      <span>A download that will not finish is listed here, with the reason.</span>
-    </div>
-    <div class="history" id="failedList"></div>
-  </section>
 
   <!-- ============================ CONVERT ============================ -->
   <section class="view" id="view-convert">

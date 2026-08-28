@@ -1304,6 +1304,55 @@ button { font-family: var(--font); }
   color: var(--faint);
 }
 
+/* --- activity: one room, four ways to look at it ------------------------ */
+
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+/* The count a chip carries. Sits inside the chip, so it moves with it and
+   cannot end up describing a filter that is no longer there. */
+.chip .k {
+  min-width: 18px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  height: 18px;
+  border-radius: 5px;
+  background: var(--inner);
+  color: var(--faint);
+  font-size: 10px;
+  font-style: normal;
+}
+.chip.is-on .k { background: var(--accent-dim); color: var(--accent-ink); }
+.chip .k[hidden] { display: none; }
+
+/* Filtering is an attribute and nothing else - the script already writes each
+   job's status onto its own row, so no list is rebuilt to change the view.
+   The failed list is a separate list, so it hides and shows as a whole. */
+#view-queue[data-filter="running"] .job:not(.downloading):not(.converting):not(.starting),
+#view-queue[data-filter="waiting"] .job:not(.queued):not(.paused),
+/* A queue row that errored is a failure too, so Failed shows both it and the
+   list of ones that failed earlier. Hiding it would have meant the filter
+   named after failures was the one place a failure did not appear. */
+#view-queue[data-filter="failed"] .job:not(.error) {
+  display: none;
+}
+#view-queue[data-filter="running"] .failed-part,
+#view-queue[data-filter="waiting"] .failed-part {
+  display: none;
+}
+#view-queue[data-filter="failed"] #queueEmpty,
+#view-queue[data-filter="failed"] .queue-find,
+#view-queue[data-filter="failed"] .resume-bar,
+#view-queue[data-filter="failed"] .hold-bar,
+#view-queue[data-filter="failed"] .cool-bar {
+  display: none;
+}
+
 /* --- jobs ---------------------------------------------------------------- */
 
 .jobs { display: flex; flex-direction: column; gap: 7px; }
