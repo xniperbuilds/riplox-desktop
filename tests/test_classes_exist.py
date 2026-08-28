@@ -37,8 +37,38 @@ def check(name, ok, detail=""):
     print(("  PASS  " if ok else "  FAIL  ") + name + (" | " + detail if detail else ""))
 
 
-# Every class name the stylesheet mentions anywhere in a selector.
-styled = set(re.findall(r"\.([a-zA-Z][\w-]*)", CSS))
+NAME = re.compile(r"\.([a-zA-Z][\w-]*)")
+
+
+def styled_names(css):
+    """Class names that actually appear in selector position.
+
+    Reading the whole file for `.name` counts a name that only ever appears
+    in a comment - and this stylesheet comments above nearly every rule,
+    often naming the class it is about. That would let a rule be deleted
+    while its comment kept the test green: the exact silent pass this file
+    exists to prevent.
+
+    So comments go first, then the file is walked brace by brace. Whatever
+    sits before an opening brace is a prelude; an at-rule prelude (@media,
+    @supports) carries no class names, and a rule nested inside one is read
+    like any other."""
+    css = re.sub(r"/\*.*?\*/", " ", css, flags=re.S)
+    out, buf = set(), []
+    for ch in css:
+        if ch == "{":
+            prelude = "".join(buf).strip()
+            if not prelude.startswith("@"):
+                out.update(NAME.findall(prelude))
+            buf = []
+        elif ch == "}":
+            buf = []
+        else:
+            buf.append(ch)
+    return out
+
+
+styled = styled_names(CSS)
 
 # Class names that are deliberately not styled: they carry meaning for the
 # script alone. Named here rather than left to a blanket exception, so the
@@ -78,6 +108,17 @@ check("every class the script authors is defined in the stylesheet",
       "no rule for: " + ", ".join(homeless[:10]) if homeless else "")
 check("...and the script really does author markup", len(authored) >= 20,
       str(len(authored)))
+
+
+print("\n-- the reading is of selectors, not of comments --------------------")
+# Guarding the guard. A comment that names a class must not be able to keep
+# this file green after the rule itself is gone.
+probe = ".seatbelt { color: red; }\n.x { color: blue; }"
+check("a name in a selector is read", "seatbelt" in styled_names(probe))
+check("a name in a comment is not",
+      "seatbelt" not in styled_names("/* .seatbelt is gone now */\n" + probe.split("\n")[1]))
+check("a rule inside @media is read like any other",
+      "deep" in styled_names("@media (max-width: 900px) { .deep { color: red; } }"))
 
 
 print("\n-- what this will catch when the redesign lands --------------------")
