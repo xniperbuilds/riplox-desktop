@@ -88,6 +88,21 @@ check("so internal work stays out of the panel",
 check("the subject is never used as a fallback",
       not any(i.startswith("Send text as well as links") for i in items), items)
 
+# A tag that is not a release must not become the starting point. The moment
+# the classic interface got a tag of its own, "the newest tag" WAS it, the
+# range collapsed to nothing, and the panel came out empty without a word.
+print("\n-- only a release tag starts the range ----------------------------")
+work = build_repo(["Something real\n\nWhats-new: A thing you can see"])
+git(work, "tag", "ui-classic-v9.9.9")
+done, data = generate(work)
+check("a tag that is not a release is ignored",
+      data and data["items"] == ["A thing you can see"],
+      str(data and data["items"]))
+check("...so the range still starts at the last release",
+      data and not str(data.get("since", "")).startswith("ui-"),
+      repr(data and data.get("since")))
+
+
 print("\n-- an explicit skip is honoured -----------------------------------")
 work = build_repo(["Something internal\n\nWhats-new: skip"])
 done, data = generate(work)

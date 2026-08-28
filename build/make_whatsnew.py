@@ -59,8 +59,16 @@ def git(*args: str) -> str:
 
 
 def since() -> str:
-    """The most recent tag, or "" to mean the whole history."""
-    return git("describe", "--tags", "--abbrev=0")
+    """
+    The most recent RELEASE tag, or "" to mean the whole history.
+
+    Only tags shaped like a version count. The repository holds other kinds -
+    a tag marking the classic interface, for one - and "the newest tag" quietly
+    became one of those the moment such a tag existed: the range turned into
+    nothing, and the panel came out empty with no complaint. What this wants is
+    the last release, so that is what it asks for.
+    """
+    return git("describe", "--tags", "--abbrev=0", "--match", "v[0-9]*")
 
 
 def collect() -> list:
