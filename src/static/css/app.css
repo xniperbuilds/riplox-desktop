@@ -377,8 +377,7 @@ body::before {                       /* faint technical grid */
   bottom: 8px;
   width: 2px;
   border-radius: 2px;
-  background: linear-gradient(180deg, var(--accent), var(--bad));
-  box-shadow: 0 0 12px rgba(var(--accent-rgb), .5);
+  background: var(--accent);
 }
 
 .tab .badge {
@@ -991,7 +990,7 @@ button { font-family: var(--font); }
 .fmt td { padding: 5px 9px; color: var(--muted); white-space: nowrap; }
 .fmt tbody tr { cursor: pointer; }
 .fmt tbody tr:hover td { background: var(--inner); color: var(--text); }
-.fmt tbody tr.is-on td { background: rgba(var(--accent-rgb), .12); color: var(--text); }
+.fmt tbody tr.is-on td { background: var(--accent-dim); color: var(--text); }
 .fmt tbody tr.is-on td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
 .fmt .sr { color: var(--warn-ink); }
 .fmt .kind { color: var(--faint); }
@@ -2067,9 +2066,9 @@ button { font-family: var(--font); }
 /* The bar rather than a fill: it marks the row without turning the list into
    a block of colour, and it survives the hover state landing on top of it. */
 .set-cat.is-on {
-  background: rgba(var(--accent-rgb), .10);
+  background: var(--accent-dim);
   color: var(--text);
-  font-weight: 600;
+  font-weight: 500;
   box-shadow: inset 2px 0 0 var(--accent);
 }
 
@@ -2094,7 +2093,7 @@ button { font-family: var(--font); }
   font-size: 11px;
   color: var(--faint);
 }
-.set-cat.is-on .set-cat-count { color: rgba(var(--accent-rgb), .85); }
+.set-cat.is-on .set-cat-count { color: var(--accent-ink); }
 
 .set-body { min-width: 0; }
 .set-group[hidden] { display: none; }
@@ -2140,7 +2139,7 @@ button { font-family: var(--font); }
   transition: border-color .15s var(--ease), color .15s var(--ease);
 }
 .set-info:hover { border-color: rgba(var(--accent-rgb), .4); color: var(--text); }
-.set-info.is-on { border-color: rgba(var(--accent-rgb), .55); color: var(--text); }
+.set-info.is-on { border-color: var(--accent-line); color: var(--text); }
 .set-info-text { min-width: 0; }
 .set-info-text b { display: block; font-size: 12.5px; font-weight: 600; color: var(--text); }
 .set-info-text small { font-size: 11px; color: var(--faint); }
@@ -2200,19 +2199,23 @@ button { font-family: var(--font); }
    which is how twelve settings came to look as though they had been deleted.
    The tick box is still in there, unseen, so the label, the keyboard and the
    saved setting all keep working exactly as they did. */
+/* This is a chip that was never called one - it had the chip's padding, size,
+   pill and solid selected state - so it gets what the chips got. */
 .set-adv {
   display: inline-flex;
   align-items: center;
   flex: none;
-  padding: 7px 14px;
+  height: 36px;
+  padding: 0 12px;
   border: 1px solid var(--line);
-  border-radius: 20px;
-  background: transparent;
+  border-radius: var(--r-s);
+  background: var(--surface-2);
   color: var(--muted);
-  font-size: 12.5px;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
   user-select: none;
-  transition: all .18s var(--ease);
+  transition: color .18s var(--ease), background .18s, border-color .18s;
 }
 .set-adv input {
   position: absolute;
@@ -2231,13 +2234,11 @@ button { font-family: var(--font); }
   box-shadow: 0 0 0 3px rgba(var(--accent-rgb), .22);
 }
 .set-adv.is-on {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
-  font-weight: 600;
-  box-shadow: 0 6px 18px -10px var(--accent);
+  background: var(--accent-dim);
+  border-color: var(--accent-line);
+  color: var(--accent-ink);
 }
-.set-adv.is-on:hover { color: var(--on-accent); }
+.set-adv.is-on:hover { color: var(--accent-ink); }
 .set-found {
   flex: none;
   font-size: 11.5px;
@@ -2897,7 +2898,7 @@ select:focus { border-color: rgba(var(--accent-rgb), .45); }
   background: var(--faint);
   transition: transform .24s var(--ease), background .22s;
 }
-.toggle.on { background: rgba(var(--accent-rgb), .2); border-color: rgba(var(--accent-rgb), .5); }
+.toggle.on { background: var(--accent-dim); border-color: var(--accent-line); }
 .toggle.on i { transform: translateX(19px); background: var(--accent); }
 
 .footnote {
