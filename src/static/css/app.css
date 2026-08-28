@@ -943,6 +943,112 @@ button { font-family: var(--font); }
 
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 
+/* The design's card, its head, and the pieces the side column is built from.
+   Values are the design's own: 16 padding on a card, a 24px badge, a 104px
+   curve, a dashed summary on --ground-2. */
+.pv-side .card {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--surface);
+}
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.card-head h3 {
+  margin: 0;
+  margin-right: auto;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+}
+.card-note { font-size: 12px; color: var(--faint); }
+
+.badge {
+  height: 24px;
+  padding: 0 8px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--accent-dim);
+  color: var(--accent-ink);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 500;
+}
+
+/* The heat curve, given the room the design gives it. */
+.curve {
+  height: 104px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--ground-2);
+}
+.curve svg { width: 100%; height: 100%; display: block; }
+
+/* A row you can tick. Dashed nothing, no native box - the tick is drawn, so it
+   can carry the accent when it is on. */
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.check:hover { color: var(--text); }
+.check input { accent-color: var(--accent); }
+
+/* What is about to be written. Dashed, because it is a statement about the
+   future rather than a control. */
+.summary {
+  margin: 0;
+  padding: 16px;
+  border: 1px dashed var(--line-mid);
+  border-radius: var(--r-s);
+  background: var(--ground-2);
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.summary b { color: var(--text); font-weight: 500; }
+
+/* The quality tiles. Two columns and a 64px tile are the design's; the number
+   of rows is not, because the app lists whatever the site actually has - four
+   on the screen this was drawn from, up to seven in practice - so the grid
+   wraps and the column scrolls rather than the tile changing size. */
+.qual {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  max-height: 296px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.qbox {
+  height: 64px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--surface-2);
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .18s, background .18s, color .18s;
+}
+.qbox b { display: block; font-size: 15px; font-weight: 500; color: var(--text); }
+.qbox span { font-size: 11px; color: var(--faint); }
+.qbox:hover { border-color: var(--line-mid); }
+.qbox.is-on { border-color: var(--accent); background: var(--accent-dim); }
+.qbox.is-on b { color: var(--accent-ink); }
+.qbox.is-on span { color: var(--accent-ink); opacity: .8; }
+.qbox.upscaled span { color: var(--warn); }
+
 /* Not a pill. A pill should mean something - a tag, a count - and these are a
    set of mutually exclusive choices, so they take the same control radius as
    every other control. */

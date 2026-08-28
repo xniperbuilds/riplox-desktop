@@ -329,19 +329,27 @@
     // and finding that out from the progress bar is finding out too late.
     var sizes = (info && info.sizes) || {};
 
+    /* A tile per quality, the size on top and what it is underneath. The
+       second line is the one the old chips could not carry: "MP4 · 512 MB"
+       answers "how big is this going to be" without being asked. */
     $("qualityChips").innerHTML = options.map(function (q) {
       var from = upscaled[q];
-      return '<button type="button" class="chip' +
+      var what = (q === "mp3" ? "audio" : "MP4")
+               + (sizes[q] ? " · " + esc(sizes[q]) : "");
+      return '<button type="button" class="qbox' +
         (q === "mp3" ? " audio" : "") +
         (from ? " upscaled" : "") +
         (q === quality ? " is-on" : "") +
         '" data-q="' + q + '"' +
         (from ? ' title="YouTube made this with AI from a ' + from + 'p original"' : "") +
-        ">" + esc(labels[q] || q) +
-        (sizes[q] ? '<em class="chip-size"> · ' + esc(sizes[q]) + "</em>" : "") +
-        (from ? '<em> · AI-upscaled from ' + from + "p</em>" : "") +
+        "><b>" + esc(labels[q] || q) + "</b>" +
+        "<span>" + what + (from ? " · AI-upscaled" : "") + "</span>" +
         "</button>";
     }).join("");
+
+    /* The design puts the size of the chosen quality in the card's head,
+       where it answers "how big is this" before any tile is read. */
+    $("qualityTotal").textContent = sizes[quality] || "";
 
     $("preview").hidden = false;
 
@@ -482,6 +490,7 @@
       && String(info.extractor || "").indexOf("youtube") === 0;
 
     box.hidden = !rows.length;
+    $("heatCard").hidden = !rows.length;
     note.hidden = !youtube || rows.length > 0;
     // One line for both panels, so it is said once rather than twice.
     $("cutNoFf").hidden = S.hasFfmpeg
@@ -707,14 +716,64 @@
     if (!cutting) $("cutExact").checked = false;
   }
 
-  function syncCutButton() {
-    syncExactCut();
+  /* What is actually going to be written, counted once and said twice: on the
+     button, and in the line above it.
+
+     Chapters and clips cannot both happen - the engine takes one set of
+     sections - and ticking chapters replaces the whole video rather than
+     adding to it. So this counts what the app will really do rather than
+     adding up numbers that cannot occur together. */
+  function plural(n, one, many) {
+    return n + " " + (n === 1 ? one : many);
+  }
+
+  function describeOutput() {
     var chapters = chapterPicks.length;
     var clips = $("clipOn") && $("clipOn").checked ? currentClips().length : 0;
+    var audio = $("alsoAudio") && $("alsoAudio").checked
+             && !$("alsoAudioWrap").hidden ? 1 : 0;
+
+    var parts = [];
+    if (chapters) parts.push(plural(chapters, "chapter", "chapters"));
+    else if (clips) parts.push(plural(clips, "clip", "clips"));
+    else parts.push("1 video");
+    if (audio) parts.push("1 MP3");
+
+    var files = (chapters || clips || 1) + audio;
+    return { files: files, parts: parts, chapters: chapters, clips: clips };
+  }
+
+  /* The last folder or two of the path, because the whole thing is usually
+     longer than the line and the tail is the part anyone recognises. */
+  function shortDir(path) {
+    var bits = String(path || "").split(/[\\/]/).filter(Boolean);
+    return bits.slice(-2).join("\\") || "your downloads folder";
+  }
+
+  function syncSummary() {
+    var box = $("pvSummary");
+    if (!box) return;
+    if (!current || current.kind === "playlist" || current.kind === "channel") {
+      box.hidden = true;
+      return;
+    }
+    var out = describeOutput();
+    var where = onceDir || settings.download_dir;
+    box.hidden = false;
+    box.innerHTML = "Riplox will save <b>" + esc(out.parts.join(" and ")) + "</b>"
+      + (out.files > 1 ? " - " + plural(out.files, "file", "files") : "")
+      + " into <b>" + esc(shortDir(where)) + "</b>.";
+  }
+
+  function syncCutButton() {
+    syncExactCut();
+    var out = describeOutput();
     $("downloadBtn").textContent =
-      chapters ? "Download " + chapters + (chapters === 1 ? " chapter" : " chapters")
-      : clips ? "Download " + clips + (clips === 1 ? " clip" : " clips")
+      out.chapters ? "Download " + plural(out.chapters, "chapter", "chapters")
+      : out.clips ? "Download " + plural(out.clips, "clip", "clips")
+      : out.files > 1 ? "Download " + plural(out.files, "file", "files")
       : "Download";
+    syncSummary();
   }
 
   $("chapterList").addEventListener("change", function (e) {
@@ -1043,6 +1102,8 @@
      tool there is no MP3 to make at all - so the choice is hidden rather than
      shown as something that would quietly do nothing. */
   function syncAlsoAudio() {
+    // The audio copy is one of the files the summary counts.
+    setTimeout(syncSummary, 0);
     var wrap = $("alsoAudioWrap");
     if (!wrap) return;
     var possible = quality !== "mp3" && S.hasFfmpeg;
@@ -1051,10 +1112,10 @@
   }
 
   $("qualityChips").addEventListener("click", function (e) {
-    var chip = e.target.closest(".chip");
+    var chip = e.target.closest(".qbox");
     if (!chip) return;
     quality = chip.dataset.q;
-    document.querySelectorAll("#qualityChips .chip").forEach(function (c) {
+    document.querySelectorAll("#qualityChips .qbox").forEach(function (c) {
       c.classList.toggle("is-on", c === chip);
     });
 
@@ -1307,9 +1368,13 @@
      disabled, it is absent - the same rule the chapter list already followed,
      and for the same reason: a control that is visible but never usable
      teaches people to ignore the area it sits in. */
-  var PANELS = ["chapterBox", "heatBox", "moreBox"];
-  var panelTab = { chapterBox: "tabChapters", heatBox: "tabHeat", moreBox: "tabMore" };
-  var openPanel = "moreBox";
+  var PANELS = ["panelFormat", "chapterBox", "heatBox",
+                "panelTrim", "panelExtras", "panelNaming"];
+  var panelTab = {
+    panelFormat: "tabFormat", chapterBox: "tabChapters", heatBox: "tabHeat",
+    panelTrim: "tabTrim", panelExtras: "tabExtras", panelNaming: "tabNaming"
+  };
+  var openPanel = "panelFormat";
 
   function showPanel(name) {
     if (PANELS.indexOf(name) < 0) return;
@@ -1320,10 +1385,27 @@
   /* What each tab has to say for itself. The counts are the reason a tab can
      replace a panel that reset itself when it closed: whatever is set is
      readable without opening anything. */
+  /* What each tab is holding. Counting per tab rather than for the panel as a
+     whole is the whole reason a tab can replace something that used to reset
+     itself when it closed: whatever is set is readable from the bar. */
   function tabCount(name) {
     if (name === "chapterBox") return chapterPicks.length || chapterRows.length;
     if (name === "heatBox") return currentClips().length;
-    return Object.keys(moreOpts()).length;
+    if (name === "panelTrim") return $("trimOn").checked ? 1 : 0;
+    if (name === "panelNaming") {
+      return ($("optName").value.trim() ? 1 : 0) + (onceDir ? 1 : 0);
+    }
+    if (name === "panelExtras") {
+      return ["optSubsOnly", "optThumbAll", "optWriteDesc", "optLiveFromStart"]
+        .filter(function (id) { return $(id).checked; }).length
+        + (pickedThumb ? 1 : 0);
+    }
+    // Format: the exact format, the languages, and the sign-in choice for
+    // this one download - everything moreOpts() collects that is not named
+    // above.
+    var o = moreOpts();
+    ["outtmpl", "dest_dir"].forEach(function (k) { delete o[k]; });
+    return Object.keys(o).length;
   }
 
   function syncTabs() {
@@ -1460,7 +1542,7 @@
        setting acting on the download while hidden - the thing this app tries
        not to do anywhere. The tab also carries the count, so it says so even
        when another tab is the one on screen. */
-    showPanel("moreBox");
+    showPanel("panelFormat");
   }
 
   function fillFormats(info) {
@@ -1636,6 +1718,7 @@
     $(id).addEventListener("change", syncTabs);
   });
   $("optName").addEventListener("input", syncTabs);
+  $("trimOn").addEventListener("change", syncTabs);
 
 
   $("cmdCopy").addEventListener("click", function () {

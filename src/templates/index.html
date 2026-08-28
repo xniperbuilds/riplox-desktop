@@ -168,12 +168,18 @@
                anything away, so the tab carries the count instead: whatever is
                set stays readable from the bar without opening anything. -->
           <div class="pv-tabs" id="pvTabs" role="tablist">
+            <button type="button" class="pv-tab" id="tabFormat"
+                    data-panel="panelFormat" role="tab">Format<em class="n" hidden></em></button>
             <button type="button" class="pv-tab" id="tabChapters"
                     data-panel="chapterBox" role="tab">Chapters<em class="n" hidden></em></button>
             <button type="button" class="pv-tab" id="tabHeat"
                     data-panel="heatBox" role="tab">Most replayed<em class="n" hidden></em></button>
-            <button type="button" class="pv-tab" id="tabMore"
-                    data-panel="moreBox" role="tab">Options<em class="n" hidden></em></button>
+            <button type="button" class="pv-tab" id="tabTrim"
+                    data-panel="panelTrim" role="tab">Trim<em class="n" hidden></em></button>
+            <button type="button" class="pv-tab" id="tabExtras"
+                    data-panel="panelExtras" role="tab">Extras<em class="n" hidden></em></button>
+            <button type="button" class="pv-tab" id="tabNaming"
+                    data-panel="panelNaming" role="tab">Naming<em class="n" hidden></em></button>
           </div>
 
           <!-- The video's own chapters. This was a <details>, collapsed, because
@@ -208,30 +214,19 @@
                so rather than draw an empty box. -->
           <div class="pv-panel" id="heatBox" hidden>
             <div class="pv-cap" id="heatSummary">Most replayed</div>
-            <div class="heat-graph" id="heatGraph"></div>
             <ol class="heat-peaks" id="heatPeaks"></ol>
-            <label class="chapter-all" id="clipOnWrap">
-              <input type="checkbox" id="clipOn">
-              <span>Cut these moments into clips</span>
-            </label>
-            <div class="clip-row" id="clipRow" hidden>
-              <div class="chips" id="clipLens"></div>
-            </div>
           </div>
           <p class="hint" id="clipNote" hidden></p>
 
-        <div class="pv-panel" id="moreBox">
-          <div class="more-body">
-
-          <div class="more-sec" id="fmtSec">
+                  <div class="pv-panel" id="panelFormat">
+  <div class="more-sec" id="fmtSec">
             <div class="more-row between">
               <label>Exact format</label>
               <span class="more-note" id="fmtPick">Using the quality above.</span>
             </div>
             <div class="fmt-wrap"><table class="fmt" id="fmtTable"></table></div>
           </div>
-
-          <div class="more-sec" id="langSec" hidden>
+  <div class="more-sec" id="langSec" hidden>
             <div class="more-row">
               <label class="more-field" id="audioLangField" hidden>
                 <span>Audio language</span>
@@ -243,8 +238,41 @@
               </label>
             </div>
           </div>
+  <div class="more-sec">
+            <div class="more-row">
+              <label class="more-field">
+                <span>Sign-in for this download</span>
+                <select id="optCookies">
+                  <option value="">Use the saved session</option>
+                  <option value="off">Send no sign-in</option>
+                </select>
+              </label>
+              <label class="more-field">
+                <span>Player client</span>
+                <select id="optClient">
+                  <option value="">Let Riplox choose</option>
+                  <option value="tv_simply">tv_simply</option>
+                  <option value="web_safari">web_safari</option>
+                  <option value="mweb">mweb</option>
+                  <option value="android_vr">android_vr</option>
+                  <option value="ios">ios</option>
+                  <option value="web">web</option>
+                </select>
+              </label>
+            </div>
+            <p class="more-note" id="cookieNow"></p>
+          </div>
+  <div class="more-sec">
+            <div class="more-row between">
+              <label>The command Riplox will run</label>
+              <button type="button" class="ghost small" id="cmdCopy">Copy</button>
+            </div>
+            <pre class="cmd" id="cmdBox">…</pre>
+          </div>
+          </div>
 
-        <div class="trim-block more-sec" id="trimBlock" hidden>
+          <div class="pv-panel" id="panelTrim">
+  <div class="trim-block more-sec" id="trimBlock" hidden>
           <label class="trim-toggle">
             <input type="checkbox" id="trimOn">
             <span>Download only part of it</span>
@@ -293,51 +321,10 @@
             <p class="trim-summary" id="trimSummary"></p>
           </div>
         </div>
-
-          <div class="more-sec">
-            <div class="more-row">
-              <label class="more-field grow">
-                <span>Save as</span>
-                <input type="text" id="optName" class="text-input"
-                       spellcheck="false" maxlength="160"
-                       placeholder="%(title)s [%(id)s].%(ext)s">
-              </label>
-              <div class="more-field">
-                <span>Into</span>
-                <button type="button" class="ghost small" id="optDir"
-                        data-dir="">Default folder</button>
-              </div>
-            </div>
           </div>
 
-          <div class="more-sec">
-            <div class="more-row">
-              <label class="more-field">
-                <span>Sign-in for this download</span>
-                <select id="optCookies">
-                  <option value="">Use the saved session</option>
-                  <option value="off">Send no sign-in</option>
-                </select>
-              </label>
-              <label class="more-field">
-                <span>Player client</span>
-                <select id="optClient">
-                  <option value="">Let Riplox choose</option>
-                  <option value="tv_simply">tv_simply</option>
-                  <option value="web_safari">web_safari</option>
-                  <option value="mweb">mweb</option>
-                  <option value="android_vr">android_vr</option>
-                  <option value="ios">ios</option>
-                  <option value="web">web</option>
-                </select>
-              </label>
-            </div>
-            <p class="more-note" id="cookieNow"></p>
-          </div>
-
-          <!-- Three things that change what comes out of one download, rather
-               than how it is fetched. Each is cleared for the next link. -->
-          <div class="more-sec">
+          <div class="pv-panel" id="panelExtras">
+  <div class="more-sec">
             <label class="more-check">
               <input type="checkbox" id="optSubsOnly">
               <span>Subtitles only — no video file</span>
@@ -356,11 +343,7 @@
             </label>
             <p class="more-note" id="subsOnlyNote" hidden></p>
           </div>
-
-          <!-- The cover picture. Sites often lead with a poor default, and
-               until now the only answer was to save all of them and sort it
-               out in the folder. Hidden entirely when the site offers one. -->
-          <div class="more-sec" id="thumbSec" hidden>
+  <div class="more-sec" id="thumbSec" hidden>
             <div class="more-row between">
               <label>Cover picture</label>
               <button type="button" class="ghost small" id="thumbClear">Use the default</button>
@@ -368,44 +351,68 @@
             <div class="thumb-pick" id="thumbPick"></div>
             <p class="more-note" id="thumbNote"></p>
           </div>
+          </div>
 
-          <div class="more-sec">
-            <div class="more-row between">
-              <label>The command Riplox will run</label>
-              <button type="button" class="ghost small" id="cmdCopy">Copy</button>
+          <div class="pv-panel" id="panelNaming">
+  <div class="more-sec">
+            <div class="more-row">
+              <label class="more-field grow">
+                <span>Save as</span>
+                <input type="text" id="optName" class="text-input"
+                       spellcheck="false" maxlength="160"
+                       placeholder="%(title)s [%(id)s].%(ext)s">
+              </label>
+              <div class="more-field">
+                <span>Into</span>
+                <button type="button" class="ghost small" id="optDir"
+                        data-dir="">Default folder</button>
+              </div>
             </div>
-            <pre class="cmd" id="cmdBox">…</pre>
           </div>
-
           </div>
-        </div>
         </div>
 
         <aside class="pv-side">
-          <div class="quality-block">
-          <label>Quality</label>
-          <div class="chips" id="qualityChips"></div>
-        <p class="hint warn" id="qualityNote" hidden></p>
-          <!-- One press, two files. Downloading the same link twice to get
-               the audio as well was the thing people were doing by hand.
-               Hidden when MP3 is already the choice - offering to also make
-               an MP3 of an MP3 is nonsense. -->
-          <label class="also-audio" id="alsoAudioWrap">
-            <input type="checkbox" id="alsoAudio">
-            <span>Also save the audio as MP3</span>
-          </label>
+          <div class="card quality-block">
+            <div class="card-head">
+              <h3>Quality</h3>
+              <span class="card-note" id="qualityTotal"></span>
+            </div>
+            <div class="qual" id="qualityChips"></div>
+            <p class="hint warn" id="qualityNote" hidden></p>
+            <!-- One press, two files. Downloading the same link twice to get
+                 the audio as well was the thing people were doing by hand.
+                 Hidden when MP3 is already the choice - offering to also make
+                 an MP3 of an MP3 is nonsense. -->
+            <label class="check" id="alsoAudioWrap">
+              <input type="checkbox" id="alsoAudio">
+              <span>Also save the audio as MP3</span>
+            </label>
           </div>
 
-          <!-- Cutting a video into parts is ffmpeg's work, and yt-dlp refuses
-               outright without it: "You have requested downloading the video
-               partially, but ffmpeg is not installed. Aborting" - measured.
-               The trim block is hidden for the same reason a few lines up;
-               these are shown but not offered, because the list itself is
-               still worth reading. -->
+          <!-- The curve and the clip lengths live here rather than in the tab
+               that lists the moments. They are a choice you make while reading
+               that list, and a control you have to leave a panel to reach is a
+               control you forget is there. -->
+          <div class="card" id="heatCard" hidden>
+            <div class="card-head">
+              <h3>Most replayed</h3>
+              <span class="badge" id="heatSource">from YouTube</span>
+            </div>
+            <div class="curve heat-graph" id="heatGraph"></div>
+            <label class="check" id="clipOnWrap">
+              <input type="checkbox" id="clipOn">
+              <span>Cut these moments into clips</span>
+            </label>
+            <div class="clip-row" id="clipRow" hidden>
+              <div class="chips" id="clipLens"></div>
+            </div>
+          </div>
+
           <!-- Off by default, and the trim has always made the same offer for
                the same reason: cutting on the mark means re-encoding the part,
                measured at roughly twice the time. -->
-          <label class="chapter-all" id="cutExactWrap" hidden
+          <label class="check" id="cutExactWrap" hidden
                  title="Parts are cut on the video's own keyframes, so a moment of whatever came before can appear at the start. Cutting exactly removes it, but the part has to be re-encoded - measured at about twice as long.">
             <input type="checkbox" id="cutExact">
             <span>Cut exactly at the mark - slower, but no tail of the part before</span>
@@ -416,10 +423,16 @@
             to get it back.</p>
           <p class="hint" id="heatNote" hidden>YouTube has no most-replayed data for this video.</p>
 
-        <div class="preview-actions">
-          <button class="primary big" id="downloadBtn">Download</button>
-          <button class="ghost" id="resetBtn">Clear</button>
-        </div>
+          <!-- What is actually going to be written. Chapters, clips, a trim,
+               an audio copy and a naming template can each change the answer,
+               and until now nothing said it in one place before the button
+               was pressed. -->
+          <p class="summary" id="pvSummary"></p>
+
+          <div class="preview-actions">
+            <button class="primary big" id="downloadBtn">Download</button>
+            <button class="ghost" id="resetBtn">Clear</button>
+          </div>
         </aside>
       </div>
     </div>
