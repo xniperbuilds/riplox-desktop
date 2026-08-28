@@ -2925,12 +2925,27 @@
           "</div>";
       }).join("");
 
-      var trouble = it.error
-        ? '<p class="warn watch-err">' + esc(it.error) +
-          (it.botcheck ? " — see the note at the bottom of this page." : "") + "</p>"
-        : "";
+      /* The fix sits on the row being challenged, not in a list at the foot
+         of the page. The helper is offered rather than sign-in because it
+         answers the exact check that produced this, and only when it is not
+         already on - the same condition the download rows use. */
+      var trouble = "";
+      if (it.error && it.botcheck) {
+        trouble = '<div class="watch-err">' +
+          "<p>YouTube asked whether this is a bot. Checking less often helps, " +
+          "and the proof-of-origin helper answers the exact check it is making.</p>" +
+          (S.hasPotoken
+            ? "<p>The helper is already on, so the next thing to try is " +
+              "checking less often, or pausing this one for a day.</p>"
+            : '<button class="primary small" data-wfix="' + esc(it.id) +
+              '">Turn on the helper</button>') +
+          "</div>";
+      } else if (it.error) {
+        trouble = '<p class="warn watch-err">' + esc(it.error) + "</p>";
+      }
 
-      return '<div class="watch-item' + (it.paused ? " is-paused" : "") + '">' +
+      return '<div class="watch-item' + (it.paused ? " is-paused" : "") +
+        (it.botcheck ? " has-trouble" : "") + '">' +
         '<div class="watch-head">' +
           (it.thumbnail ? '<img class="watch-thumb" src="' + esc(it.thumbnail) +
                           '" alt="" loading="lazy">' : '<div class="watch-thumb"></div>') +
@@ -3072,6 +3087,23 @@
   });
 
   $("watchList").addEventListener("click", function (e) {
+    var fix = e.target.closest("[data-wfix]");
+    if (fix) {
+      fix.disabled = true;
+      fix.textContent = "Setting it up\u2026";
+      api("/api/fix-botcheck", {}).then(function (r) {
+        if (!r.ok) {
+          fix.disabled = false;
+          fix.textContent = "Turn on the helper";
+          toast(r.error || "Could not set that up.", "bad");
+          return;
+        }
+        S.hasPotoken = true;
+        toast("The helper is on. Checking again\u2026");
+        api("/api/watch/check", { id: fix.dataset.wfix }).then(loadWatch);
+      });
+      return;
+    }
     var get = e.target.closest("[data-get]");
     if (get) {
       api("/api/add", { items: [{ url: get.dataset.get }], quality: quality })

@@ -2239,7 +2239,20 @@ button { font-family: var(--font); }
   background: var(--sunk);
 }
 
-.watch-err { margin: 0 14px 12px; font-size: 12px; }
+/* The whole strip, not just a line of red text: this is the one failure the
+   app can cause by itself, so it gets room and it gets its fix. */
+.watch-err {
+  margin: 0 16px 16px;
+  padding: 16px;
+  border: 1px solid var(--warn-dim);
+  border-radius: var(--r-s);
+  background: var(--warn-dim);
+  color: var(--warn);
+  font-size: 12px;
+}
+.watch-err p { margin: 0 0 12px; line-height: 1.6; }
+.watch-err p:last-child { margin-bottom: 0; }
+.watch-item.has-trouble { border-color: var(--warn-dim); }
 
 .new-list {
   padding: 4px 14px 14px;
