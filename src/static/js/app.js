@@ -1742,6 +1742,16 @@
   $("trimOn").addEventListener("change", syncTabs);
 
 
+  $("jobLogCopy").addEventListener("click", function () {
+    copyText($("jobLogBox").textContent || "");
+  });
+  $("jobDetailClose").addEventListener("click", function () {
+    $("jobDetail").hidden = true;
+  });
+  $("jobDetail").addEventListener("click", function (e) {
+    if (e.target === $("jobDetail")) $("jobDetail").hidden = true;
+  });
+
   $("cmdCopy").addEventListener("click", function () {
     copyText($("cmdBox").textContent || "");
   });
@@ -2154,7 +2164,14 @@
     if (act === "log") {
       api("/api/job-log", { id: id }).then(function (r) {
         if (!r || !r.log) { toast("No details were kept for that one.", "bad"); return; }
-        copyText(r.log);
+        var row = btn.closest(".job");
+        var title = row && row.querySelector(".job-title");
+        $("jobDetailWhat").textContent = title ? title.textContent : "";
+        /* Raw engine output. Text, never markup - it is whatever the site and
+           the engine put on the wire. */
+        $("jobLogBox").textContent = r.log;
+        $("jobLogBox").scrollTop = $("jobLogBox").scrollHeight;
+        $("jobDetail").hidden = false;
       });
       return;
     }

@@ -1710,6 +1710,23 @@
   </div>
 </div>
 
+<!-- What one download actually did. The log has always been kept; until now
+     the only thing you could do with it was copy it blind and paste it
+     somewhere else to read it. -->
+<div class="scrim" id="jobDetail" hidden>
+  <div class="dlg dlg-wide" role="dialog" aria-modal="true" aria-labelledby="jobDetailTitle">
+    <div class="dlg-head">
+      <h3 id="jobDetailTitle">What happened</h3>
+      <button class="ghost small" id="jobLogCopy">Copy for a bug report</button>
+    </div>
+    <p class="dlg-msg" id="jobDetailWhat"></p>
+    <pre class="cmd job-log" id="jobLogBox"></pre>
+    <div class="dlg-foot">
+      <button class="ghost" id="jobDetailClose">Close</button>
+    </div>
+  </div>
+</div>
+
 <div class="scrim" id="xdlg" hidden>
   <div class="dlg dlg-ask" role="dialog" aria-modal="true" aria-labelledby="xdlgTitle">
     <h3 id="xdlgTitle">Riplox</h3>

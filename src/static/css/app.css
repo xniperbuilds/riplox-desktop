@@ -1649,6 +1649,15 @@ button { font-family: var(--font); }
   color: var(--bad-soft-2);
 }
 
+/* The engine's own last words. Tall enough to be read rather than skimmed,
+   and it opens at the end, because the end is where the failure is. */
+.job-log {
+  max-height: 46vh;
+  margin: 0 0 20px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* --- history ------------------------------------------------------------- */
 
 .history { display: flex; flex-direction: column; gap: 2px; }
