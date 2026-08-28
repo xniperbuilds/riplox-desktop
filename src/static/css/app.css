@@ -20,35 +20,35 @@
    -------------------------------------------------------------------- */
 :root,
 :root[data-theme="dark"] {
-  --ground:        #070C15;
-  --ground-2:      #0A101B;
-  --sunk:      #0D1421;                  /* inputs, selects, thumbnail wells */
+  --ground:        #0F1116;
+  --ground-2:      #0B0D11;
+  --sunk:      #0B0D11;                  /* inputs, selects, thumbnail wells */
   --well:      rgba(0, 0, 0, .18);       /* recessed area inside a card */
   --well-2:    rgba(0, 0, 0, .22);
   --track:     rgba(255, 255, 255, .07); /* progress + toggle track */
 
-  --surface:     rgba(255, 255, 255, .035);
-  --surface-2:   rgba(255, 255, 255, .055);
+  --surface:     #171A21;
+  --surface-2:   #1D2129;
   --tint:      rgba(255, 255, 255, .022);
   --tint-soft: rgba(255, 255, 255, .015);
   --inner:     rgba(255, 255, 255, .04);
 
-  --line:      rgba(255, 255, 255, .08);
+  --line:      rgba(255, 255, 255, .07);
   --line-soft: rgba(255, 255, 255, .05);
-  --line-mid:  rgba(255, 255, 255, .18);
+  --line-mid:  rgba(255, 255, 255, .13);
   --scroll:    rgba(255, 255, 255, .1);
   --scroll-hi: rgba(255, 255, 255, .18);
 
-  --overlay:   rgba(7, 12, 21, .82);     /* sticky bars over content */
-  --overlay-2: rgba(7, 12, 21, .78);
-  --toast-bg:  rgba(13, 20, 33, .95);
-  --shadow:    #000;
+  --overlay:   rgba(15, 17, 22, .82);     /* sticky bars over content */
+  --overlay-2: rgba(15, 17, 22, .78);
+  --toast-bg:  rgba(29, 33, 41, .95);
+  --shadow-ink:    #000;
 
-  --text:       #E9EFF8;
-  --muted:   #93A2B8;
+  --text:       #FFFFFF;
+  --muted:   #A8B0BD;
   /* Was #5E6D84, which measured 3.7:1 against the page - under the 4.5
      readable line for the small secondary text it is used for everywhere. */
-  --faint: #7E8DA6;
+  --faint: #878F9C;
 
   --accent:      #2BE9E0;
   --accent-2:    #17C3D6;
@@ -57,9 +57,9 @@
   --accent-ink-rgb: 43, 233, 224;
   --on-accent:   #04222B;
 
-  --bad:      #FF3D6E;
-  --bad-rgb:  255, 61, 110;
-  --bad-ink:  #FF3D6E;
+  --bad:      #FF4D6A;
+  --bad-rgb:  255, 77, 106;
+  --bad-ink:  #FF4D6A;
   --on-bad:   #2A0110;
   --bad-soft: #FFC5D4;
   --bad-soft-2: #FF9FB5;
@@ -78,56 +78,74 @@
   --font:    "Segoe UI Variable Text", "Segoe UI", sans-serif;
   --mono:    "Cascadia Mono", "Consolas", ui-monospace, monospace;
 
-  --r:  14px;
-  --r-s: 9px;
+  --r:  12px;
+  --r-s: 10px;
   --ease: cubic-bezier(.22, .8, .3, 1);
+  --raise: #232830;
+  --accent-dim: rgba(43, 233, 224, .12);
+  --accent-line: rgba(43, 233, 224, .35);
+  --good: #3DDC84;
+  --good-dim: rgba(61, 220, 132, .12);
+  --warn-dim: rgba(255, 193, 77, .12);
+  --bad-dim: rgba(255, 77, 106, .12);
+  --shadow: 0 0 34px rgba(0, 0, 0, .45);
+  --shadow-soft: 0 0 34px rgba(0, 0, 0, .28);
+  --r-m: 16px;
+
 }
 
 :root[data-theme="light"] {
-  --ground:        #EFF3F9;
-  --ground-2:      #E5EBF4;
-  --sunk:      #FFFFFF;
+  --ground:        #F7F7F8;
+  --ground-2:      #EDEEF1;
+  --sunk:      #EDEEF1;
   --well:      rgba(16, 24, 40, .04);
   --well-2:    rgba(16, 24, 40, .055);
   --track:     rgba(16, 24, 40, .11);
 
   --surface:     #FFFFFF;
-  --surface-2:   #F6F9FD;
+  --surface-2:   #F4F5F7;
   --tint:      rgba(16, 24, 40, .028);
   --tint-soft: rgba(16, 24, 40, .018);
-  --inner:     rgba(16, 24, 40, .05);
+  --inner:     rgba(16, 24, 40, .02);
 
-  --line:      rgba(16, 24, 40, .13);
+  --line:      rgba(16, 24, 40, .09);
   --line-soft: rgba(16, 24, 40, .08);
-  --line-mid:  rgba(16, 24, 40, .26);
+  --line-mid:  rgba(16, 24, 40, .16);
   --scroll:    rgba(16, 24, 40, .2);
   --scroll-hi: rgba(16, 24, 40, .32);
 
   --overlay:   rgba(255, 255, 255, .88);
-  --overlay-2: rgba(239, 243, 249, .84);
+  --overlay-2: rgba(247, 247, 248, .84);
   --toast-bg:  rgba(255, 255, 255, .97);
-  --shadow:    #26334A;
+  --shadow-ink:    #26334A;
 
-  --text:       #0E1726;
-  --muted:   #4A5871;
-  --faint: #566480;
+  --text:       #14161A;
+  --muted:   #5C6472;
+  /* The design measured this against the page it sits on and got 4.8:1.
+     The app has five light surfaces, not one, and on --raise it read 4.31
+     and on --ground-2, --sunk and --well 4.44 - all under the readable
+     line, and .fmt th, .dlg and .new-list all put faint text on exactly
+     those. Four points darker clears every one of them (4.57 raise,
+     4.70 ground-2, 5.0+ the rest) and is still lighter than --muted, so
+     the three text levels stay in order. */
+  --faint: #626A77;
 
-  --accent:      #10B0A8;
-  --accent-2:    #0C93AC;
-  --accent-rgb:  16, 176, 168;
+  --accent:      #0C7F79;
+  --accent-2:    #0A6E75;
+  --accent-rgb:  12, 127, 121;
   --accent-ink:  #04696A;
   --accent-ink-rgb: 4, 105, 106;
-  --on-accent:   #002225;
+  --on-accent:   #FFFFFF;
 
-  --bad:      #E4215D;
-  --bad-rgb:  228, 33, 93;
+  --bad:      #C41F3C;
+  --bad-rgb:  196, 31, 60;
   --bad-ink:  #BE0F46;
   --on-bad:   #FFF1F5;
   --bad-soft: #97103A;
   --bad-soft-2: #A81444;
 
-  --warn:     #E08A00;
-  --warn-rgb: 224, 138, 0;
+  --warn:     #8A5A00;
+  --warn-rgb: 138, 90, 0;
   --warn-ink: #8A5400;
   --warn-soft: #6F4400;
 
@@ -135,6 +153,16 @@
   --grain-o: 0;
   --soft-o:  1;
   --soft-o-2: 1;
+  --raise: #E9EBEF;
+  --accent-dim: rgba(12, 127, 121, .10);
+  --accent-line: rgba(12, 127, 121, .32);
+  --good: #0E7A42;
+  --good-dim: rgba(14, 122, 66, .10);
+  --warn-dim: rgba(138, 90, 0, .10);
+  --bad-dim: rgba(196, 31, 60, .10);
+  --shadow: 0 0 34px rgba(16, 24, 40, .16);
+  --shadow-soft: 0 0 34px rgba(16, 24, 40, .08);
+
 }
 /* ==== end theme tokens ==== */
 
@@ -233,7 +261,7 @@ body::before {                       /* faint technical grid */
   height: 32px;
   flex: none;
   border-radius: 9px;
-  box-shadow: 0 0 0 1px var(--line-mid), 0 6px 16px -8px var(--shadow);
+  box-shadow: 0 0 0 1px var(--line-mid), 0 6px 16px -8px var(--shadow-ink);
 }
 
 .wordmark { display: flex; flex-direction: column; line-height: 1.1; }
@@ -1879,7 +1907,7 @@ button { font-family: var(--font); }
   /* Solid, not the translucent panel token: this sits over a blurred scrim,
      and text with the page showing through it is the opposite of readable. */
   background: var(--ground-2);
-  box-shadow: 0 40px 90px -30px var(--shadow);
+  box-shadow: 0 40px 90px -30px var(--shadow-ink);
 }
 .dlg h3 {
   margin: 0 0 16px;
@@ -2824,7 +2852,7 @@ select:focus { border-color: rgba(var(--accent-rgb), .45); }
   font-size: 13px;
   opacity: 0;
   transition: opacity .25s, transform .25s var(--ease);
-  box-shadow: 0 18px 44px -20px var(--shadow);
+  box-shadow: 0 18px 44px -20px var(--shadow-ink);
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .toast.good { border-color: rgba(var(--accent-rgb), .4); }
