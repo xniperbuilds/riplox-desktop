@@ -2627,11 +2627,43 @@ button { font-family: var(--font); }
 
 /* --- who you download from ----------------------------------------------- */
 
+/* The list and the column that says who the files came from. */
+.lib-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 24px;
+  align-items: start;
+}
+.lib-list { min-width: 0; }
+.lib-side {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--surface);
+}
+.lib-side-head {
+  margin: 0 0 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--faint);
+}
+
+/* Below this the two columns stop paying for themselves. Measured: the list
+   is whatever is left after the rail, the page padding, the 240 column and
+   the gap, so at 900 it is 476px - about the least a row with a thumbnail, a
+   title and two buttons can use. Under that it stacks, and the uploaders go
+   above the list where a short block belongs. */
+@media (max-width: 900px) {
+  .lib-body { grid-template-columns: 1fr; }
+  .lib-side { order: -1; }
+}
+
 .accounts {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
-  margin: 0 0 14px;
+  gap: 8px;
+  margin: 0;
 }
 .accounts-none {
   margin: 0;
@@ -2821,6 +2853,17 @@ button { font-family: var(--font); }
 /* The ask/tell box is narrower than the warning sheet - it holds a sentence,
    not a briefing. */
 .dlg-ask { width: min(420px, 100%); }
+
+/* Convert holds a list, so it gets the room a list needs. Still a dialog: it
+   is a decision about files you already have, not a place to be. */
+.dlg-wide { width: min(760px, 100%); }
+.dlg-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.dlg-head h3 { margin: 0; margin-right: auto; }
 .dlg-msg {
   margin: 0;
   font-size: 13.5px;

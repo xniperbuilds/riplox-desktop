@@ -46,13 +46,6 @@
       </svg>
       <span class="tab-label">Library</span>
     </button>
-    <button class="tab" data-view="convert" role="tab" title="Convert">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
-           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M4 8h13l-3.2-3.2M20 16H7l3.2 3.2"/>
-      </svg>
-      <span class="tab-label">Convert</span>
-    </button>
     <button class="tab" data-view="watch" role="tab" title="Watch">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -559,6 +552,7 @@
     <div class="view-head">
       <h2>Library</h2>
       <div class="row-gap">
+        <button class="ghost small" id="openConvert">Convert to audio…</button>
         <button class="ghost small" id="openFolder">Open folder</button>
         <button class="ghost small danger" id="clearHistory">Clear history</button>
       </div>
@@ -582,12 +576,19 @@
          the library for that name rather than being a shelf of its own -
          there is already a search box, and a second way to filter the same
          list would be a second thing to keep in step. -->
-    <div class="accounts" id="accountsBox" hidden></div>
-    <div class="empty" id="libraryEmpty">
-      <p>No downloads yet.</p>
-      <span>Finished files are listed here.</span>
+    <div class="lib-body">
+      <div class="lib-list">
+        <div class="empty" id="libraryEmpty">
+          <p>No downloads yet.</p>
+          <span>Finished files are listed here.</span>
+        </div>
+        <div class="history" id="history"></div>
+      </div>
+      <aside class="lib-side">
+        <h3 class="lib-side-head">Who you download from</h3>
+        <div class="accounts" id="accountsBox"></div>
+      </aside>
     </div>
-    <div class="history" id="history"></div>
   </section>
 
   <!-- ============================ FAILED =============================
@@ -598,43 +599,6 @@
        button that removes a row is pressed by hand. -->
 
   <!-- ============================ CONVERT ============================ -->
-  <section class="view" id="view-convert">
-    <div class="view-head">
-      <h2>Convert to audio</h2>
-      <button class="ghost small" id="convPick">Choose files from this PC…</button>
-    </div>
-
-    <p class="conv-note">Pulls the sound out of anything already on your
-      computer. The original is never touched.</p>
-
-    <div class="conv-controls">
-      <label class="conv-field">
-        <span>Format</span>
-        <select id="convFormat"></select>
-      </label>
-      <label class="conv-field">
-        <span>Quality</span>
-        <select id="convQuality"></select>
-      </label>
-      <label class="conv-field conv-where">
-        <input type="checkbox" id="convBeside" checked>
-        <span>Save next to the original</span>
-      </label>
-      <button class="primary" id="convStart" disabled>Convert</button>
-    </div>
-
-    <div class="conv-picked" id="convPicked" hidden></div>
-
-    <div class="view-head sub-head">
-      <h3>From your library</h3>
-      <label class="conv-field"><input type="checkbox" id="convAll"><span>Select all</span></label>
-    </div>
-    <div class="empty" id="convEmpty">
-      <p>Nothing to convert yet.</p>
-      <span>Download something, or choose a file from this PC.</span>
-    </div>
-    <ul class="conv-list" id="convList"></ul>
-  </section>
 
   <!-- ============================= WATCH ============================= -->
   <section class="view" id="view-watch">
@@ -1673,6 +1637,56 @@
      "127.0.0.1:50473 says" - which looks like something has gone wrong and
      puts a port number in front of the user for no reason. Same fix as
      Transport Ledger and RentLedger. -->
+<!-- Convert was a room you visited in order to point back at files that were
+     already in the library. The rows have carried a one-click Convert to MP3
+     for a while, so all the room really held was the decisions: which format,
+     which quality, where the new file goes, and files from outside. That is a
+     dialog, not a destination. -->
+<div class="scrim" id="convDlg" hidden>
+  <div class="dlg dlg-wide" role="dialog" aria-modal="true" aria-labelledby="convDlgTitle">
+    <div class="dlg-head">
+      <h3 id="convDlgTitle">Convert to audio</h3>
+      <button class="ghost small" id="convPick">Choose files from this PC…</button>
+    </div>
+
+
+    <p class="conv-note">Pulls the sound out of anything already on your
+      computer. The original is never touched.</p>
+
+    <div class="conv-controls">
+      <label class="conv-field">
+        <span>Format</span>
+        <select id="convFormat"></select>
+      </label>
+      <label class="conv-field">
+        <span>Quality</span>
+        <select id="convQuality"></select>
+      </label>
+      <label class="conv-field conv-where">
+        <input type="checkbox" id="convBeside" checked>
+        <span>Save next to the original</span>
+      </label>
+      <button class="primary" id="convStart" disabled>Convert</button>
+    </div>
+
+    <div class="conv-picked" id="convPicked" hidden></div>
+
+    <div class="view-head sub-head">
+      <h3>From your library</h3>
+      <label class="conv-field"><input type="checkbox" id="convAll"><span>Select all</span></label>
+    </div>
+    <div class="empty" id="convEmpty">
+      <p>Nothing to convert yet.</p>
+      <span>Download something, or choose a file from this PC.</span>
+    </div>
+    <ul class="conv-list" id="convList"></ul>
+
+    <div class="dlg-foot">
+      <button class="ghost" id="convClose">Close</button>
+    </div>
+  </div>
+</div>
+
 <div class="scrim" id="xdlg" hidden>
   <div class="dlg dlg-ask" role="dialog" aria-modal="true" aria-labelledby="xdlgTitle">
     <h3 id="xdlgTitle">Riplox</h3>

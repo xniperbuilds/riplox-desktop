@@ -176,7 +176,7 @@
 
   /* ---------------------------------------------------------------- tabs */
 
-  var views = ["capture", "queue", "library", "convert", "watch",
+  var views = ["capture", "queue", "library", "watch",
                "sharing", "settings"];
 
   function show(view) {
@@ -189,8 +189,7 @@
 
     // One room, so both lists are fetched when it opens.
     if (view === "queue") { pollJobs(); loadFailed(); }
-    if (view === "library") loadHistory();
-    if (view === "convert") loadConvert();
+    if (view === "library") { loadHistory(); if (accountsShown) loadAccounts(); }
     if (view === "watch") loadWatch();
     if (view === "sharing") loadSharing();
     if (view === "settings") {
@@ -2499,6 +2498,20 @@
   var convFiles = [];        // {path, name, size, picked}
   var convReady = false;
 
+  /* Opened from the library, because that is where the files it works on
+     already are. Loaded on open rather than on start: the format list is one
+     request and there is no reason to make it before anyone asks. */
+  $("openConvert").addEventListener("click", function () {
+    $("convDlg").hidden = false;
+    loadConvert();
+  });
+  $("convClose").addEventListener("click", function () {
+    $("convDlg").hidden = true;
+  });
+  $("convDlg").addEventListener("click", function (e) {
+    if (e.target === $("convDlg")) $("convDlg").hidden = true;
+  });
+
   function loadConvert() {
     if (!convReady) {
       api("/api/convert/formats").then(function (res) {
@@ -4067,15 +4080,17 @@
      so this is reading what is already there. Clicking a name puts it in the
      library search rather than making a second kind of filter. */
 
-  var accountsShown = false;
+  /* A column now rather than a panel behind a button. It was a shelf you had
+     to know to open, holding the one thing that answers "what have I taken
+     from this person" - and the button that opened it sat in a row of other
+     buttons saying nothing about what was behind it.
 
-  $("showAccounts").addEventListener("click", function () {
-    accountsShown = !accountsShown;
+     The button stays for the narrow window, where there is no room for a
+     second column and hiding it is the right answer again. */
+  var accountsShown = true;
+
+  function loadAccounts() {
     var box = $("accountsBox");
-    box.hidden = !accountsShown;
-    $("showAccounts").classList.toggle("on", accountsShown);
-    if (!accountsShown) return;
-
     api("/api/accounts").then(function (res) {
       box.innerHTML = "";
       var list = (res.ok && res.accounts) || [];
@@ -4106,6 +4121,13 @@
         box.appendChild(chip);
       });
     });
+  }
+
+  $("showAccounts").addEventListener("click", function () {
+    accountsShown = !accountsShown;
+    $("accountsBox").hidden = !accountsShown;
+    $("showAccounts").classList.toggle("on", accountsShown);
+    if (accountsShown) loadAccounts();
   });
 
   /* ------------------------------------------------------- how sites are */
