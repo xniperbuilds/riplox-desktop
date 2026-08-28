@@ -1,0 +1,90 @@
+{
+  "artifact": "Riplox 1.5 desktop UI after the redesign migration @ b4790d8 (branch chapters)",
+
+  "factors": {
+    "room":    ["capture", "activity", "library", "watch", "sharing", "settings"],
+    "overlay": ["none", "palette", "insights", "convert", "detail", "firstrun", "sitepicker"],
+    "theme":   ["dark", "light"],
+    "width":   ["1440", "1153", "1152", "1024", "900", "759"],
+    "filter":  ["all", "running", "waiting", "failed"],
+    "data":    ["none", "one", "many"],
+    "typed":   ["nothing", "word", "url", "long"],
+    "server":  ["ok", "error"]
+  },
+
+  "risk": ["width", "overlay", "theme"],
+
+  "constraints": [
+    ["room=capture",  "filter=running"],
+    ["room=capture",  "filter=waiting"],
+    ["room=capture",  "filter=failed"],
+    ["room=library",  "filter=running"],
+    ["room=library",  "filter=waiting"],
+    ["room=library",  "filter=failed"],
+    ["room=watch",    "filter=running"],
+    ["room=watch",    "filter=waiting"],
+    ["room=watch",    "filter=failed"],
+    ["room=sharing",  "filter=running"],
+    ["room=sharing",  "filter=waiting"],
+    ["room=sharing",  "filter=failed"],
+    ["room=settings", "filter=running"],
+    ["room=settings", "filter=waiting"],
+    ["room=settings", "filter=failed"]
+  ],
+
+  "gates": [
+    {"when": ["overlay=insights", "room=capture"],
+     "why": "Insights is opened by a button that only exists in the library head",
+     "tested_at": "the library room, which is where a person can reach it"},
+    {"when": ["overlay=convert", "room=capture"],
+     "why": "same - Convert to audio is a library button since it stopped being a room",
+     "tested_at": "the library room"},
+    {"when": ["overlay=firstrun", "data=many"],
+     "why": "first run only opens when settings.first_run_done is false, which an install with a library never is",
+     "tested_at": "test_first_run.py, at the loader that decides it"},
+    {"when": ["typed=url", "overlay=none"],
+     "why": "typing only happens into an overlay's field or a room's own search - a URL with no overlay is the URL bar, which is the app's oldest path and not what this migration changed",
+     "tested_at": "the existing analyze tests"}
+  ],
+
+  "repros": [
+    {"name": "danger-at-rest",
+     "why": "a ghost button that deletes was only red once the pointer was on it, which warns nobody"},
+    {"name": "danger-dialog-runtime",
+     "why": "the dialog's OK button is class=primary and only gains .danger at runtime - it looked like dead CSS and was nearly deleted"},
+    {"name": "failed-filter-hides-errors",
+     "why": "the filter named after failures was the one place a failed queue row did not appear"},
+    {"name": "library-collapse-source-order",
+     "why": "the two-column collapse rule sat before the rule it overrode, so at 700px the library still drew two columns"},
+    {"name": "duplicate-summary",
+     "why": "#pvSummary and .summary both already existed; adding a second of each gave a duplicate id and a shadowed rule"},
+    {"name": "insights-since-date",
+     "why": "'since <date>' read as a start date when the library is capped at 300 and older records are dropped"},
+    {"name": "firstrun-on-upgrade",
+     "why": "first_run_done is missing from every old settings file, and missing must not read as false"},
+    {"name": "grab-counts-navigation",
+     "why": "counting every unreadable link put '48 sites Riplox has no reader for' under every page"},
+    {"name": "bad-as-gradient-end",
+     "why": "--bad is the failure colour and was used as the far end of three gradients: tab marker, backdrop, progress bar"},
+    {"name": "faux-bold",
+     "why": "<b> defaults to 700 and the app carries no 700 face, so uncaught <b> would be drawn as a synthesised bold"},
+    {"name": "unstyled-chip-em",
+     "why": "a quality chip's size sat in an <em> no rule claimed, so it rendered in the browser's default italic"}
+  ],
+
+  "sequences": [
+    {"name": "palette-to-settings-row",
+     "steps": ["open the palette from a room that is not settings",
+               "type a settings row's name",
+               "press Enter",
+               "the settings room opens, the row is scrolled to and marked"]},
+    {"name": "filter-then-reopen",
+     "steps": ["open Activity", "pick the Failed chip", "leave for another room",
+               "come back", "the chip and the list still agree"]},
+    {"name": "theme-flip-with-overlay-open",
+     "steps": ["open a dialog", "switch the theme", "the dialog repaints in the new theme"]},
+    {"name": "narrow-then-widen",
+     "steps": ["at 1440 with the rail open", "narrow to 1024 so the rail collapses",
+               "widen back to 1440", "the rail's labels and the active marker come back"]}
+  ]
+}

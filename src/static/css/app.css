@@ -868,8 +868,14 @@ button { font-family: var(--font); }
 
 .pv-main { min-width: 0; display: flex; flex-direction: column; }
 
+/* Six tabs need 486px and the column is 366 just above the width where the
+   rail collapses - so they wrapped off the end and Format, Trim, Extras and
+   Naming could not be reached at all. They wrap now, which is what every other
+   row of controls in this app does. The design could not have shown this: it
+   is thirty-five frames at a fixed 1440. */
 .pv-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   flex: none;
   margin-bottom: 16px;
