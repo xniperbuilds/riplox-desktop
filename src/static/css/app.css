@@ -2124,6 +2124,22 @@ button { font-family: var(--font); }
   .share-grid { grid-template-columns: 1fr; }
 }
 
+/* Three ways to get a link off a phone, side by side so they can be compared.
+   They fall to one column on a narrow window, where three columns of prose is
+   worse than a list. */
+.phone-ways {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.panel.tight { padding: 16px; margin-bottom: 0; }
+.panel.tight > b { display: block; font-size: 15px; margin-bottom: 8px; }
+.panel.tight > p { margin: 0; font-size: 12px; color: var(--faint); line-height: 1.8; }
+@media (max-width: 900px) {
+  .phone-ways { grid-template-columns: 1fr; }
+}
+
 /* --- library controls ---------------------------------------------------- */
 
 /* Two rows on purpose. As one wrapping flex line the source chips pushed the

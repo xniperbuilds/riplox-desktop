@@ -730,7 +730,7 @@
          seven days - so the PC asks the relay instead. Counts only; the relay
          cannot read the links and is not asked to hand them over. -->
     <div class="share-check">
-      <button class="ghost small" id="checkStuck">Check for anything missed</button>
+      <button type="button" class="link-quiet" id="checkStuck">Check again</button>
       <span class="share-check-note" id="stuckNote">Links sent while this PC
         was off are kept for a week and arrive when it comes back.</span>
     </div>
@@ -778,32 +778,33 @@
       </div>
     </div>
 
-    <details class="more phone-help">
-      <summary>One tap from the share sheet</summary>
-      <div class="more-body">
-        <div class="more-sec">
-          <label>Android — the app</label>
-          <p class="more-note">Open the paired link on the phone and tap
-            <b>Download Riplox Send</b> (77 KB). Pair it with the code above,
-            and from then on <b>Share → Riplox Send</b> sends the link with
-            <b>nothing opening at all</b> — just a tick.</p>
-        </div>
-        <div class="more-sec">
-          <label>Android — without installing</label>
-          <p class="more-note">Open the paired link in Chrome →
-            <b>menu → Install app</b>. Riplox appears in the share sheet the
-            same way, but sharing opens the page for a moment.</p>
-        </div>
-        <div class="more-sec">
-          <label>iPhone</label>
-          <p class="more-note">iOS has no share target for web pages. In
-            Shortcuts: <b>new Shortcut → Open URLs</b>, tick <b>Show in Share
-            Sheet</b>, accept <b>URLs</b>, and set the URL to your paired link
-            with <code class="inline">?text=</code> and the <b>Shortcut
-            Input</b> on the end.</p>
-        </div>
+    <!-- Three ways, three cards. They were three paragraphs behind a summary,
+         which is the wrong shape for a set of alternatives: you cannot compare
+         three things you have to open one at a time. -->
+    <h3 class="group-head">One tap from the phone's share sheet</h3>
+    <div class="phone-ways">
+      <div class="panel tight">
+        <b>Android &mdash; the app</b>
+        <p>Open the paired link on the phone and tap <b>Download Riplox
+          Send</b> (77&nbsp;KB). Pair it with the code above, and from then on
+          <b>Share &rarr; Riplox Send</b> sends the link with <b>nothing opening
+          at all</b> &mdash; just a tick.</p>
       </div>
-    </details>
+      <div class="panel tight">
+        <b>Android &mdash; without installing</b>
+        <p>Open the paired link in Chrome &rarr; <b>menu &rarr; Install app</b>.
+          Riplox appears in the share sheet the same way, but sharing opens the
+          page for a moment.</p>
+      </div>
+      <div class="panel tight">
+        <b>iPhone</b>
+        <p>iOS has no share target for web pages. In Shortcuts: <b>new Shortcut
+          &rarr; Open URLs</b>, tick <b>Show in Share Sheet</b>, accept
+          <b>URLs</b>, and set the URL to your paired link with
+          <code class="inline">?text=</code> and the <b>Shortcut Input</b> on
+          the end.</p>
+      </div>
+    </div>
 
     <div class="view-head sub-head">
       <h3>Incoming</h3>

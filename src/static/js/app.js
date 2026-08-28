@@ -191,7 +191,9 @@
     if (view === "queue") { pollJobs(); loadFailed(); }
     if (view === "library") { loadHistory(); if (accountsShown) loadAccounts(); }
     if (view === "watch") loadWatch();
-    if (view === "sharing") loadSharing();
+    // Asked on open, because the only thing the press ever did was fetch a
+    // count - the links themselves arrive on their own while Sharing is on.
+    if (view === "sharing") { loadSharing(); askRelay(true); }
     if (view === "settings") {
       loadEngineVersion(); loadCookies(); loadPot(); checkEngineUpdate(false);
     }
@@ -4185,11 +4187,11 @@
      keeps undelivered links for a week. Counts only: the relay cannot read
      them and is not asked to hand them over. */
 
-  $("checkStuck").addEventListener("click", function () {
+  function askRelay(quiet) {
     var btn = $("checkStuck");
     var note = $("stuckNote");
     btn.disabled = true;
-    note.textContent = "Asking…";
+    if (!quiet) note.textContent = "Asking…";
 
     api("/api/share/pending").then(function (res) {
       if (!res.ok) {
@@ -4213,7 +4215,9 @@
     }).catch(function () {
       note.textContent = "Could not reach the relay.";
     }).then(function () { btn.disabled = false; });
-  });
+  }
+
+  $("checkStuck").addEventListener("click", function () { askRelay(false); });
 
   /* ---------------------------------------------------------- accounts */
 
