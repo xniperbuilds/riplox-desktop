@@ -4710,6 +4710,23 @@
     });
   }
 
+  /* Which of the two lists is on show. One attribute, and the stylesheet does
+     the rest - the same way Activity filters, and for the same reason: neither
+     list is rebuilt to switch between them. */
+  function syncSiteKinds() {
+    $("countPick").textContent = (siteData && siteData.pickable || []).length || "";
+    $("countAllSites").textContent = (siteData && siteData.all || []).length || "";
+  }
+
+  $("siteKinds").addEventListener("click", function (e) {
+    var chip = e.target.closest(".chip");
+    if (!chip) return;
+    $("siteKinds").querySelectorAll(".chip").forEach(function (c) {
+      c.classList.toggle("is-on", c === chip);
+    });
+    $("sitePicker").dataset.which = chip.dataset.which;
+  });
+
   function renderAll() {
     var head = $("siteAllHead"), list = $("siteAllList");
     var term = $("siteSearch").value.trim().toLowerCase();
@@ -4772,6 +4789,7 @@
           : "Every site the installed engine can read.");
       $("siteSearch").value = "";
       $("siteAllWrap").hidden = pickerState.mode === "pick" && !data.all.length;
+      syncSiteKinds();
       // Browse mode has nothing to save, so it gets one way out, not two.
       $("sitePickerSave").hidden = pickerState.mode !== "pick";
       $("sitePickerCancel").textContent =

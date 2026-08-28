@@ -3014,6 +3014,17 @@ button { font-family: var(--font); }
 .roadmap li b { color: var(--text); font-weight: 500; }
 .roadmap li.done b { color: var(--muted); font-weight: 500; }
 
+/* Which of the two site lists is showing. Nothing is re-rendered to switch. */
+#sitePicker[data-which="all"] .site-pick,
+#sitePicker:not([data-which="all"]) .site-all { display: none; }
+.site-why {
+  margin: 0 0 16px;
+  font-size: 12px;
+  color: var(--faint);
+  line-height: 1.75;
+}
+.site-why b { color: var(--muted); font-weight: 500; }
+
 /* --- the site picker ----------------------------------------------------- */
 
 /* Wider than the ask box: this one holds a grid, not a sentence. */

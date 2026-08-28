@@ -1770,6 +1770,18 @@
     <input type="search" id="siteSearch" class="text-input" autocomplete="off"
            spellcheck="false" placeholder="Search sites…">
 
+    <!-- Two sets, and they are genuinely different: one is what Riplox can
+         read a page from, the other is everything it can download given a
+         direct link. Stacking them left the reader to work out why there were
+         two lists. Chips with counts say it. -->
+    <div class="filters" id="siteKinds" role="group" aria-label="Which sites">
+      <button type="button" class="chip is-on" data-which="pick">Pick from a page<em class="k" id="countPick"></em></button>
+      <button type="button" class="chip" data-which="all">Download only<em class="k" id="countAllSites"></em></button>
+    </div>
+    <p class="site-why"><b>Pick from a page</b> means Riplox can read the page
+      and list every video on it. Everything else downloads fine from a direct
+      link &mdash; it just cannot be browsed.</p>
+
     <div class="site-pick" id="sitePickList"></div>
 
     <div class="site-all" id="siteAllWrap" hidden>
