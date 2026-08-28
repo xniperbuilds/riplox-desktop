@@ -1511,7 +1511,7 @@ _OPT_KEYS = ("format_id", "audio_lang", "sub_langs", "outtmpl", "dest_dir",
              # The chapters ticked on the list, and the tick that means all of
              # them. Two keys rather than one, because "all" is a single
              # pattern to the engine and a list of two hundred titles is not.
-             "chapters", "chapters_all",
+             "chapters", "chapters_all", "parts_expected",
              # The most-replayed moments to cut out, as ranges in seconds.
              "clips")
 
@@ -1604,6 +1604,15 @@ def clean_opts(opts) -> dict:
                     titles.append(text)
             if titles:
                 out[key] = titles[:500]
+        elif key == "parts_expected":
+            # How many files the screen believes it asked for. It knows things
+            # this does not - that two chapters share a title and so arrive as
+            # two files from one pattern - so it says the number rather than
+            # having it guessed here.
+            try:
+                out[key] = max(1, min(int(value), 500))
+            except (TypeError, ValueError):
+                pass
         elif key == "clips":
             # Time ranges in seconds, as the screen worked them out. Checked
             # rather than trusted: these go straight onto a command line, and
@@ -4054,7 +4063,7 @@ class Job:
                  "speed", "eta", "size", "got", "filepath", "error", "created", "proc",
                  "cancelled", "uploader", "batch", "log", "attempt",
                  "start", "end", "exact", "stage", "paused", "kind", "conv",
-                 "opts", "origin", "streams", "sent_cookies", "tried_signed_in",
+                 "opts", "origin", "streams", "parts", "sent_cookies", "tried_signed_in",
                  "account", "retry_at", "auto_retries", "height", "started_on",
                  "net_waits",
                  # When the engine last said ANYTHING, and whether it went
@@ -4142,6 +4151,8 @@ class Job:
         # How many streams have finished. A merged download is video then
         # audio, and the one progress bar has to cover both.
         self.streams = 0
+        # How many of a cut's parts have arrived. One job, many files.
+        self.parts = 0
         # Kept so the user can hand a real error to someone who can read it,
         # instead of the one friendly sentence the UI shows.
         self.log = ""
@@ -5375,6 +5386,10 @@ class DownloadManager:
         # A retry starts the streams again from the top, so the bar's idea of
         # which one is running has to start again too.
         job.streams = 0
+        # And so does the count of parts that arrived: a retry re-lists every
+        # one of them, so carrying the previous attempt's count forward would
+        # make a short folder add up to a full one.
+        job.parts = 0
         # Working out which streams to cut takes half a minute before ffmpeg
         # says anything, and a blank row for half a minute reads as broken.
         job.stage = "preparing" if (job.start or job.end) else ""
@@ -5486,6 +5501,10 @@ class DownloadManager:
                 # Library names it, and the size below adds it up.
                 if (job.opts.get("chapters") or job.opts.get("chapters_all")
                         or job.opts.get("clips")):
+                    # Counted before the path is turned into its folder, because
+                    # afterwards there is nothing left to count: one job, many
+                    # files, and this line is the only place each one is seen.
+                    job.parts = getattr(job, "parts", 0) + 1
                     job.filepath = str(Path(job.filepath).parent)
             elif line.startswith(THUMB_TAG):
                 # Only fills gaps. A link analysed on this PC already carries
@@ -5498,6 +5517,12 @@ class DownloadManager:
                 if title and title != "NA" and job.title in (job.url, ""):
                     job.title = title
             elif "has already been downloaded" in line:
+                # A part that was already on disk is a part the user has, even
+                # though this run did not write it. Counted, or a second run
+                # over the same folder would look like a run that lost things.
+                if (job.opts.get("chapters") or job.opts.get("chapters_all")
+                        or job.opts.get("clips")):
+                    job.parts = getattr(job, "parts", 0) + 1
                 # Nothing moves, so after_move never fires - take the path here
                 # or the Play button would have nothing to open.
                 existing = line.split("] ", 1)[-1]
@@ -5551,6 +5576,23 @@ class DownloadManager:
             return True          # a rule was applied; retrying changes nothing
 
         if proc.returncode == 0:
+            # One job, many files - so "it exited 0" is not the same as "you
+            # got what you ticked". Every section is fetched on its own, and a
+            # site can refuse one of them while handing over the rest; without
+            # this the job goes green over a folder that is short, and the only
+            # way to notice is to count the files by hand. Reported by Nazim
+            # after ticking five chapters and finding three.
+            wanted = int(job.opts.get("parts_expected") or 0)
+            if wanted and getattr(job, "parts", 0) < wanted:
+                job.status = "error"
+                job.error = (
+                    f"Only {job.parts} of the {wanted} parts you asked for "
+                    f"arrived. The rest were refused by the site or could not "
+                    f"be cut. What did arrive is in the folder; Retry fetches "
+                    f"the missing ones without downloading these again.")
+                job.speed = job.eta = ""
+                return True
+
             job.status = "done"
             job.percent = 100.0
             job.speed = job.eta = ""

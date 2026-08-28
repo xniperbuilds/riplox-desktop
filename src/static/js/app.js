@@ -1541,6 +1541,10 @@
     // One idea, one field: the trim has always sent this, and a chapter or a
     // clip is the same kind of cut asking the same thing of ffmpeg.
     body.exact = $("cutExact").checked;
+    /* How many files this should produce. Counted here because the screen is
+       the only side that knows a ticked row is a file: two chapters sharing a
+       title are one pattern and two files, and the engine sees only patterns. */
+    body.opts.parts_expected = chapterPicks.length || currentClips().length;
     return body;
   }
 
