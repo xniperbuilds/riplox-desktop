@@ -230,6 +230,48 @@
    elements no other rule catches. Any class rule still wins over this. */
 b, strong, h1, h2, h3 { font-weight: 500; }
 
+/* One tick, everywhere. The design draws its own 18px box rather than letting
+   each platform draw a different one, and it is the same box in a settings
+   row, a chapter list and the quality card - so this is a single rule on the
+   element instead of a class per place.
+
+   It sits here, high in the file, so the few checkboxes that are deliberately
+   hidden and driven by something else - the advanced chip's, for one - still
+   win with their own rules further down. */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--line-mid);
+  border-radius: 5px;
+  background: none;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+input[type="checkbox"]:checked::after {
+  content: "";
+  width: 5px;
+  height: 9px;
+  margin-top: -2px;
+  border: solid var(--on-accent);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+input[type="checkbox"]:disabled { opacity: .45; cursor: default; }
+
 html, body { height: 100%; }
 
 body {
@@ -1461,14 +1503,15 @@ button { font-family: var(--font); }
 
 /* --- jobs ---------------------------------------------------------------- */
 
-.jobs { display: flex; flex-direction: column; gap: 7px; }
+.jobs { display: flex; flex-direction: column; gap: 8px; }
 
 .job {
   display: grid;
-  grid-template-columns: 88px 1fr auto;
-  gap: 13px;
+  grid-template-columns: 64px 1fr auto;
+  gap: 12px;
   align-items: center;
-  padding: 9px 10px;
+  min-height: 68px;
+  padding: 0 16px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r);
@@ -1480,8 +1523,8 @@ button { font-family: var(--font); }
 .job.error  { border-color: rgba(var(--bad-rgb), .3); }
 
 .job-thumb {
-  width: 88px;
-  aspect-ratio: 16 / 9;
+  width: 64px;
+  height: 38px;
   border-radius: 7px;
   object-fit: cover;
   background: var(--sunk);
@@ -1517,16 +1560,18 @@ button { font-family: var(--font); }
 .job.paused { border-color: rgba(var(--warn-rgb), .28); }
 
 .meter {
-  height: 3px;
+  height: 4px;
   border-radius: 3px;
-  background: var(--track);
+  background: var(--raise);
   overflow: hidden;
 }
 .meter i {
   display: block;
   height: 100%;
   border-radius: 3px;
-  background: linear-gradient(90deg, var(--accent), var(--bad));
+  /* Was accent into --bad, so a download in flight shaded towards the colour
+     this app uses for a failure. The design runs it between the two accents. */
+  background: linear-gradient(90deg, var(--accent-2), var(--accent));
   transition: width .3s var(--ease);
   box-shadow: 0 0 10px rgba(var(--accent-rgb), .55);
 }
@@ -1814,23 +1859,32 @@ button { font-family: var(--font); }
   opacity: var(--soft-o);
 }
 
+/* The states the queue has to announce - an update, a resume, a hold, a
+   cool-down. The design makes them one strip carrying the colour of whatever
+   it is saying, rather than four bars with four left borders. */
 .resume-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 14px;
+  gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 14px;
-  padding: 12px 16px;
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--accent);
-  border-radius: 10px;
-  background: var(--well);
+  min-height: 56px;
+  margin-bottom: 16px;
+  padding: 0 16px;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-s);
+  background: var(--accent-dim);
   font-size: 13px;
-  color: var(--faint);
+  color: var(--accent-ink);
 }
+.resume-bar > button { margin-left: auto; }
 
-.update-bar { border-left-color: var(--warn); }
+/* An update is news, not an alarm, so it wears the warn tint rather than the
+   accent the resume strip uses. */
+.update-bar {
+  border-color: var(--warn-dim);
+  background: var(--warn-dim);
+  color: var(--warn);
+}
 
 /* --- channel sections ---------------------------------------------------- */
 
@@ -3083,13 +3137,16 @@ body.dropping::after {
 
 /* Why the queue is standing still. */
 .hold-bar {
-  margin-bottom: 14px;
-  padding: 11px 14px;
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--warn);
-  border-radius: 10px;
-  background: var(--sunk);
-  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  margin-bottom: 16px;
+  padding: 0 16px;
+  border: 1px solid var(--warn-dim);
+  border-radius: var(--r-s);
+  background: var(--warn-dim);
+  color: var(--warn);
   font-size: 13px;
 }
 
@@ -3097,7 +3154,7 @@ body.dropping::after {
    same kind of news - "nothing is starting, and here is why" - with the way
    out on the right. */
 .cool-bar {
-  margin-bottom: 14px;
+  margin-bottom: 16px;
   padding: 4px 0;
   display: flex;
   flex-direction: column;
