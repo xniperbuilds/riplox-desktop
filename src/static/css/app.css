@@ -121,7 +121,7 @@
   --warn-ink: #FFC14D;
   --warn-soft: #FFE0A8;
 
-  --glow-o:  1;
+  --glow-o:  .55;
   --grain-o: .32;
   --soft-o:  .85;   /* neon needs taking down; ink does not */
   --soft-o-2: .75;
@@ -199,7 +199,7 @@
   --warn-ink: #8A5400;
   --warn-soft: #6F4400;
 
-  --glow-o:  .5;
+  --glow-o:  .28;
   --grain-o: 0;
   --soft-o:  1;
   --soft-o-2: 1;
@@ -253,9 +253,11 @@ body {
   pointer-events: none;
   z-index: 0;
   opacity: var(--glow-o);
+  /* One wash, in the accent. The second used to be --bad, which is the colour
+     this app uses for a failure everywhere else - a red haze in the corner of
+     a downloader reads as a warning that is not there. */
   background:
-    radial-gradient(46% 62% at 22% 0%, rgba(var(--accent-rgb), .16), transparent 70%),
-    radial-gradient(40% 55% at 82% 8%, rgba(var(--bad-rgb), .13), transparent 72%);
+    radial-gradient(46% 62% at 22% 0%, rgba(var(--accent-rgb), .16), transparent 70%);
   filter: blur(4px);
 }
 
