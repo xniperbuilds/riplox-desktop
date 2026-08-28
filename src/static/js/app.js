@@ -295,6 +295,58 @@
     if (e.key === "Enter") { e.preventDefault(); runPalette(palIndex); }
   });
 
+  /* ------------------------------------------------------------ first run */
+
+  /* Nothing here is a new setting - all three exist and all three have
+     defaults. This only puts them in front of someone once. */
+  function openFirstRun() {
+    $("frDirText").textContent = settings.download_dir || "";
+    $("frDir").title = settings.download_dir || "";
+    $("frPerSite").checked = !!settings.subfolder_per_site;
+    $("frClip").checked = !!settings.auto_paste;
+
+    // Said, not asked: it is bundled, and the alternative to saying so is
+    // finding out at the first 1080p download.
+    var badge = $("frFfmpeg");
+    badge.textContent = S.hasFfmpeg ? "Found" : "Missing";
+    badge.className = "badge " + (S.hasFfmpeg ? "b-ok" : "b-bad");
+    $("frFfmpegWhy").textContent = S.hasFfmpeg
+      ? "1080p and above, MP3, chapters and clips all need it. It ships with "
+        + "this install, so there is nothing for you to do."
+      : "1080p and above, MP3, chapters and clips all need it, and this "
+        + "install cannot find it. Those will be unavailable until it is there.";
+
+    $("firstRun").hidden = false;
+  }
+
+  function closeFirstRun() {
+    $("firstRun").hidden = true;
+    saveSetting({ first_run_done: true });
+  }
+
+  $("frDirPick").addEventListener("click", function () {
+    api("/api/choose-folder-once", {}).then(function (res) {
+      if (res.cancelled || !res.ok) return;
+      $("frDirText").textContent = res.dir;
+      $("frDir").title = res.dir;
+    });
+  });
+
+  $("frSkip").addEventListener("click", closeFirstRun);
+
+  $("frDone").addEventListener("click", function () {
+    var patch = {
+      subfolder_per_site: $("frPerSite").checked,
+      auto_paste: $("frClip").checked,
+      first_run_done: true
+    };
+    var dir = $("frDirText").textContent.trim();
+    if (dir && dir !== settings.download_dir) patch.download_dir = dir;
+    saveSetting(patch).then(function () { $("firstRun").hidden = true; });
+  });
+
+  if (!settings.first_run_done) openFirstRun();
+
   /* --------------------------------------------------------------- theme */
 
   // Three choices, and "auto" means the system decides - so the media query is

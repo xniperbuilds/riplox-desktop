@@ -470,6 +470,10 @@ DEAD_RELAYS = ("wss://relay.riplox.workers.dev", "")
 # written down beside them - a default with no reason attached drifts.
 DEFAULT_SETTINGS = {
     "download_dir": str(default_download_dir()),
+    # Whether the three opening questions have been answered. False on a fresh
+    # install; set once, whether they are answered or skipped, because asking
+    # twice is worse than not asking.
+    "first_run_done": False,
     "default_quality": "best",
     # Two at once, not four: a home line shared between four downloads makes
     # all four slow and none of them finish, and YouTube notices the fifth.
@@ -604,11 +608,23 @@ def settings_file() -> Path:
 
 def load_settings() -> dict:
     s = dict(DEFAULT_SETTINGS)
+    saved = {}
     try:
         with open(settings_file(), "r", encoding="utf-8") as fh:
-            s.update(json.load(fh))
+            saved = json.load(fh)
+            s.update(saved)
     except (OSError, ValueError):
         pass
+
+    # Somebody already using Riplox is not on their first run, whatever a flag
+    # added later says. A settings file that predates the flag means the three
+    # opening questions were answered by using the app, and asking them on an
+    # upgrade would be the app forgetting who it is talking to.
+    #
+    # Asked of the saved file, not of `s` - the defaults have already put the
+    # key there, so `"first_run_done" not in s` is never true.
+    if saved and "first_run_done" not in saved:
+        s["first_run_done"] = True
     # Never trust a stale path from a previous machine.
     try:
         Path(s["download_dir"]).mkdir(parents=True, exist_ok=True)

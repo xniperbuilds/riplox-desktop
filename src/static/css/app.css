@@ -3397,6 +3397,14 @@ select:focus { border-color: var(--accent); }
   color: var(--faint);
 }
 
+/* The opening three. Cards rather than a form, because the third one is not a
+   question and a form would make it look like one. */
+.fr-card { margin-bottom: 12px; }
+.fr-card .btn-row { margin: 8px 0 4px; }
+.fr-card .mono { font-family: var(--mono); font-size: 12px; }
+.fr-card > .check { margin-top: 4px; }
+.fr-note { margin-right: auto; font-size: 12px; color: var(--faint); }
+
 /* --- one way in ---------------------------------------------------------- */
 
 /* Near the top rather than centred: the list grows downwards, and a box that

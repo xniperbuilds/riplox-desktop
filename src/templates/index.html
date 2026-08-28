@@ -1716,6 +1716,47 @@
 <!-- One way in. The app has four search boxes - queue, library, settings,
      sites - and six rooms, and the commonest thing anybody does here is paste
      a link. Ctrl+K takes all of it. -->
+<!-- Riplox opened straight onto an empty screen, so every default was found
+     out later - usually by being wrong once. Three questions, and the third
+     is not a question. -->
+<div class="scrim" id="firstRun" hidden>
+  <div class="dlg dlg-wide" role="dialog" aria-modal="true" aria-labelledby="firstRunTitle">
+    <div class="dlg-head">
+      <div>
+        <h3 id="firstRunTitle">Welcome to Riplox</h3>
+        <p class="dlg-msg">Three things, then it is out of your way.</p>
+      </div>
+    </div>
+
+    <div class="panel tight fr-card">
+      <b>Where should downloads go?</b>
+      <div class="btn-row">
+        <button class="ghost" id="frDir"><span class="mono" id="frDirText"></span></button>
+        <button class="ghost small" id="frDirPick">Change</button>
+      </div>
+      <label class="check"><input type="checkbox" id="frPerSite"><span>Keep a folder per site</span></label>
+    </div>
+
+    <div class="panel tight fr-card">
+      <b>Should Riplox watch your clipboard?</b>
+      <p>Copy a link anywhere and Riplox offers to take it. You can turn it off
+        later in <b>Doing it for you</b>.</p>
+      <label class="check"><input type="checkbox" id="frClip"><span>Watch the clipboard</span></label>
+    </div>
+
+    <div class="panel tight fr-card">
+      <b>Media tool <span class="badge" id="frFfmpeg"></span></b>
+      <p id="frFfmpegWhy"></p>
+    </div>
+
+    <div class="dlg-foot">
+      <span class="fr-note">Everything here can be changed later.</span>
+      <button class="ghost" id="frSkip">Skip</button>
+      <button class="primary" id="frDone">Start using Riplox</button>
+    </div>
+  </div>
+</div>
+
 <div class="scrim scrim-top" id="palette" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-label="Search Riplox">
     <div class="omni">
