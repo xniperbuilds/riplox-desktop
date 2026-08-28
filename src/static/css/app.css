@@ -482,13 +482,16 @@ main {
 
 /* --- capture headline ---------------------------------------------------- */
 
-.capture-head { margin-bottom: 26px; }
+.capture-head { margin-bottom: 24px; }
 
+/* 31px, which is the design's and the bottom of the 31-36 the three measured
+   desktop files agree a page title sits in. It was clamping up to 58 on a
+   wide window, on a screen whose body text is 14. */
 .capture-head h1 {
   margin: 0;
-  font-size: clamp(38px, 5.4vw, 58px);
+  font-size: 31px;
   font-weight: 500;
-  line-height: 1.02;
+  line-height: 1.1;
   letter-spacing: -.02em;
 }
 .capture-head h1 span {
@@ -505,7 +508,7 @@ main {
   color: transparent;
 }
 .capture-head .sub {
-  margin: 13px 0 0;
+  margin: 8px 0 0;
   color: var(--muted);
   font-size: 14px;
   max-width: 60ch;
@@ -513,35 +516,44 @@ main {
 
 /* --- url bar ------------------------------------------------------------- */
 
+/* The one object on this screen, so it says so at rest: the accent line is
+   the resting border rather than something focus has to reveal. */
 .urlbar {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 9px 9px 9px 15px;
+  gap: 8px;
+  padding: 8px;
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: 1px solid var(--accent-line);
   border-radius: var(--r);
   transition: border-color .2s, box-shadow .2s, background .2s;
 }
 .urlbar:focus-within {
-  border-color: rgba(var(--accent-rgb), .45);
+  border-color: var(--accent);
   background: var(--surface-2);
-  box-shadow: 0 0 0 4px rgba(var(--accent-rgb), .08), 0 14px 40px -22px rgba(var(--accent-rgb), .6);
+  box-shadow: 0 0 0 4px var(--accent-dim);
 }
 
+/* A block, like the controls beside it, rather than a word with a hairline
+   after it. */
 .urlbar-tag {
+  height: 44px;
+  padding: 0 12px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-s);
+  background: var(--ground-2);
   font-family: var(--mono);
   font-size: 10px;
   letter-spacing: .16em;
   color: var(--faint);
-  padding-right: 12px;
-  border-right: 1px solid var(--line);
 }
 
 .urlbar input {
   flex: 1;
   min-width: 0;
-  padding: 9px 4px;
+  height: 44px;
+  padding: 0 4px;
   border: 0;
   background: none;
   color: var(--text);
@@ -622,13 +634,13 @@ button { font-family: var(--font); }
 .hint {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-top: 11px;
-  padding: 8px 13px;
-  border: 1px dashed rgba(var(--accent-rgb), .3);
+  gap: 8px;
+  margin-top: 16px;
+  padding: 8px 12px;
+  border: 1px dashed var(--accent-line);
   border-radius: var(--r-s);
-  background: rgba(var(--accent-rgb), .045);
-  font-size: 12.5px;
+  background: var(--accent-dim);
+  font-size: 12px;
   color: var(--muted);
 }
 .hint button {
@@ -729,11 +741,12 @@ button { font-family: var(--font); }
   display: grid;
   grid-template-columns: 330px 1fr;
   gap: 24px;
-  margin-top: 26px;
-  padding: 20px;
+  margin-top: 24px;
+  padding: 24px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r);
+  box-shadow: var(--shadow-soft);
   animation: rise .45s var(--ease);
 }
 
