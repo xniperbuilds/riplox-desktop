@@ -5196,6 +5196,26 @@
   }
   watchBadge();
   setInterval(watchBadge, 60000);
+
+  /* The same for a link waiting to be approved. "Ask before starting" only
+     means anything if you find out something is waiting - and until this, the
+     count on the rail was only refreshed by opening Sharing, so a held link
+     was invisible until you happened to go and look at the room it was held
+     in. Same shape as watchBadge: skipped while the room itself is open,
+     because the room keeps its own list up to date. */
+  function shareBadge() {
+    if ($("view-sharing").classList.contains("is-active")) return;
+    api("/api/share/state", {}).then(function (res) {
+      if (!res.ok || !res.state) return;
+      var waiting = (res.state.log || []).filter(function (e) {
+        return e.state === "waiting";
+      }).length;
+      $("shareBadge").textContent = waiting;
+      $("shareBadge").hidden = waiting === 0;
+    });
+  }
+  shareBadge();
+  setInterval(shareBadge, 60000);
   // Always polling: even with clipboard watching off, this is how the window
   // hears about downloads the global shortcut started.
   startClipboardWatch();
