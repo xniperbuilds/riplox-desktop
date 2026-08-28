@@ -356,10 +356,10 @@ body::before {                       /* faint technical grid */
 
 /* The brand tile is navy on a navy page - a hairline ring keeps its edge. */
 .mark {
-  width: 32px;
-  height: 32px;
+  width: 38px;
+  height: 38px;
   flex: none;
-  border-radius: 9px;
+  border-radius: var(--r-s);
   box-shadow: 0 0 0 1px var(--line-mid), 0 6px 16px -8px var(--shadow-ink);
 }
 
@@ -756,14 +756,16 @@ button { font-family: var(--font); }
 
 /* --- messages ------------------------------------------------------------ */
 
+/* The design's strip: one tint carrying the meaning, not a border in one alpha
+   over a background in another. */
 .error-box, .alert {
-  margin-top: 14px;
-  padding: 12px 16px;
+  margin-top: 16px;
+  padding: 16px;
   border-radius: var(--r-s);
-  border: 1px solid rgba(var(--bad-rgb), .35);
-  background: rgba(var(--bad-rgb), .08);
-  color: var(--bad-soft);
-  font-size: 13.5px;
+  border: 1px solid var(--bad-dim);
+  background: var(--bad-dim);
+  color: var(--bad);
+  font-size: 13px;
 }
 
 .alert {
@@ -771,8 +773,9 @@ button { font-family: var(--font); }
   z-index: 2;
   max-width: 1000px;
   margin: 16px auto -6px;
-  border-color: rgba(var(--warn-rgb), .32);
-  background: rgba(var(--warn-rgb), .07);
+  border-color: var(--warn-dim);
+  background: var(--warn-dim);
+  color: var(--warn);
   color: var(--warn-soft);
 }
 .alert strong { color: var(--warn-ink); }
@@ -1168,7 +1171,7 @@ button { font-family: var(--font); }
 
 .more-body {
   margin-top: 12px;
-  padding: 14px 16px;
+  padding: 0;
   border: 1px solid var(--line);
   border-radius: var(--r-s);
   background: var(--well);
@@ -1265,11 +1268,11 @@ button { font-family: var(--font); }
 
 .cmd {
   margin: 0;
-  padding: 10px 12px;
+  padding: 12px;
   max-height: 130px;
   overflow: auto;
   border: 1px solid var(--line-soft);
-  border-radius: 8px;
+  border-radius: var(--r-s);
   background: var(--sunk);
   font-family: var(--mono);
   font-size: 11px;
@@ -1714,7 +1717,7 @@ button { font-family: var(--font); }
 /* --- empty --------------------------------------------------------------- */
 
 .empty {
-  padding: 56px 20px;
+  padding: 56px 0;
   text-align: center;
   border: 1px dashed var(--line);
   border-radius: var(--r);
@@ -1760,6 +1763,8 @@ button { font-family: var(--font); }
   border-radius: var(--r);
   margin-bottom: 16px;
   overflow: hidden;
+  padding: 24px;
+  box-shadow: var(--shadow-soft);
 }
 
 .field {
@@ -1767,8 +1772,9 @@ button { font-family: var(--font); }
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 16px;
+  padding: 12px 0;
   border-bottom: 1px solid var(--line-soft);
+  min-height: 68px;
 }
 .field:last-child { border-bottom: 0; }
 
@@ -1828,7 +1834,7 @@ button { font-family: var(--font); }
 .stepper {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
 }
 .stepper input {
   width: 74px;
@@ -1970,7 +1976,7 @@ button { font-family: var(--font); }
 
 .panel-head {
   margin: 0;
-  padding: 16px 16px 12px;
+  padding: 0 0 12px;
   border-bottom: 1px solid var(--line-soft);
 }
 
@@ -1985,7 +1991,7 @@ button { font-family: var(--font); }
    white behind it - so the quiet zone is always white, in both themes. */
 .qr {
   flex: none;
-  padding: 10px;
+  padding: 8px;
   border-radius: 10px;
   background: #FFFFFF;
   line-height: 0;
@@ -2864,7 +2870,7 @@ button { font-family: var(--font); }
 
 /* --- how sites are behaving ---------------------------------------------- */
 
-.health { padding: 2px 18px 14px; }
+.health { padding: 0 0 4px; }
 .health-none {
   margin: 0;
   font-size: 12.5px;
@@ -2914,7 +2920,7 @@ button { font-family: var(--font); }
 .roadmap {
   list-style: none;
   margin: 0;
-  padding: 4px 18px 16px;
+  padding: 4px 0 0;
   font-size: 12.5px;
   line-height: 1.65;
   color: var(--muted);
@@ -3264,7 +3270,7 @@ select:focus { border-color: var(--accent); }
   width: 44px; height: 26px;
   flex: none;
   border: 1px solid var(--line-mid);
-  border-radius: 20px;
+  border-radius: 13px;
   background: var(--track);
   cursor: pointer;
   padding: 0;
