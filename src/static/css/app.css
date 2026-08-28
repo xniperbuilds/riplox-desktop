@@ -1227,9 +1227,8 @@ button { font-family: var(--font); }
 }
 .thumb-opt:hover { border-color: var(--line-mid); color: var(--text); }
 .thumb-opt.is-on {
-  border-color: var(--line-mid);
+  border-color: var(--accent);
   color: var(--text);
-  box-shadow: 0 0 0 1px var(--line-mid);
 }
 
 /* The whole point is being able to see every stream, so the table scrolls
@@ -1311,15 +1310,16 @@ button { font-family: var(--font); }
 .pl-filter {
   flex: 1;
   min-width: 0;
-  padding: 6px 10px;
-  border: 1px solid var(--line);
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line-mid);
   border-radius: var(--r-s);
   background: var(--well-2);
   color: var(--text);
   font-family: inherit;
   font-size: 12.5px;
 }
-.pl-filter:focus { outline: 0; border-color: rgba(var(--accent-rgb), .4); }
+.pl-filter:focus { outline: 0; border-color: var(--accent); }
 .pl-count {
   flex: none;
   font-family: var(--mono);
@@ -1352,7 +1352,7 @@ button { font-family: var(--font); }
   font-family: var(--mono);
   font-size: 12.5px;
 }
-.pl-first input:focus { outline: 0; border-color: rgba(var(--accent-rgb), .4); }
+.pl-first input:focus { outline: 0; border-color: var(--accent); }
 
 /* A quality that only exists because YouTube enlarged the video with AI.
    Marked amber rather than hidden: the number is real, what made it is not. */
@@ -1377,8 +1377,9 @@ button { font-family: var(--font); }
 .playlist li {
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 7px 8px;
+  gap: 12px;
+  min-height: 40px;
+  padding: 0 12px;
   border-radius: var(--r-s);
   font-size: 13px;
   color: var(--muted);
@@ -1611,9 +1612,10 @@ button { font-family: var(--font); }
 .hrow {
   display: grid;
   grid-template-columns: 64px 1fr auto;
-  gap: 13px;
+  gap: 12px;
   align-items: center;
-  padding: 9px 11px;
+  min-height: 64px;
+  padding: 0 12px;
   border-radius: var(--r-s);
   border: 1px solid transparent;
   transition: background .18s, border-color .18s;
@@ -3070,10 +3072,11 @@ body.dropping::after {
 }
 
 .text-input {
-  padding: 8px 12px;
+  height: 43px;
+  padding: 0 12px;
   min-width: 140px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  border: 1px solid var(--line-mid);
+  border-radius: var(--r-s);
   background: var(--sunk);
   color: var(--text);
   font-family: var(--mono);
@@ -3243,7 +3246,8 @@ body.dropping::after {
 }
 
 select {
-  padding: 8px 12px;
+  height: 43px;
+  padding: 0 12px;
   min-width: 140px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -3254,12 +3258,12 @@ select {
   cursor: pointer;
   outline: none;
 }
-select:focus { border-color: rgba(var(--accent-rgb), .45); }
+select:focus { border-color: var(--accent); }
 
 .toggle {
-  width: 44px; height: 25px;
+  width: 44px; height: 26px;
   flex: none;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-mid);
   border-radius: 20px;
   background: var(--track);
   cursor: pointer;
@@ -3270,13 +3274,13 @@ select:focus { border-color: rgba(var(--accent-rgb), .45); }
 .toggle i {
   position: absolute;
   top: 3px; left: 3px;
-  width: 17px; height: 17px;
+  width: 18px; height: 18px;
   border-radius: 50%;
   background: var(--faint);
   transition: transform .24s var(--ease), background .22s;
 }
 .toggle.on { background: var(--accent-dim); border-color: var(--accent-line); }
-.toggle.on i { transform: translateX(19px); background: var(--accent); }
+.toggle.on i { transform: translateX(18px); background: var(--accent); }
 
 .footnote {
   margin: 0;
