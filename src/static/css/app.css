@@ -734,6 +734,16 @@ button { font-family: var(--body); }
   transition: all .18s var(--ease);
 }
 .chip:hover { color: var(--ink); border-color: rgba(var(--cyan-rgb), .4); }
+/* A chip carries its size, and the upscale note, in an <em> - which no rule
+   had ever claimed, so both rendered in the browser's default italic on a
+   screen where nothing else is. Found by the class contract test rather than
+   by anyone looking at it. */
+.chip em, .chip .chip-size {
+  font-style: normal;
+  font-size: 11.5px;
+  opacity: .7;
+}
+.chip.is-on em { opacity: .8; }
 .chip.is-on {
   background: var(--cyan);
   border-color: var(--cyan);
