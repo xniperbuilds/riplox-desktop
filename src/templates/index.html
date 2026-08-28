@@ -158,46 +158,59 @@
     <div class="error-box" id="analyzeError" hidden></div>
 
     <div class="preview" id="preview" hidden>
+      <div class="preview-head">
       <div class="preview-media">
         <img id="pvThumb" alt="" style="visibility:hidden">
         <span class="preview-kind" id="pvKind">VIDEO</span>
       </div>
-      <div class="preview-body">
+        <div class="preview-body">
         <h2 id="pvTitle">—</h2>
         <div class="meta" id="pvMeta"></div>
+        </div>
+      </div>
 
-        <div class="quality-block">
-          <label>Quality</label>
-          <div class="chips" id="qualityChips"></div>
-        <p class="hint warn" id="qualityNote" hidden></p>
-          <!-- One press, two files. Downloading the same link twice to get
-               the audio as well was the thing people were doing by hand.
-               Hidden when MP3 is already the choice - offering to also make
-               an MP3 of an MP3 is nonsense. -->
-          <label class="also-audio" id="alsoAudioWrap">
-            <input type="checkbox" id="alsoAudio">
-            <span>Also save the audio as MP3</span>
-          </label>
+      <div class="preview-work">
+        <div class="pv-main">
+          <!-- One panel at a time, and the tab says what is in it.
 
-          <!-- The video's own chapters. A <details> because fifteen titles
-               standing between the quality chips and the Download button
-               would push the button off the screen on exactly the videos
-               this is for - and because the browser already knows how to
-               open and close one.
+               The three used to stack, and with fifteen chapters open the
+               Download button left the screen - which the comment on the
+               chapter list had predicted before anyone measured it.
 
-               Absent, not greyed out, when a video has none: a control that
-               is visible but never usable teaches people to ignore the whole
-               area. The line below it is what stops that absence from
-               reading as broken. -->
-          <details class="chapters" id="chapterBox" hidden>
-            <summary id="chapterCount"></summary>
+               The count on a tab is not decoration. Closing a panel used to
+               throw its settings away, which is how this app kept its promise
+               that nothing acts while it is hidden. A tab cannot throw
+               anything away, so the tab carries the count instead: whatever is
+               set stays readable from the bar without opening anything. -->
+          <div class="pv-tabs" id="pvTabs" role="tablist">
+            <button type="button" class="pv-tab" id="tabChapters"
+                    data-panel="chapterBox" role="tab">Chapters<em class="n" hidden></em></button>
+            <button type="button" class="pv-tab" id="tabHeat"
+                    data-panel="heatBox" role="tab">Most replayed<em class="n" hidden></em></button>
+            <button type="button" class="pv-tab" id="tabMore"
+                    data-panel="moreBox" role="tab">Options<em class="n" hidden></em></button>
+          </div>
+
+          <!-- The video's own chapters. This was a <details>, collapsed, because
+               fifteen titles standing between the quality chips and the
+               Download button would push the button off the screen on exactly
+               the videos this is for. Measured afterwards: 182px below the
+               fold on a 900px window. It is a tab now, which answers the same
+               problem without hiding the list to do it.
+
+               The panel is absent, not greyed out, when a video has no
+               chapters: a control that is visible but never usable teaches
+               people to ignore the whole area. The line below it is what
+               stops that absence from reading as broken. -->
+          <div class="pv-panel" id="chapterBox" hidden>
+            <div class="pv-cap" id="chapterCount"></div>
             <label class="chapter-all" id="chapterAllWrap">
               <input type="checkbox" id="chapterAll">
               <span>All chapters</span>
             </label>
             <ol class="chapter-list" id="chapterList"></ol>
             <p class="hint" id="chapterPicked" hidden></p>
-          </details>
+          </div>
           <p class="hint" id="chapterNote" hidden>This video has no chapters.</p>
 
           <!-- What people actually went back to. YouTube publishes it, and
@@ -208,8 +221,8 @@
                so it can stop arriving with no notice and no error. The line
                below is not decoration: on the day it goes, the app has to say
                so rather than draw an empty box. -->
-          <details class="heatmap" id="heatBox" hidden>
-            <summary id="heatSummary">Most replayed</summary>
+          <div class="pv-panel" id="heatBox" hidden>
+            <div class="pv-cap" id="heatSummary">Most replayed</div>
             <div class="heat-graph" id="heatGraph"></div>
             <ol class="heat-peaks" id="heatPeaks"></ol>
             <label class="chapter-all" id="clipOnWrap">
@@ -219,34 +232,10 @@
             <div class="clip-row" id="clipRow" hidden>
               <div class="chips" id="clipLens"></div>
             </div>
-          </details>
+          </div>
           <p class="hint" id="clipNote" hidden></p>
-          <!-- Cutting a video into parts is ffmpeg's work, and yt-dlp refuses
-               outright without it: "You have requested downloading the video
-               partially, but ffmpeg is not installed. Aborting" - measured.
-               The trim block is hidden for the same reason a few lines up;
-               these are shown but not offered, because the list itself is
-               still worth reading. -->
-          <!-- Off by default, and the trim has always made the same offer for
-               the same reason: cutting on the mark means re-encoding the part,
-               measured at roughly twice the time. -->
-          <label class="chapter-all" id="cutExactWrap" hidden
-                 title="Parts are cut on the video's own keyframes, so a moment of whatever came before can appear at the start. Cutting exactly removes it, but the part has to be re-encoded - measured at about twice as long.">
-            <input type="checkbox" id="cutExact">
-            <span>Cut exactly at the mark - slower, but no tail of the part before</span>
-          </label>
-          <p class="hint warn" id="cutNoFf" hidden>Chapters and moments can be
-            shown but not downloaded separately: cutting a video needs the
-            media tool, which is missing from this install. Reinstall Riplox
-            to get it back.</p>
-          <p class="hint" id="heatNote" hidden>YouTube has no most-replayed data for this video.</p>
-        </div>
 
-        <!-- One quiet line, closed on every install and after every link. It
-             may add controls; it never changes what the closed state does,
-             and everything set here applies to this one download only. -->
-        <details class="more" id="moreBox">
-          <summary>More options</summary>
+        <div class="pv-panel" id="moreBox">
           <div class="more-body">
 
           <div class="more-sec" id="fmtSec">
@@ -404,12 +393,49 @@
           </div>
 
           </div>
-        </details>
+        </div>
+        </div>
+
+        <aside class="pv-side">
+          <div class="quality-block">
+          <label>Quality</label>
+          <div class="chips" id="qualityChips"></div>
+        <p class="hint warn" id="qualityNote" hidden></p>
+          <!-- One press, two files. Downloading the same link twice to get
+               the audio as well was the thing people were doing by hand.
+               Hidden when MP3 is already the choice - offering to also make
+               an MP3 of an MP3 is nonsense. -->
+          <label class="also-audio" id="alsoAudioWrap">
+            <input type="checkbox" id="alsoAudio">
+            <span>Also save the audio as MP3</span>
+          </label>
+          </div>
+
+          <!-- Cutting a video into parts is ffmpeg's work, and yt-dlp refuses
+               outright without it: "You have requested downloading the video
+               partially, but ffmpeg is not installed. Aborting" - measured.
+               The trim block is hidden for the same reason a few lines up;
+               these are shown but not offered, because the list itself is
+               still worth reading. -->
+          <!-- Off by default, and the trim has always made the same offer for
+               the same reason: cutting on the mark means re-encoding the part,
+               measured at roughly twice the time. -->
+          <label class="chapter-all" id="cutExactWrap" hidden
+                 title="Parts are cut on the video's own keyframes, so a moment of whatever came before can appear at the start. Cutting exactly removes it, but the part has to be re-encoded - measured at about twice as long.">
+            <input type="checkbox" id="cutExact">
+            <span>Cut exactly at the mark - slower, but no tail of the part before</span>
+          </label>
+          <p class="hint warn" id="cutNoFf" hidden>Chapters and moments can be
+            shown but not downloaded separately: cutting a video needs the
+            media tool, which is missing from this install. Reinstall Riplox
+            to get it back.</p>
+          <p class="hint" id="heatNote" hidden>YouTube has no most-replayed data for this video.</p>
 
         <div class="preview-actions">
           <button class="primary big" id="downloadBtn">Download</button>
           <button class="ghost" id="resetBtn">Clear</button>
         </div>
+        </aside>
       </div>
     </div>
 

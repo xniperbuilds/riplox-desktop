@@ -358,7 +358,6 @@
     // A preference is not the same thing. Picking the same audio language or
     // player client before every single download is what people are asking to
     // stop doing, so those - and only those - come back afterwards.
-    $("moreBox").open = false;
     resetMore();
     // Cleared for every new link: wanting the audio of one video says nothing
     // about wanting the audio of the next.
@@ -369,6 +368,7 @@
     // there - null and [] have to mean different things on that screen.
     renderChapters(isList ? null : info.chapters);
     renderHeatmap(isList ? null : info);
+    syncTabs();
     fillFormats(info);
     restoreOpts();
     // A playlist has no single format table, and a name for one file makes no
@@ -421,7 +421,6 @@
     var known = !!rows;
     chapterRows = rows || [];
     chapterPicks = [];
-    box.open = false;
     box.hidden = !chapterRows.length;
     note.hidden = !known || chapterRows.length > 0;
     $("chapterAll").checked = false;
@@ -483,7 +482,6 @@
     var youtube = !!info && info.kind === "video"
       && String(info.extractor || "").indexOf("youtube") === 0;
 
-    box.open = false;
     box.hidden = !rows.length;
     note.hidden = !youtube || rows.length > 0;
     // One line for both panels, so it is said once rather than twice.
@@ -592,6 +590,7 @@
     }
     syncCutButton();
     syncNameField();
+    syncTabs();
   }
 
   $("clipOn").addEventListener("change", function () {
@@ -671,6 +670,7 @@
     }
     syncCutButton();
     syncNameField();
+    syncTabs();
   }
 
   /* A name typed by hand names one file. A playlist already disables this for
@@ -1083,7 +1083,6 @@
     current = null;
     selected = null;
     resetTrim();
-    $("moreBox").open = false;
     resetMore();
     $("preview").hidden = true;
     $("playlistWrap").hidden = true;
@@ -1303,6 +1302,56 @@
     refreshCommand();
   });
 
+  /* ------------------------------------------------------------- panels */
+
+  /* One panel at a time. A tab whose panel has nothing to show is not
+     disabled, it is absent - the same rule the chapter list already followed,
+     and for the same reason: a control that is visible but never usable
+     teaches people to ignore the area it sits in. */
+  var PANELS = ["chapterBox", "heatBox", "moreBox"];
+  var panelTab = { chapterBox: "tabChapters", heatBox: "tabHeat", moreBox: "tabMore" };
+  var openPanel = "moreBox";
+
+  function showPanel(name) {
+    if (PANELS.indexOf(name) < 0) return;
+    openPanel = name;
+    syncTabs();
+  }
+
+  /* What each tab has to say for itself. The counts are the reason a tab can
+     replace a panel that reset itself when it closed: whatever is set is
+     readable without opening anything. */
+  function tabCount(name) {
+    if (name === "chapterBox") return chapterPicks.length || chapterRows.length;
+    if (name === "heatBox") return currentClips().length;
+    return Object.keys(moreOpts()).length;
+  }
+
+  function syncTabs() {
+    var live = PANELS.filter(function (p) { return !$(p).hidden; });
+    if (live.indexOf(openPanel) < 0) openPanel = live[0] || "";
+
+    PANELS.forEach(function (p) {
+      var tab = $(panelTab[p]), on = p === openPanel;
+      tab.hidden = $(p).hidden;
+      tab.classList.toggle("is-on", on);
+      tab.setAttribute("aria-selected", on ? "true" : "false");
+      // The panel keeps its own hidden flag for "there is nothing here"; this
+      // one is only about which of the live panels is showing.
+      $(p).classList.toggle("is-shown", on);
+
+      var n = tab.querySelector(".n"), c = tabCount(p);
+      n.textContent = c || "";
+      n.hidden = !c;
+    });
+    $("pvTabs").hidden = live.length < 2;
+  }
+
+  $("pvTabs").addEventListener("click", function (e) {
+    var tab = e.target.closest(".pv-tab");
+    if (tab && tab.dataset.panel) showPanel(tab.dataset.panel);
+  });
+
   function resetMore() {
     pickedFormat = "";
     onceDir = "";
@@ -1329,10 +1378,10 @@
     });
   }
 
-  // Empty whenever the panel is closed, which is what makes "it resets when
-  // you close it" true rather than a claim in a comment.
+  /* Every option below already asks whether it was set, so the panel's own
+     state was never doing the work - it only threw the answers away when it
+     closed. The tab's count says the same thing without the throwing away. */
   function moreOpts() {
-    if (!$("moreBox").open) return {};
     var o = {};
     if (pickedFormat) o.format_id = pickedFormat;
     /* The star is not a language, so it never goes out as one - it becomes the
@@ -1408,10 +1457,11 @@
     if (last.player_client) $("optClient").value = last.player_client;
     $("optCookies").value = last.no_cookies ? "off" : "on";
 
-    // Opened, because a remembered choice that is not visible is a setting
-    // acting on the download while hidden - which is the thing this app is
-    // trying not to do anywhere.
-    $("moreBox").open = true;
+    /* Selected, because a remembered choice that is not visible is a
+       setting acting on the download while hidden - the thing this app tries
+       not to do anywhere. The tab also carries the count, so it says so even
+       when another tab is the one on screen. */
+    showPanel("moreBox");
   }
 
   function fillFormats(info) {
@@ -1549,7 +1599,7 @@
   }
 
   function refreshCommand() {
-    if (!$("moreBox").open || !current || current.kind === "channel") return;
+    if (!current || current.kind === "channel") return;
     clearTimeout(cmdTimer);
     cmdTimer = setTimeout(function () {
       var body = {
@@ -1579,13 +1629,15 @@
   });
   $("optName").addEventListener("input", refreshCommand);
 
-  $("moreBox").addEventListener("toggle", function () {
-    if ($("moreBox").open) {
-      refreshCommand();
-    } else {
-      resetMore();
-    }
+  /* The tab's count is the promise that nothing is set invisibly, so it has
+     to be redrawn by the same events that change what is set. */
+  ["optName", "optCookies", "optClient", "optAudioLang", "optSubLang",
+   "optSubsOnly", "optThumbAll", "optWriteDesc", "optLiveFromStart"
+  ].forEach(function (id) {
+    $(id).addEventListener("change", syncTabs);
   });
+  $("optName").addEventListener("input", syncTabs);
+
 
   $("cmdCopy").addEventListener("click", function () {
     copyText($("cmdBox").textContent || "");
