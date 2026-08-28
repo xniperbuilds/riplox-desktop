@@ -9,9 +9,9 @@
    and a file that ships inside the installer keeps that promise while still
    being the face the design was drawn in.
 
-   Three weights because the app still has twenty-five rules at 600 and the
-   design settles at 500; each screen drops to 500 as it is migrated, and
-   600 can be deleted once the last one has.
+   Two weights, 400 and 500, which is what the design uses and all it uses.
+   A 600 was carried at first because the app had twenty-two rules asking for
+   it; those are 500 now, so the file went with them.
    lazy: latin and latin-ext only. A video title in Greek, Cyrillic or any
    CJK script falls through to the system stack, which is correct for those
    and is why the fallback list is still spelled out below.
@@ -52,22 +52,6 @@
   font-weight: 500;
   font-display: block;
   src: url("../fonts/Poppins-500-latin-ext.woff2") format("woff2");
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
-}
-@font-face {
-  font-family: "Poppins";
-  font-style: normal;
-  font-weight: 600;
-  font-display: block;
-  src: url("../fonts/Poppins-600-latin.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-  font-family: "Poppins";
-  font-style: normal;
-  font-weight: 600;
-  font-display: block;
-  src: url("../fonts/Poppins-600-latin-ext.woff2") format("woff2");
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 
@@ -240,6 +224,12 @@
    permanently. Say it once, here, and mean it everywhere. */
 [hidden] { display: none !important; }
 
+/* Nothing in this app is heavier than 500, and these five elements default to
+   bold - which is 700, a weight the app does not carry. Left alone, the
+   browser would synthesise one and draw a smeared fake bold on the 65 <b>
+   elements no other rule catches. Any class rule still wins over this. */
+b, strong, h1, h2, h3 { font-weight: 500; }
+
 html, body { height: 100%; }
 
 body {
@@ -333,7 +323,7 @@ body::before {                       /* faint technical grid */
 .wordmark { display: flex; flex-direction: column; line-height: 1.1; }
 .wordmark b {
   font-size: 19px;
-  font-weight: 600;
+  font-weight: 500;
 }
 .wordmark span {
   font-family: var(--mono);
@@ -390,7 +380,7 @@ body::before {                       /* faint technical grid */
   font-family: var(--mono);
   font-size: 10px;
   font-style: normal;
-  font-weight: 700;
+  font-weight: 500;
   text-align: center;
 }
 
@@ -418,7 +408,7 @@ body::before {                       /* faint technical grid */
   cursor: pointer;
   transition: background .18s, color .18s;
 }
-.theme-pick button b { display: none; font-weight: 600; }
+.theme-pick button b { display: none; font-weight: 500; }
 .theme-pick button:hover { color: var(--text); }
 .theme-pick button.is-on { background: var(--surface-2); color: var(--text); box-shadow: 0 1px 0 var(--line); }
 
@@ -479,7 +469,7 @@ main {
 .view-head h2 {
   margin: 0;
   font-size: 21px;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: -.01em;
 }
 .row-gap { display: flex; gap: 8px; }
@@ -491,7 +481,7 @@ main {
 .capture-head h1 {
   margin: 0;
   font-size: clamp(38px, 5.4vw, 58px);
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.02;
   letter-spacing: -.02em;
 }
@@ -691,7 +681,7 @@ button { font-family: var(--font); }
   flex: none;
   color: var(--text);
   font-size: 12.5px;
-  font-weight: 600;
+  font-weight: 500;
 }
 .tip code, .capture-shortcut code {
   padding: 1px 6px;
@@ -782,7 +772,7 @@ button { font-family: var(--font); }
 .preview-body h2 {
   margin: 2px 0 8px;
   font-size: 21px;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.28;
   letter-spacing: -.01em;
   display: -webkit-box;
@@ -1216,7 +1206,7 @@ button { font-family: var(--font); }
 
 .job-title {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   margin-bottom: 3px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1453,11 +1443,11 @@ button { font-family: var(--font); }
 .field-text label {
   display: block;
   font-size: 13.5px;
-  font-weight: 600;
+  font-weight: 500;
   margin-bottom: 2px;
 }
 .field-text span { font-size: 12.5px; color: var(--faint); display: block; max-width: 62ch; }
-.field-text .warn { color: var(--warn-ink); font-weight: 600; }
+.field-text .warn { color: var(--warn-ink); font-weight: 500; }
 
 /* --- trim, resume and the settings text input ---------------------------- */
 
@@ -1679,7 +1669,7 @@ button { font-family: var(--font); }
 }
 .dev-row:last-child, .in-row:last-child { border-bottom: 0; }
 .dev-row .who, .in-row .what { flex: 1; min-width: 0; }
-.dev-row .who b, .in-row .what b { display: block; font-size: 13px; font-weight: 600; }
+.dev-row .who b, .in-row .what b { display: block; font-size: 13px; font-weight: 500; }
 .dev-row .who span, .in-row .what span {
   display: block;
   font-family: var(--mono);
@@ -1727,7 +1717,7 @@ button { font-family: var(--font); }
   font-size: 9.5px;
   letter-spacing: .06em;
   text-transform: uppercase;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--accent-ink);
   border: 1px solid currentColor;
   opacity: .85;
@@ -1736,7 +1726,7 @@ button { font-family: var(--font); }
 }
 
 .phone-help { margin: 4px 0 18px; }
-.phone-help .more-note b { color: var(--muted); font-weight: 600; }
+.phone-help .more-note b { color: var(--muted); font-weight: 500; }
 
 .empty.small { padding: 26px 18px; border: 0; text-align: left; }
 .empty.small p { font-size: 14px; }
@@ -1839,7 +1829,7 @@ button { font-family: var(--font); }
 .watch-head .who b {
   display: block;
   font-size: 13.5px;
-  font-weight: 600;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1996,7 +1986,7 @@ button { font-family: var(--font); }
 .dlg h3 {
   margin: 0 0 16px;
   font-size: 17px;
-  font-weight: 600;
+  font-weight: 500;
 }
 .dlg-list { margin: 0; padding-left: 20px; }
 .dlg-list li {
@@ -2005,7 +1995,7 @@ button { font-family: var(--font); }
   line-height: 1.6;
   color: var(--muted);
 }
-.dlg-list b { color: var(--text); font-weight: 600; }
+.dlg-list b { color: var(--text); font-weight: 500; }
 .dlg-foot {
   display: flex;
   justify-content: flex-end;
@@ -2104,7 +2094,7 @@ button { font-family: var(--font); }
   margin: 0;
   padding: 0 2px 9px;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text);
 }
 
@@ -2141,7 +2131,7 @@ button { font-family: var(--font); }
 .set-info:hover { border-color: rgba(var(--accent-rgb), .4); color: var(--text); }
 .set-info.is-on { border-color: var(--accent-line); color: var(--text); }
 .set-info-text { min-width: 0; }
-.set-info-text b { display: block; font-size: 12.5px; font-weight: 600; color: var(--text); }
+.set-info-text b { display: block; font-size: 12.5px; font-weight: 500; color: var(--text); }
 .set-info-text small { font-size: 11px; color: var(--faint); }
 
 /* Narrow enough that a column each would leave neither usable: the list lies
@@ -2526,7 +2516,7 @@ button { font-family: var(--font); }
 .health-site {
   flex: none;
   min-width: 92px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text);
 }
 .health-what {
@@ -2570,8 +2560,8 @@ button { font-family: var(--font); }
 }
 .roadmap li.done::before { content: "✓"; color: var(--accent-ink); }
 .roadmap li.done { color: var(--faint); }
-.roadmap li b { color: var(--text); font-weight: 600; }
-.roadmap li.done b { color: var(--muted); font-weight: 600; }
+.roadmap li b { color: var(--text); font-weight: 500; }
+.roadmap li.done b { color: var(--muted); font-weight: 500; }
 
 /* --- the site picker ----------------------------------------------------- */
 
@@ -2814,7 +2804,7 @@ body.dropping::after {
   flex: 1;
   min-width: 0;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
