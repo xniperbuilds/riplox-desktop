@@ -301,9 +301,16 @@
     $("insights").hidden = false;
     api("/api/insights").then(function (r) {
       if (!r || !r.ok) return;
-      $("insSub").textContent = r.files
-        ? r.files + " files \u00b7 " + r.size + (r.since ? " \u00b7 since " + r.since : "")
-        : "Nothing downloaded yet.";
+      /* "since <date>" would read as "this is when you started". The library
+         only keeps the last few hundred, so once it is full that date is the
+         oldest one still kept and nothing more. */
+      $("insSub").textContent = !r.files
+        ? "Nothing downloaded yet."
+        : r.capped
+          ? "the last " + r.files + " files \u00b7 " + r.size
+            + " \u00b7 older ones are not kept"
+          : r.files + " files \u00b7 " + r.size
+            + (r.since ? " \u00b7 since " + r.since : "");
       $("insFiles").textContent = r.files;
       $("insSize").textContent = r.size;
       $("insWeek").textContent = r.week;

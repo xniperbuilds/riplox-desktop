@@ -110,6 +110,25 @@ check("no files, no crash", e["files"] == 0 and e["first_try"] == 0.0, str(e["fi
 check("no site is claimed to be the top one", e["top"] == "", repr(e["top"]))
 check("and there is nothing in the breakdown", e["sites"] == [], str(e["sites"]))
 
+print("\n-- a full library does not claim to know when you started -----------")
+# The library keeps the last HISTORY_LIMIT and drops the rest, so the oldest
+# record it still holds is not the first download that ever happened. Saying
+# "since <date>" off the back of it would be a number that quietly means
+# something else - which is the kind of wrong this app treats as a real bug.
+engine.failed_file().write_text("[]", encoding="utf-8")
+engine.history_file().write_text(json.dumps(
+    [{"url": "https://www.youtube.com/watch?v=%d" % i, "size": "10 MB", "when": when(i)}
+     for i in range(engine.HISTORY_LIMIT)]), encoding="utf-8")
+full = engine.insights()
+check("a library at the limit says so", full["capped"] is True, str(full["capped"]))
+check("and says how many it keeps", full["kept"] == engine.HISTORY_LIMIT,
+      str(full["kept"]))
+
+engine.history_file().write_text(json.dumps(HISTORY), encoding="utf-8")
+engine.failed_file().write_text(json.dumps(FAILED), encoding="utf-8")
+check("a library under the limit does not", engine.insights()["capped"] is False)
+
+
 print("\n-- a size it cannot read is zero, not a guess ------------------------")
 engine.history_file().write_text(json.dumps(
     [{"url": "https://www.youtube.com/watch?v=a", "size": "who knows", "when": when(1)}]),

@@ -884,9 +884,18 @@ def insights() -> dict:
     tried = len(history) + total_failed
     top = sites[0]["site"] if sites and sites[0]["done"] else ""
 
+    # The library keeps the last HISTORY_LIMIT downloads and drops the rest, so
+    # "since <date>" would read as "this is when you started" when it actually
+    # means "this is the oldest one still kept". Said plainly instead - a
+    # number that quietly means something else is the thing this app treats as
+    # a real bug, not a rounding error.
+    capped = len(history) >= HISTORY_LIMIT
+
     return {
         "ok": True,
         "files": len(history),
+        "capped": capped,
+        "kept": HISTORY_LIMIT,
         "size": _pretty(total_bytes),
         "since": earliest[:10],
         "week": week,
