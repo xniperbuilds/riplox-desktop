@@ -135,6 +135,16 @@
     });
   }
 
+  /* Hours and minutes rather than 6:12:04 - a selection's length is a size to
+     weigh up, not a timestamp to read. */
+  function fmtLong(sec) {
+    sec = Math.round(sec || 0);
+    var h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
+    if (h && m) return h + "h " + m + "m";
+    if (h) return h + "h";
+    return Math.max(1, m) + "m";
+  }
+
   function fmtDuration(sec) {
     sec = Math.round(sec || 0);
     if (!sec) return "";
@@ -1449,7 +1459,22 @@
 
     $("plAll").checked = rows.length > 0 && pickedHere === rows.length;
     $("plAll").indeterminate = pickedHere > 0 && pickedHere < rows.length;
-    $("plCount").textContent = count + " of " + total + " selected";
+    /* The design's point about this bar: "82 selected" without a magnitude is
+       not a decision anyone can make, so the count states what it weighs too.
+       It says a size; Riplox cannot know one without analysing every entry,
+       and a playlist of two hundred would be two hundred requests to a site
+       that would start asking whether we are a person. It does know how long
+       the selection runs, which is a real magnitude and is free - so that is
+       what it says, and it says nothing at all when the site gave no times
+       rather than adding up the ones it happens to have. */
+    var runs = 0, allKnown = true;
+    current.entries.forEach(function (e, i) {
+      if (!selected.has(i)) return;
+      if (typeof e.duration === "number" && e.duration > 0) runs += e.duration;
+      else allKnown = false;
+    });
+    $("plCount").textContent = count + " of " + total + " selected"
+      + (count && allKnown && runs ? " · " + fmtLong(runs) : "");
 
     var btn = $("downloadBtn");
     btn.disabled = count === 0;
