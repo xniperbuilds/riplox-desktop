@@ -3809,6 +3809,12 @@
         ? res.path
         : "Not found on this PC - reinstall Riplox to get it back.";
     }
+    var there = $("extThere");
+    if (there) {
+      there.className = "badge " + (res.there ? "b-ok" : "b-bad");
+      there.textContent = res.there ? "On this PC" : "Missing";
+    }
+    lastBrowsers = res.browsers || [];
     showPortable(res);
   });
 
@@ -3824,7 +3830,14 @@
   function showPortable(res) {
     var row = $("portableRow");
     var note = $("portableWhere");
-    if (row && note && (res.portable === "on" || res.portable === "read-only")) {
+    var portable = res.portable === "on" || res.portable === "read-only";
+    // Recorded on the row rather than only applied to it, so the settings
+    // filter can see the decision instead of overwriting it.
+    if (row) row.dataset.available = portable ? "1" : "0";
+    if ($("extConnectRow")) {
+      $("extConnectRow").dataset.available = res.canConnect ? "1" : "0";
+    }
+    if (row && note && portable) {
       row.hidden = false;
       note.className = res.portable === "read-only" ? "warn" : "";
       note.textContent = res.portable === "read-only"
@@ -3836,23 +3849,37 @@
     }
 
     var connectRow = $("extConnectRow");
-    if (!connectRow || !res.canConnect) return;
+    if (!connectRow) return;
+    if (!res.canConnect) { connectRow.hidden = true; return; }
     connectRow.hidden = false;
-    paintConnect(res.connected);
+    paintConnect(res.connected, res.browsers || []);
   }
 
-  function paintConnect(connected) {
+  var lastBrowsers = [];
+
+  function paintConnect(connected, browsers) {
+    if (browsers) lastBrowsers = browsers;
+    var named = lastBrowsers.length ? lastBrowsers.join(" and ") : "";
     var btn = $("connectBrowser");
     var state = $("extConnectState");
+    var badge = $("extConnected");
     if (btn) {
       btn.textContent = connected ? "Remove" : "Connect";
       // The button's own label used to decide the next action, which breaks
       // the moment the wording changes. This does not.
       btn.dataset.on = connected ? "1" : "";
     }
+    if (badge) {
+      badge.className = "badge " + (connected ? "b-ok" : "b-wait");
+      // Which browser, not "a browser" - on a PC with Chrome and Edge both
+      // installed, knowing it is Edge that works is the whole answer.
+      badge.textContent = connected
+        ? (named || "Connected") : "Not connected";
+    }
     if (state) {
       state.textContent = connected
-        ? "Connected - your browser can reach this copy."
+        ? "The extension's button in " + (named || "your browser") +
+          " reaches this copy."
         : "Not connected - the extension's button will do nothing yet.";
     }
   }
@@ -3863,7 +3890,7 @@
       api("/api/extension/connect", { on: connectBtn.dataset.on !== "1" })
         .then(function (res) {
           if (res && res.ok) {
-            paintConnect(res.connected);
+            paintConnect(res.connected, res.browsers);
             toast(res.message || "Done", "good");
           } else {
             toast((res && (res.message || res.error)) || "Could not do that",
@@ -4825,7 +4852,7 @@
       name.title = path;
 
       var drop = document.createElement("button");
-      drop.className = "ghost small";
+      drop.className = "btn sm";
       drop.type = "button";
       drop.textContent = "Remove";
       drop.addEventListener("click", function () {
@@ -5207,21 +5234,21 @@
         mark.className = "site-mark";
 
         var go = document.createElement("button");
-        go.className = "ghost small";
+        go.className = "btn sm";
         go.type = "button";
         go.addEventListener("click", function () { signIn(site.key, site.label); });
 
         /* Read from the row rather than from `site`, which is the snapshot
            this row was built with and goes stale on the next poll. */
         var hold = document.createElement("button");
-        hold.className = "ghost small";
+        hold.className = "btn sm";
         hold.type = "button";
         hold.addEventListener("click", function () {
           pauseSite(site.key, site.label, row.dataset.paused !== "1");
         });
 
         var out = document.createElement("button");
-        out.className = "ghost small";
+        out.className = "btn sm";
         out.type = "button";
         out.textContent = "Forget";
         out.addEventListener("click", function () { forgetSite(site.key, site.label); });
@@ -5230,7 +5257,7 @@
         // than hidden behind a menu, but only useful once the first one is
         // signed in - which is what the update below decides.
         var more = document.createElement("button");
-        more.className = "ghost small";
+        more.className = "btn sm";
         more.type = "button";
         more.textContent = "+ account";
         more.title = "Sign in a second account for this site";
@@ -5799,8 +5826,14 @@
       // While searching, an advanced row still shows: hiding a thing someone
       // just typed the name of would be the app arguing with them.
       var allowed = advanced || term || !row.dataset.adv;
-      row.hidden = !(matches && allowed);
-      if (matches && allowed) hits++;
+      /* Some rows are not the filter's to show. A copy that cannot connect to
+         a browser hides that row on purpose, and a filter that walks every
+         .field would put it back - with a button that answers "the installed
+         Riplox already did this". The app's decision wins over the search's. */
+      var available = row.dataset.available !== "0";
+      var show = matches && allowed && available;
+      row.hidden = !show;
+      if (show) hits++;
     });
 
     // While a search is running the categories step aside and every group
@@ -5821,7 +5854,7 @@
         g.box.hidden = label.indexOf(term) < 0;
       }
       if (g.btn) {
-        g.btn.classList.toggle("is-on", !term && g === currentGroup);
+        g.btn.classList.toggle("on", !term && g === currentGroup);
         // A category still holding matches is worth pointing at, so the list
         // stays useful during a search instead of going inert.
         g.btn.classList.toggle("has-hit", !!term && !g.box.hidden);
@@ -6120,18 +6153,46 @@
 
   var potTimer = null;
 
+  /* Four situations, and the one thing each of them allows. The badge is the
+     situation; the button is the move. "Installed but switched off" is a real
+     state an older config can be in, so it is named rather than hidden. */
   function renderPot(p) {
     var state = $("potState");
     if (!state) return;
+    var wanted = !!(settings && settings.potoken);
+    var note = $("potNote");
+    var btn = $("setPotoken");
+    var cls = "b-wait", says = "Not installed", act = "Install", hide = false;
 
     if (p.busy) {
-      state.textContent = (p.message || "Downloading") + " · " + p.percent + "%";
+      cls = "b-run";
+      says = (p.message || "Downloading") + " \u00b7 " + p.percent + "%";
+      hide = true;
     } else if (p.error) {
-      state.textContent = "Failed: " + p.error;
+      cls = "b-bad";
+      says = "Failed";
+      act = "Try again";
+    } else if (p.installed && wanted) {
+      cls = "b-ok";
+      says = "Installed \u00b7 working";
+      hide = true;
     } else if (p.installed) {
-      state.textContent = "Installed " + p.release + (p.running ? " · running" : "");
-    } else {
-      state.textContent = "Not installed";
+      cls = "b-warn";
+      says = "Installed \u00b7 off";
+      act = "Turn it on";
+    }
+
+    state.className = "badge " + cls;
+    state.textContent = says;
+    btn.hidden = hide;
+    btn.textContent = act;
+    btn.disabled = !!p.busy;
+
+    if (note) {
+      note.hidden = !(p.error || (p.installed && p.release));
+      note.textContent = p.error ? p.error
+        : p.installed ? "Release " + p.release + (p.running ? ", running now" : "")
+        : "";
     }
 
     if ($("potSize")) $("potSize").textContent = p.sizeMb + " MB";
@@ -6153,26 +6214,30 @@
     });
   }
 
+  /* One button, and what it does follows from the state above it. Installing
+     also switches it on: nobody downloads 44 MB in order to leave it off. */
   $("setPotoken").addEventListener("click", function () {
     var btn = $("setPotoken");
-    var on = !btn.classList.contains("on");
-    btn.classList.toggle("on", on);
-    saveSetting({ potoken: on }).then(function (res) {
+    btn.disabled = true;
+    saveSetting({ potoken: true }).then(function (res) {
+      btn.disabled = false;
       if (!res.ok) return;
-      if (!on) { toast("YouTube helper off"); return; }
-      api("/api/potoken/install", {}).then(function (res) {
-        if (!res.ok) { toast(res.error || "Could not start the download.", "bad"); return; }
-        if (res.already) { toast("Already installed", "good"); }
+      api("/api/potoken/install", {}).then(function (r) {
+        if (!r.ok) { toast(r.error || "Could not start the download.", "bad"); return; }
+        if (r.already) toast("The helper is on.", "good");
         loadPot();
       });
     });
   });
 
   $("removePotoken").addEventListener("click", function () {
-    api("/api/potoken/remove", {}).then(function () {
-      $("setPotoken").classList.remove("on");
-      loadPot();
-      toast("Helper removed");
+    // Off as well as gone: leaving the setting on would have the app looking
+    // for something that is no longer there.
+    saveSetting({ potoken: false }).then(function () {
+      api("/api/potoken/remove", {}).then(function () {
+        loadPot();
+        toast("Helper removed");
+      });
     });
   });
 
@@ -6198,9 +6263,29 @@
     api("/api/settings").then(function (res) {
       var env = res.environment || {};
       $("setAutostart").classList.toggle("on", !!res.autostart);
-      $("engineVersion").textContent = res.engineVersion && res.engineVersion !== "missing"
-        ? "Version " + res.engineVersion + " (" + (env.channel || "stable") + ")"
+      var have = res.engineVersion && res.engineVersion !== "missing"
+        ? res.engineVersion : "";
+      $("engineVersion").textContent = have
+        ? "Version " + have + " (" + (env.channel || "stable") + ")"
         : "Not installed";
+
+      /* Whether that version is the current one. Riplox has recorded the
+         answer since 1.3 - engine_checked and engine_latest - and no screen
+         has ever read them, so the row said a version number and left
+         "is that recent?" to the reader. */
+      var st = $("engineState");
+      if (st) {
+        var s = res.settings || {};
+        var latest = s.engine_latest || "";
+        var behind = have && latest && latest !== have;
+        st.className = "badge " + (!have ? "b-bad" : behind ? "b-warn" : "b-ok");
+        st.textContent = !have ? "Not installed"
+          : behind ? "Update available" : "Up to date";
+        $("engineChecked").textContent = s.engine_checked
+          ? "Last asked " + ago(s.engine_checked) +
+            (behind ? " \u00b7 newest is " + latest : "")
+          : "Never asked whether a newer one exists.";
+      }
 
       // The three things that decide whether YouTube behaves, in one line.
       var line = $("envLine");

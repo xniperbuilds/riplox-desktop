@@ -81,7 +81,11 @@ styled = styled_names(CSS)
 # Class names that are deliberately not styled: they carry meaning for the
 # script alone. Named here rather than left to a blanket exception, so the
 # list stays short and visible.
-SCRIPT_ONLY = set()
+SCRIPT_ONLY = {
+    # A marker the script finds itself by - querySelector(".drop-note") - on a
+    # line that already carries `note`, which is the class doing the styling.
+    "drop-note",
+}
 
 
 print("\n-- the state classes the script writes ----------------------------")
@@ -104,10 +108,24 @@ authored = set()
 # JavaScript variable. Reading the whole attribute reported `clipSeconds` and
 # `libSource` as missing styles, which was the test being wrong rather than
 # the app.
-for chunk in re.findall(r'class=\\?"([^"\'+]*)', JS):
-    for n in chunk.split():
-        if re.fullmatch(r"[a-z][\w-]*", n):
-            authored.add(n)
+#
+# Two ways in. Markup the script writes as a string, and elements it builds and
+# assigns a className to - about forty names arrive that second way, and until
+# this line they went on the page without this file ever seeing them. That is
+# the same silent failure the whole test exists for, one line of syntax away.
+CLASS_SOURCES = [
+    r'class=\\?"([^"\'+]*)',
+    r'\.className\s*=\s*"([^"\'+]*)',
+    r'\.classList\.(?:add|remove|toggle)\(\s*"([\w-]+)"',
+]
+for pattern in CLASS_SOURCES:
+    for chunk in re.findall(pattern, JS):
+        for n in chunk.split():
+            # A trailing hyphen means the literal was cut off by a
+            # concatenation - `"health-row is-" + row.state` - so the stem is
+            # not a class anyone wrote.
+            if re.fullmatch(r"[a-z][\w-]*", n) and not n.endswith("-"):
+                authored.add(n)
 print(f"      {len(authored)} distinct classes written from JavaScript")
 
 homeless = sorted(c for c in authored if c not in styled and c not in SCRIPT_ONLY)

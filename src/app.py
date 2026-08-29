@@ -1284,6 +1284,11 @@ _HOST_KEYS = (r"Software\Google\Chrome\NativeMessagingHosts",
               r"Software\Microsoft\Edge\NativeMessagingHosts",
               r"Software\BraveSoftware\Brave-Browser\NativeMessagingHosts")
 
+# The same three, by the name a person calls them. Settings says which browser
+# can reach this copy, and "a browser" is not an answer when two are installed
+# and only one of them works.
+_HOST_NAMES = ("Chrome", "Edge", "Brave")
+
 # riplox:// is the extension's other half - the handoff that opens Riplox when
 # it is closed. Registering one without the other leaves a button that works
 # only while the app is already running.
@@ -1302,23 +1307,35 @@ def _same_file(one: str, other: str) -> bool:
             == other.strip().lower().replace("/", "\\"))
 
 
-def browser_connected() -> bool:
-    """Does any browser already point at this copy's native-host.json?"""
+def connected_browsers() -> list:
+    """Which browsers already point at this copy's native-host.json.
+
+    This walked the same three keys and returned True at the first hit,
+    throwing away the name it had just read. Settings can now say Chrome and
+    Edge rather than "a browser", which matters on the ordinary PC with two
+    installed and one of them connected.
+    """
     want = str(native_host_file())
     try:
         import winreg
     except ImportError:
-        return False
-    for sub in _HOST_KEYS:
+        return []
+    found = []
+    for sub, name in zip(_HOST_KEYS, _HOST_NAMES):
         try:
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
                                 sub + "\\" + HOST_NAME) as key:
                 value, _ = winreg.QueryValueEx(key, "")
             if _same_file(str(value), want):
-                return True
+                found.append(name)
         except OSError:
             continue
-    return False
+    return found
+
+
+def browser_connected() -> bool:
+    """Does any browser point at this copy? Kept for every existing caller."""
+    return bool(connected_browsers())
 
 
 def _write_host_manifest() -> Path:
@@ -1429,6 +1446,7 @@ def api_extension():
     return jsonify({"ok": True, "path": str(folder), "there": folder.is_dir(),
                     "portable": state,
                     "connected": browser_connected(),
+                    "browsers": connected_browsers(),
                     # Only a portable copy is ever asked to do this itself.
                     # An installed one had it done by setup.
                     "canConnect": state == "on" and getattr(sys, "frozen", False)})
@@ -1441,7 +1459,9 @@ def api_extension_connect():
     if engine.portable_state() != "on":
         return jsonify({"ok": False,
                         "error": "The installed Riplox already did this."}), 400
-    return jsonify(connect_browsers(bool(body.get("on", True))))
+    out = connect_browsers(bool(body.get("on", True)))
+    out["browsers"] = connected_browsers()
+    return jsonify(out)
 
 
 @app.post("/api/extension/open")

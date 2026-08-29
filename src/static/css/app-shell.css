@@ -378,3 +378,7 @@ img.rthumb { object-fit: cover; }
 }
 #view-settings .set-item.on .set-cat-count { color: var(--muted); }
 #view-settings .set-list .rail-label { padding: 18px 14px 8px; }
+
+/* The two rows that decide whether Riplox works carry a state, so their own
+   detail line sits under the description rather than beside the control. */
+#potNote, #engineChecked { display: block; margin-top: 4px; }

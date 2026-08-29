@@ -1322,13 +1322,14 @@
       <div class="field">
         <div class="field-text">
           <label>YouTube helper</label>
-          <span>A <span id="potSize">44 MB</span> helper that runs on this PC,
-                for when YouTube asks you to prove you are not a bot.</span>
-          <code id="potState">checking…</code>
+          <span>A <span id="potSize">44 MB</span> helper that runs on this PC.
+                It answers the proof-of-origin check behind &ldquo;confirm
+                you're not a bot&rdquo; &mdash; a fix, not a preference.</span>
+          <span class="footnote" id="potNote" hidden></span>
         </div>
         <div class="row-gap">
-          <button class="toggle {% if settings.potoken %}on{% endif %}"
-                  id="setPotoken" role="switch"><i></i></button>
+          <span class="badge b-wait" id="potState">checking</span>
+          <button class="btn sm" id="setPotoken">Install</button>
           <button class="btn sm" id="removePotoken" hidden>Remove</button>
         </div>
       </div>
@@ -1441,7 +1442,10 @@
                 shortcut above suits you.</span>
           <span class="hint" id="extPath"></span>
         </div>
-        <button class="btn sm" id="openExtFolder">Open its folder</button>
+        <div class="row-gap">
+          <span class="badge b-wait" id="extThere">checking</span>
+          <button class="btn sm" id="openExtFolder">Open its folder</button>
+        </div>
       </div>
 
       <div class="field">
@@ -1484,7 +1488,10 @@
                 take that entry back out.</span>
           <span class="hint" id="extConnectState"></span>
         </div>
-        <button class="btn sm" id="connectBrowser">Connect</button>
+        <div class="row-gap">
+          <span class="badge b-wait" id="extConnected">checking</span>
+          <button class="btn sm" id="connectBrowser">Connect</button>
+        </div>
       </div>
     </div>
 
@@ -1537,11 +1544,15 @@
           <div class="field-text">
             <label>Download engine</label>
             <span id="engineVersion">checking…</span>
+            <span class="footnote" id="engineChecked"></span>
             <!-- Only ever a line of text. The check asks which version is
                  published; nothing is fetched until Update is pressed. -->
             <span id="engineUpdate" class="warn" hidden></span>
           </div>
-          <button class="btn sm" id="updateEngine">Update</button>
+          <div class="row-gap">
+            <span class="badge b-wait" id="engineState">checking</span>
+            <button class="btn sm" id="updateEngine">Update</button>
+          </div>
         </div>
 
         <div class="field">
