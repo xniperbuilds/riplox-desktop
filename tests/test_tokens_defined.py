@@ -7,13 +7,10 @@ would have had otherwise - usually black text on a black panel, or a border
 that quietly disappears. It is the same silent shape as a missing state class,
 one layer further down.
 
-This matters now because the 1.5 redesign renames the colour vocabulary. The
-app calls things what they look like - `--ink`, `--panel`, `--cyan`, `--pink`.
-The deck calls them what they are for - `--text`, `--surface`, `--accent`,
-`--bad`. The second is the better vocabulary and it is the language every new
-rule will be written in, so the rename happens before the rooms do. A rename
-across 2,875 lines is exactly the kind of change that ends up nine-tenths
-done, and this is what makes the last tenth visible.
+The stylesheet is nearly three thousand lines and names its colours in one
+vocabulary throughout - `--ink`, `--panel`, `--cyan`, `--pink`. Any sweep
+across it is exactly the kind of change that ends up nine-tenths done, and
+this is what makes the last tenth visible.
 
 The second check is the one that catches a half-finished theme: a token
 defined for dark and forgotten for light leaves the light theme falling back
@@ -88,33 +85,35 @@ if shared:
     print("        " + " ".join(shared))
 
 
-print("\n-- the typeface is on disk, not on the internet --------------------")
-# A missing font file is silent in the worst way: @font-face fails, the next
-# family in the stack is used, and the app looks almost right. Since the whole
-# reason Poppins is bundled rather than linked is that Riplox must look correct
-# with no network, "almost right" is exactly the failure to catch.
+print("\n-- the interface asks the network for nothing ----------------------")
+# The typefaces are the ones Windows already has - Bahnschrift, Segoe UI,
+# Cascadia Mono - each with a stack behind it. That is a deliberate choice and
+# it is what keeps the app looking right with no connection, so the thing to
+# guard is that nothing creeps back in: a linked face, a remote background, an
+# @import. Each of those fails silently offline - the next family in the stack
+# is used, the image is simply absent - and the app looks almost right, which
+# is the hardest kind of wrong to notice.
 STATIC = Path(__file__).resolve().parent.parent / "src" / "static"
-wanted = re.findall(r'url\("\.\./([^"]+\.woff2)"\)', CSS)
-print(f"      {len(wanted)} font files asked for by the stylesheet")
+remote = sorted(set(re.findall(r'url\(\s*["\']?(https?:)?//[^)]+', CSS)))
+check("no stylesheet rule fetches anything over the network",
+      not remote, ", ".join(str(r) for r in remote[:5]) if remote else "")
+check("...and none is imported either", "@import" not in body)
 
+# If a face is ever bundled, it has to actually be on disk: @font-face failing
+# is the silent version of the same problem.
+wanted = re.findall(r'url\("\.\./([^"]+\.woff2)"\)', CSS)
 absent = sorted({f for f in wanted if not (STATIC / f).is_file()})
-check("every font the stylesheet asks for is in the app",
+print(f"      {len(wanted)} font files asked for by the stylesheet")
+check("every font the stylesheet does ask for is in the app",
       not absent, ", ".join(absent) if absent else "")
-check("...and it asks for some", len(wanted) >= 2, str(len(wanted)))
 
 empty = sorted({f for f in wanted
                 if (STATIC / f).is_file() and (STATIC / f).stat().st_size < 2000})
 check("none of them is a stub", not empty, ", ".join(empty) if empty else "")
 
-# Poppins is under the SIL Open Font License, which requires the licence to
-# travel with the font. It is in the same folder, so it ships with it.
-check("the font licence ships beside the font",
-      (STATIC / "fonts" / "OFL.txt").is_file()
-      and "SIL OPEN FONT LICENSE" in (STATIC / "fonts" / "OFL.txt").read_text(
-          encoding="utf-8", errors="ignore"))
-
-check("the stylesheet leads with the bundled face, and keeps a fallback",
-      re.search(r'--font:\s*"Poppins",\s*"Segoe', CSS) is not None)
+check("the families are named with a fallback behind each",
+      all(re.search(r"--" + name + r":\s*\"[^\"]+\",", CSS)
+          for name in ("display", "body", "mono")))
 
 
 print("\n-- the theme is chosen by an attribute the page must carry ---------")

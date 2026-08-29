@@ -5,302 +5,199 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Riplox</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
-<!-- The design, verbatim, after the app's own stylesheet so it wins. Copied
-     unchanged from the spec: retyping its values is how a 43px input becomes
-     40 and a 320 rail becomes 300. -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
-<!-- Undoes only the mockup chrome in the file above - the viewer's zoom, the
-     frame's fixed 1440x1024 size and its outer border. Nothing designed. -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/app-shell.css') }}">
 </head>
-<!-- .frame is where the design hangs its tokens, and what its own verify.js
-     reads them from, so the app's root carries it. -->
-<body class="frame">
+<body>
 
 <div class="grain" aria-hidden="true"></div>
 <div class="glow" aria-hidden="true"></div>
 
+<div class="app">
 
-<aside class="rail">
+<aside class="sidebar">
   <div class="brand">
-    <div class="mark">
-      <img src="{{ url_for('static', filename='img/riplox.png') }}" alt="" width="38" height="38">
-    </div>
-    <div>
-      <div class="brand-name">Riplox</div>
-      <div class="brand-ver">desktop {{ version }}</div>
+    <img class="mark" src="{{ url_for('static', filename='img/riplox.png') }}"
+         alt="Riplox" width="32" height="32">
+    <div class="wordmark">
+      <b>Riplox</b>
+      <span>desktop <i>v{{ version }}</i></span>
     </div>
   </div>
 
-  <!-- No "New download" button here. The Download room IS the new-download
-       screen and it is the first item in the list directly below, so the
-       button was a second door onto a room you can already see. -->
-
-  <div class="rail-label">Workspace</div>
-
-  <nav class="nav" role="tablist">
-    <button class="nav-item on" data-view="capture" role="tab" title="Capture">
+  <nav class="tabs" role="tablist">
+    <button class="tab is-active" data-view="capture" role="tab" title="Capture">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M12 3v10m0 0 4-4m-4 4-4-4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>
       </svg>
-      <span>Download</span>
+      <span class="tab-label">Capture</span>
     </button>
-    <button class="nav-item" data-view="queue" role="tab" title="Activity">
+    <button class="tab" data-view="queue" role="tab" title="Queue">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/>
       </svg>
-      <span>Activity</span>
-      <em class="pill" id="queueBadge" hidden>0</em>
+      <span class="tab-label">Queue</span>
+      <em class="badge" id="queueBadge" hidden>0</em>
     </button>
-    <button class="nav-item" data-view="library" role="tab" title="Library">
+    <button class="tab" data-view="library" role="tab" title="Library">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M3 7a2 2 0 0 1 2-2h3.5l2 2.5H19a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
       </svg>
-      <span>Library</span>
+      <span class="tab-label">Library</span>
     </button>
-    <button class="nav-item" data-view="watch" role="tab" title="Watch">
+    <button class="tab" data-view="failed" role="tab" title="Failed">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="8.4"/><path d="M12 7.8v4.7M12 16h.01"/>
+      </svg>
+      <span class="tab-label">Failed</span>
+      <em class="badge" id="failedBadge" hidden>0</em>
+    </button>
+    <button class="tab" data-view="convert" role="tab" title="Convert">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 8h13l-3.2-3.2M20 16H7l3.2 3.2"/>
+      </svg>
+      <span class="tab-label">Convert</span>
+    </button>
+    <button class="tab" data-view="watch" role="tab" title="Watch">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="12" cy="12" r="8.2"/><path d="M12 7.4V12l3 1.8"/>
       </svg>
-      <span>Watch</span>
-      <em class="pill" id="watchBadge" hidden>0</em>
+      <span class="tab-label">Watch</span>
+      <em class="badge" id="watchBadge" hidden>0</em>
     </button>
-    <button class="nav-item" data-view="sharing" role="tab" title="Sharing">
+    <button class="tab" data-view="sharing" role="tab" title="Sharing">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="18" cy="5.5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="18.5" r="2.6"/>
         <path d="M8.4 10.8 15.6 6.8M8.4 13.2l7.2 4"/>
       </svg>
-      <span>Send</span>
-      <em class="pill" id="shareBadge" hidden>0</em>
+      <span class="tab-label">Sharing</span>
+      <em class="badge" id="shareBadge" hidden>0</em>
     </button>
-    <button class="nav-item" data-view="settings" role="tab" title="Settings">
+    <button class="tab" data-view="settings" role="tab" title="Settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M6 4v5M6 13v7M12 4v9M12 17v3M18 4v3M18 11v9"/>
         <circle cx="6" cy="11" r="1.8"/><circle cx="12" cy="15" r="1.8"/><circle cx="18" cy="9" r="1.8"/>
       </svg>
-      <span>Settings</span>
+      <span class="tab-label">Settings</span>
     </button>
   </nav>
 
-  <!-- What is downloading, from any room. -->
-  <div class="rail-live" id="railLive" hidden>
-    <div class="live-head"><span>Downloading</span><em id="liveCount"></em></div>
-    <div id="liveRows"></div>
-  </div>
-
-  <div class="rail-foot">
+  <div class="side-foot">
+    <div class="theme-pick" id="themePick" role="group" aria-label="Appearance">
+      <button type="button" data-theme="auto"><b>A</b><span>Auto</span></button>
+      <button type="button" data-theme="light"><b>L</b><span>Light</span></button>
+      <button type="button" data-theme="dark"><b>D</b><span>Dark</span></button>
+    </div>
     <div class="status" id="engineStatus" title="Download engine">
       <span class="dot"></span><span id="engineLabel">ready</span>
-    </div>
-    <!-- The letter is the control and the word is for screen readers and the
-         tooltip. Both were being drawn into a 27px button, so three words ran
-         into each other and read as one. -->
-    <div class="theme-pick" id="themePick" role="group" aria-label="Appearance">
-      <button type="button" data-theme="auto" title="Match Windows"><b>A</b><span>Auto</span></button>
-      <button type="button" data-theme="light" title="Light"><b>L</b><span>Light</span></button>
-      <button type="button" data-theme="dark" title="Dark"><b>D</b><span>Dark</span></button>
     </div>
   </div>
 </aside>
 
 <div class="stage">
 
-<!-- Always in the page, hidden when the tool is there. Rendered only in the
-     missing case, nothing could reach it - not the script, and not a test. -->
-<div class="strip warn" id="ffmpegAlert" {% if has_ffmpeg %}hidden{% endif %}>
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
-       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-    <path d="M12 8v5M12 16.5v.01"/>
-    <path d="M10.3 3.9 2.6 17.2A2 2 0 0 0 4.3 20h15.4a2 2 0 0 0 1.7-2.8L13.7 3.9a2 2 0 0 0-3.4 0z"/>
-  </svg>
-  <span><b>Limited mode.</b> The media tool is missing, so 1080p and above,
-    MP3 conversion, chapters and clips are unavailable.</span>
-  <button type="button" class="btn sm" id="limitedWhat">What still works</button>
+{% if not has_ffmpeg %}
+<div class="alert" id="ffmpegAlert">
+  <strong>Limited mode.</strong>
+  ffmpeg is missing, so 1080p+ merging and MP3 conversion are unavailable.
+  Reinstall Riplox to restore them.
 </div>
+{% endif %}
 
-<div class="work">
-
-  <!-- One topbar, filled per room, which is what the design has. -->
-  <div class="topbar">
-    <div>
-      <div class="page-title" id="pageTitle">Download</div>
-      <div class="page-sub" id="pageSub"></div>
-    </div>
-    <div class="top-actions" id="topActions">
-      <!-- Shown once the topbar is describing a video rather than a room. -->
-      <div class="room-actions" id="videoActions" hidden>
-        <button type="button" class="btn sm" id="videoBack">Back</button>
-        <button type="button" class="btn sm" id="videoClear">Clear</button>
-      </div>
-      <div class="room-actions" data-room="queue" hidden>
-        <!-- Each of these shows only while it has something to act on. A row of
-             buttons that is always there but usually does nothing teaches
-             people to stop reading the row. -->
-        <button class="btn sm" id="pauseAll" hidden>Pause all</button>
-        <button class="btn sm" id="resumeAllTop" hidden>Resume all</button>
-        <button class="btn sm" id="retryAll" hidden>Retry all</button>
-        <button class="btn sm" id="clearFinished">Clear finished</button>
-        <button class="btn sm" id="failedRetryAll" hidden>Retry all failed</button>
-        <button class="btn sm danger" id="failedClear" hidden>Delete all failed</button>
-      </div>
-      <div class="room-actions" data-room="library" hidden>
-        <div class="row-gap">
-          <button class="btn sm" id="openInsights">Insights</button>
-          <button class="btn sm" id="openConvert">Convert to audio…</button>
-          <button class="btn sm" id="openFolder">Open folder</button>
-        <!-- The endpoint has been there all along and the only way to reach it
-             was Settings - Backup. The design puts it where the list is. -->
-        <button class="btn sm" data-export="txt">Export list</button>
-          <button class="btn sm danger" id="clearHistory">Clear history</button>
-        </div>
-      </div>
-      <div class="room-actions" id="watchFixActions" hidden>
-        <button type="button" class="btn sm" id="fixBack">Back to Watch</button>
-      </div>
-      <div class="room-actions" data-room="watch" hidden>
-        <button type="button" class="btn sm" id="watchCheckAll">Check now</button>
-        <button type="button" class="btn pri sm" id="watchAddBtn">Add</button>
-      </div>
-      <div class="room-actions" data-room="sharing" hidden>
-        <div class="row-gap">
-          <span class="badge b-run" id="shareWaiting" hidden>0 waiting</span>
-          <span class="badge b-wait" id="shareState">off</span>
-          <button class="toggle" id="setSharing" role="switch"
-                  title="Let paired devices send links here"><i></i></button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="canvas">
 <main>
 
   <!-- ============================ CAPTURE ============================ -->
   <section class="view is-active" id="view-capture">
 
-    <!-- The design's empty state: one job, centred, and everything else a
-         caption on the input. -->
-    <div class="hero" id="captureHero">
-      <h1>Paste a link. <span>Rip Everything.</span></h1>
-      <p>Works on <b id="siteCount">1,750</b> sites &mdash;
-        <button type="button" class="link-quiet" id="browseSites">browse them</button></p>
+    <div class="capture-head reveal" style="--d:0ms">
+      <h1>Paste a link.<br><span>Keep the video.</span></h1>
+      <!-- The claim and the proof in one place: the app says "a thousand
+           more", so the phrase itself opens the list and shows them. -->
+      <p class="sub">YouTube · TikTok · Instagram · Facebook · X · Reddit —
+        <button type="button" class="link-quiet" id="browseSites">and a thousand more</button>.</p>
+    </div>
 
-      <form class="omni" id="urlForm" autocomplete="off">
-        <span class="tag">URL</span>
-        <input type="text" id="urlInput" spellcheck="false" placeholder="https://...">
-        <button type="button" class="btn sm" id="pasteBtn" title="Paste from clipboard">Paste</button>
-        <button type="submit" class="btn pri" id="analyzeBtn">
-          <span class="label">Analyze</span>
-          <span class="spinner" hidden></span>
-        </button>
-      </form>
+    <form class="urlbar reveal" id="urlForm" style="--d:60ms" autocomplete="off">
+      <span class="urlbar-tag">URL</span>
+      <input type="text" id="urlInput" spellcheck="false"
+             placeholder="https://…">
+      <button type="button" class="ghost" id="pasteBtn" title="Paste from clipboard">Paste</button>
+      <button type="submit" class="primary" id="analyzeBtn">
+        <span class="label">Analyze</span>
+        <span class="spinner" hidden></span>
+      </button>
+    </form>
 
-      <div class="hint-row">
-        <span id="hotkeyTip" hidden>Copy a link anywhere and press
-          <code id="hotkeyTipKeys"></code></span>
-        <span class="muted">or drop a page here to find every video on it</span>
-        <button type="button" class="btn sm" id="grabBtn"
-                title="Reads the page in the box above and lists every video on it. Nothing downloads until you pick.">Find everything on a page</button>
-      </div>
+    <div class="hint reveal" id="clipHint" style="--d:100ms" hidden>
+      <span>Link copied — </span><button type="button" id="clipUse">use it</button>
+      <em id="clipText"></em>
+    </div>
 
-      <!-- Live status, not a claim. Each site carries the dot the app already
-           measures for it, so this row answers "is it me or is it them"
-           before anything is even pasted. -->
-      <div class="sites" id="siteRow"></div>
+    <!-- One row, not two paragraphs. Both of these used to be prose blocks
+         stacked under the URL bar, which is a lot of explaining for a screen
+         whose whole job is one input. The action is a real button now, and
+         the shortcut is a keycap rather than a sentence about a keycap.
 
-      <div class="hint" id="clipHint" hidden>
-        <span>Link copied &mdash; </span><button type="button" id="clipUse">use it</button>
-        <em id="clipText"></em>
-      </div>
+         The button is for pages no extractor knows: a blog post with videos
+         in it, a links page, a thread. Read once, listed, and nothing is
+         fetched until something is picked. -->
+    <div class="capture-actions reveal" style="--d:130ms">
+      <button type="button" class="ghost small" id="grabBtn"
+              title="Reads the page in the box above and lists every video on it. Nothing downloads until you pick.">Find everything on a page</button>
+      <span class="capture-shortcut" id="hotkeyTip" hidden>
+        Copy a link anywhere, press <code id="hotkeyTipKeys"></code>
+      </span>
     </div>
 
     <div class="error-box" id="analyzeError" hidden></div>
 
     <div class="preview" id="preview" hidden>
-      <!-- The design's compact card: a 296px thumbnail beside the text, not a
-           330px block above it. -->
-      <div class="card tight preview-head">
-      <div class="row gap16">
       <div class="preview-media">
-        <div class="thumb">
-          <img id="pvThumb" alt="" style="visibility:hidden">
-          <span class="kind" id="pvKind">VIDEO</span>
-          <span class="len" id="pvLen" hidden></span>
-        </div>
+        <img id="pvThumb" alt="" style="visibility:hidden">
+        <span class="preview-kind" id="pvKind">VIDEO</span>
       </div>
-        <div class="preview-body grow">
+      <div class="preview-body">
         <h2 id="pvTitle">—</h2>
         <div class="meta" id="pvMeta"></div>
-        <!-- What is there to be had besides the video itself. The app knew all
-             three and only ever mentioned them inside More options; the design
-             puts the counts where the decision is made. -->
-        <div class="chips" id="pvHas"></div>
-        </div>
-      </div>
-      </div>
 
-      <div class="preview-work">
-        <div class="pv-main">
-          <!-- One panel at a time, and the tab says what is in it.
+        <div class="quality-block">
+          <label>Quality</label>
+          <div class="chips" id="qualityChips"></div>
+        <p class="hint warn" id="qualityNote" hidden></p>
+          <!-- One press, two files. Downloading the same link twice to get
+               the audio as well was the thing people were doing by hand.
+               Hidden when MP3 is already the choice - offering to also make
+               an MP3 of an MP3 is nonsense. -->
+          <label class="also-audio" id="alsoAudioWrap">
+            <input type="checkbox" id="alsoAudio">
+            <span>Also save the audio as MP3</span>
+          </label>
 
-               The three used to stack, and with fifteen chapters open the
-               Download button left the screen - which the comment on the
-               chapter list had predicted before anyone measured it.
+          <!-- The video's own chapters. A <details> because fifteen titles
+               standing between the quality chips and the Download button
+               would push the button off the screen on exactly the videos
+               this is for - and because the browser already knows how to
+               open and close one.
 
-               The count on a tab is not decoration. Closing a panel used to
-               throw its settings away, which is how this app kept its promise
-               that nothing acts while it is hidden. A tab cannot throw
-               anything away, so the tab carries the count instead: whatever is
-               set stays readable from the bar without opening anything. -->
-          <div class="tabs" id="pvTabs" role="tablist">
-            <button type="button" class="tab" id="tabFormat"
-                    data-panel="panelFormat" role="tab">Format<em class="n" hidden></em></button>
-            <button type="button" class="tab" id="tabChapters"
-                    data-panel="chapterBox" role="tab">Chapters<em class="n" hidden></em></button>
-            <button type="button" class="tab" id="tabHeat"
-                    data-panel="heatBox" role="tab">Most replayed<em class="n" hidden></em></button>
-            <button type="button" class="tab" id="tabTrim"
-                    data-panel="panelTrim" role="tab">Trim<em class="n" hidden></em></button>
-            <button type="button" class="tab" id="tabExtras"
-                    data-panel="panelExtras" role="tab">Extras<em class="n" hidden></em></button>
-            <button type="button" class="tab" id="tabNaming"
-                    data-panel="panelNaming" role="tab">Naming<em class="n" hidden></em></button>
-          </div>
-
-          <!-- The video's own chapters. This was a <details>, collapsed, because
-               fifteen titles standing between the quality chips and the
-               Download button would push the button off the screen on exactly
-               the videos this is for. Measured afterwards: 182px below the
-               fold on a 900px window. It is a tab now, which answers the same
-               problem without hiding the list to do it.
-
-               The panel is absent, not greyed out, when a video has no
-               chapters: a control that is visible but never usable teaches
-               people to ignore the whole area. The line below it is what
-               stops that absence from reading as broken. -->
-          <div class="card pv-panel" id="chapterBox" hidden>
-            <!-- The design's row above the list: the take-all switch, what it
-                 means, and what is picked so far - on one line, so the count
-                 is beside the thing that changes it. -->
-            <div class="row">
-              <label class="check sm" id="chapterAllWrap">
-                <input type="checkbox" id="chapterAll">
-                <span>All chapters</span>
-              </label>
-              <span class="f12 faint" id="chapterCount"></span>
-              <span class="grow"></span>
-              <span class="chip on" id="chapterPicked" hidden></span>
-            </div>
-            <ol class="chapter-list list" id="chapterList"></ol>
-            <p class="f12 faint" id="chapterNote2" hidden></p>
-          </div>
+               Absent, not greyed out, when a video has none: a control that
+               is visible but never usable teaches people to ignore the whole
+               area. The line below it is what stops that absence from
+               reading as broken. -->
+          <details class="chapters" id="chapterBox" hidden>
+            <summary id="chapterCount"></summary>
+            <label class="chapter-all" id="chapterAllWrap">
+              <input type="checkbox" id="chapterAll">
+              <span>All chapters</span>
+            </label>
+            <ol class="chapter-list" id="chapterList"></ol>
+            <p class="hint" id="chapterPicked" hidden></p>
+          </details>
           <p class="hint" id="chapterNote" hidden>This video has no chapters.</p>
 
           <!-- What people actually went back to. YouTube publishes it, and
@@ -311,21 +208,56 @@
                so it can stop arriving with no notice and no error. The line
                below is not decoration: on the day it goes, the app has to say
                so rather than draw an empty box. -->
-          <div class="card pv-panel" id="heatBox" hidden>
-            <div class="pv-cap" id="heatSummary">Most replayed</div>
+          <details class="heatmap" id="heatBox" hidden>
+            <summary id="heatSummary">Most replayed</summary>
+            <div class="heat-graph" id="heatGraph"></div>
             <ol class="heat-peaks" id="heatPeaks"></ol>
-          </div>
+            <label class="chapter-all" id="clipOnWrap">
+              <input type="checkbox" id="clipOn">
+              <span>Cut these moments into clips</span>
+            </label>
+            <div class="clip-row" id="clipRow" hidden>
+              <div class="chips" id="clipLens"></div>
+            </div>
+          </details>
           <p class="hint" id="clipNote" hidden></p>
+          <!-- Cutting a video into parts is ffmpeg's work, and yt-dlp refuses
+               outright without it: "You have requested downloading the video
+               partially, but ffmpeg is not installed. Aborting" - measured.
+               The trim block is hidden for the same reason a few lines up;
+               these are shown but not offered, because the list itself is
+               still worth reading. -->
+          <!-- Off by default, and the trim has always made the same offer for
+               the same reason: cutting on the mark means re-encoding the part,
+               measured at roughly twice the time. -->
+          <label class="chapter-all" id="cutExactWrap" hidden
+                 title="Parts are cut on the video's own keyframes, so a moment of whatever came before can appear at the start. Cutting exactly removes it, but the part has to be re-encoded - measured at about twice as long.">
+            <input type="checkbox" id="cutExact">
+            <span>Cut exactly at the mark - slower, but no tail of the part before</span>
+          </label>
+          <p class="hint warn" id="cutNoFf" hidden>Chapters and moments can be
+            shown but not downloaded separately: cutting a video needs the
+            media tool, which is missing from this install. Reinstall Riplox
+            to get it back.</p>
+          <p class="hint" id="heatNote" hidden>YouTube has no most-replayed data for this video.</p>
+        </div>
 
-                  <div class="card pv-panel" id="panelFormat">
-  <div class="more-sec" id="fmtSec">
+        <!-- One quiet line, closed on every install and after every link. It
+             may add controls; it never changes what the closed state does,
+             and everything set here applies to this one download only. -->
+        <details class="more" id="moreBox">
+          <summary>More options</summary>
+          <div class="more-body">
+
+          <div class="more-sec" id="fmtSec">
             <div class="more-row between">
               <label>Exact format</label>
               <span class="more-note" id="fmtPick">Using the quality above.</span>
             </div>
             <div class="fmt-wrap"><table class="fmt" id="fmtTable"></table></div>
           </div>
-  <div class="more-sec" id="langSec" hidden>
+
+          <div class="more-sec" id="langSec" hidden>
             <div class="more-row">
               <label class="more-field" id="audioLangField" hidden>
                 <span>Audio language</span>
@@ -337,41 +269,8 @@
               </label>
             </div>
           </div>
-  <div class="more-sec">
-            <div class="more-row">
-              <label class="more-field">
-                <span>Sign-in for this download</span>
-                <select id="optCookies">
-                  <option value="">Use the saved session</option>
-                  <option value="off">Send no sign-in</option>
-                </select>
-              </label>
-              <label class="more-field">
-                <span>Player client</span>
-                <select id="optClient">
-                  <option value="">Let Riplox choose</option>
-                  <option value="tv_simply">tv_simply</option>
-                  <option value="web_safari">web_safari</option>
-                  <option value="mweb">mweb</option>
-                  <option value="android_vr">android_vr</option>
-                  <option value="ios">ios</option>
-                  <option value="web">web</option>
-                </select>
-              </label>
-            </div>
-            <p class="more-note" id="cookieNow"></p>
-          </div>
-  <div class="more-sec">
-            <div class="more-row between">
-              <label>The command Riplox will run</label>
-              <button type="button" class="btn sm" id="cmdCopy">Copy</button>
-            </div>
-            <pre class="cmd" id="cmdBox">…</pre>
-          </div>
-          </div>
 
-          <div class="card pv-panel" id="panelTrim">
-  <div class="trim-block more-sec" id="trimBlock" hidden>
+        <div class="trim-block more-sec" id="trimBlock" hidden>
           <label class="trim-toggle">
             <input type="checkbox" id="trimOn">
             <span>Download only part of it</span>
@@ -420,10 +319,51 @@
             <p class="trim-summary" id="trimSummary"></p>
           </div>
         </div>
+
+          <div class="more-sec">
+            <div class="more-row">
+              <label class="more-field grow">
+                <span>Save as</span>
+                <input type="text" id="optName" class="text-input"
+                       spellcheck="false" maxlength="160"
+                       placeholder="%(title)s [%(id)s].%(ext)s">
+              </label>
+              <div class="more-field">
+                <span>Into</span>
+                <button type="button" class="ghost small" id="optDir"
+                        data-dir="">Default folder</button>
+              </div>
+            </div>
           </div>
 
-          <div class="card pv-panel" id="panelExtras">
-  <div class="more-sec">
+          <div class="more-sec">
+            <div class="more-row">
+              <label class="more-field">
+                <span>Sign-in for this download</span>
+                <select id="optCookies">
+                  <option value="">Use the saved session</option>
+                  <option value="off">Send no sign-in</option>
+                </select>
+              </label>
+              <label class="more-field">
+                <span>Player client</span>
+                <select id="optClient">
+                  <option value="">Let Riplox choose</option>
+                  <option value="tv_simply">tv_simply</option>
+                  <option value="web_safari">web_safari</option>
+                  <option value="mweb">mweb</option>
+                  <option value="android_vr">android_vr</option>
+                  <option value="ios">ios</option>
+                  <option value="web">web</option>
+                </select>
+              </label>
+            </div>
+            <p class="more-note" id="cookieNow"></p>
+          </div>
+
+          <!-- Three things that change what comes out of one download, rather
+               than how it is fetched. Each is cleared for the next link. -->
+          <div class="more-sec">
             <label class="more-check">
               <input type="checkbox" id="optSubsOnly">
               <span>Subtitles only — no video file</span>
@@ -442,103 +382,34 @@
             </label>
             <p class="more-note" id="subsOnlyNote" hidden></p>
           </div>
-  <div class="more-sec" id="thumbSec" hidden>
+
+          <!-- The cover picture. Sites often lead with a poor default, and
+               until now the only answer was to save all of them and sort it
+               out in the folder. Hidden entirely when the site offers one. -->
+          <div class="more-sec" id="thumbSec" hidden>
             <div class="more-row between">
               <label>Cover picture</label>
-              <button type="button" class="btn sm" id="thumbClear">Use the default</button>
+              <button type="button" class="ghost small" id="thumbClear">Use the default</button>
             </div>
             <div class="thumb-pick" id="thumbPick"></div>
             <p class="more-note" id="thumbNote"></p>
           </div>
+
+          <div class="more-sec">
+            <div class="more-row between">
+              <label>The command Riplox will run</label>
+              <button type="button" class="ghost small" id="cmdCopy">Copy</button>
+            </div>
+            <pre class="cmd" id="cmdBox">…</pre>
           </div>
 
-          <div class="card pv-panel" id="panelNaming">
-  <div class="more-sec">
-            <div class="more-row">
-              <label class="more-field grow">
-                <span>Save as</span>
-                <input type="text" id="optName" class="text-input"
-                       spellcheck="false" maxlength="160"
-                       placeholder="%(title)s [%(id)s].%(ext)s">
-              </label>
-              <div class="more-field">
-                <span>Into</span>
-                <button type="button" class="btn sm" id="optDir"
-                        data-dir="">Default folder</button>
-              </div>
-            </div>
           </div>
-          </div>
+        </details>
+
+        <div class="preview-actions">
+          <button class="primary big" id="downloadBtn">Download</button>
+          <button class="ghost" id="resetBtn">Clear</button>
         </div>
-
-        <aside class="pv-side">
-          <div class="card quality-block">
-            <div class="card-head">
-              <h3>Quality</h3>
-              <span class="card-note" id="qualityTotal"></span>
-            </div>
-            <div class="qual" id="qualityChips"></div>
-            <p class="hint warn" id="qualityNote" hidden></p>
-            <!-- One press, two files. Downloading the same link twice to get
-                 the audio as well was the thing people were doing by hand.
-                 Hidden when MP3 is already the choice - offering to also make
-                 an MP3 of an MP3 is nonsense. -->
-            <label class="check" id="alsoAudioWrap">
-              <input type="checkbox" id="alsoAudio">
-              <span>Also save the audio as MP3</span>
-            </label>
-          </div>
-
-          <!-- The curve and the clip lengths live here rather than in the tab
-               that lists the moments. They are a choice you make while reading
-               that list, and a control you have to leave a panel to reach is a
-               control you forget is there. -->
-          <div class="card" id="heatCard" hidden>
-            <div class="card-head">
-              <h3>Most replayed</h3>
-              <span class="badge" id="heatSource">from YouTube</span>
-            </div>
-            <div class="curve heat-graph" id="heatGraph"></div>
-            <label class="check" id="clipOnWrap">
-              <input type="checkbox" id="clipOn">
-              <span>Cut these moments into clips</span>
-            </label>
-            <div class="clip-row" id="clipRow" hidden>
-              <div class="chips" id="clipLens"></div>
-            </div>
-          </div>
-
-          <!-- Off by default, and the trim has always made the same offer for
-               the same reason: cutting on the mark means re-encoding the part,
-               measured at roughly twice the time. -->
-          <label class="check" id="cutExactWrap" hidden
-                 title="Parts are cut on the video's own keyframes, so a moment of whatever came before can appear at the start. Cutting exactly removes it, but the part has to be re-encoded - measured at about twice as long.">
-            <input type="checkbox" id="cutExact">
-            <span>Cut exactly at the mark - slower, but no tail of the part before</span>
-          </label>
-          <p class="hint warn" id="cutNoFf" hidden>Chapters and moments can be
-            shown but not downloaded separately: cutting a video needs the
-            media tool, which is missing from this install. Reinstall Riplox
-            to get it back.</p>
-          <p class="hint" id="heatNote" hidden>YouTube has no most-replayed data for this video.</p>
-
-          <!-- What is actually going to be written. Chapters, clips, a trim,
-               an audio copy and a naming template can each change the answer,
-               and until now nothing said it in one place before the button
-               was pressed. -->
-          <p class="summary" id="pvSummary"></p>
-
-          <!-- The app is called Riplox and the thing it does is rip. The
-               button says it, with what it will take underneath - the second
-               line changes with the selection, so the button states the job
-               rather than naming a verb. -->
-          <div class="preview-actions">
-            <button class="btn pri rip" id="downloadBtn">
-              <b>RIP</b><em id="ripWhat">Everything</em>
-            </button>
-            <button class="btn" id="resetBtn">Clear</button>
-          </div>
-        </aside>
       </div>
     </div>
 
@@ -551,19 +422,6 @@
     </div>
 
     <div class="playlist-wrap" id="playlistWrap" hidden>
-
-      <!-- Only for a page that was read. A playlist knows what it is; a page
-           does not, so it says which address was read and how long that took -
-           the two facts that tell you whether to press Read it again. -->
-      <div class="drow grab-src" id="grabSource" hidden>
-        <span class="f12 faint mono trunc grow" id="grabUrl"></span>
-        <span class="badge b-ok" id="grabTime"></span>
-        <button type="button" class="btn sm" id="grabAgain">Read it again</button>
-      </div>
-      <div class="filters" id="grabChips" hidden></div>
-      <p class="f12 faint" id="grabFoot" hidden>Reading a page costs one request.
-        Nothing is fetched from any of these until you pick and press Download.</p>
-
       <div class="playlist-bar">
         <label class="pl-all">
           <input type="checkbox" id="plAll" checked>
@@ -581,36 +439,27 @@
         </select>
         <label class="pl-first">First
           <input type="number" id="plFirst" min="1" step="1" placeholder="10">
-          <button type="button" class="btn sm" id="plFirstGo">Pick</button>
+          <button type="button" class="ghost small" id="plFirstGo">Pick</button>
         </label>
-        <button type="button" class="btn sm" id="plInvert">Invert</button>
+        <button type="button" class="ghost small" id="plInvert">Invert</button>
         <span class="pl-count" id="plCount"></span>
       </div>
       <ul class="playlist" id="playlistBox"></ul>
-
-      <!-- What did not make the list. Shown, not summarised: a link you can
-           see is a link you can copy and paste on its own, which is the one
-           thing that still works for all of them. -->
-      <div class="rows" id="grabLeftOut" hidden></div>
       <p class="pl-note" id="plNote" hidden></p>
     </div>
   </section>
 
   <!-- ============================= QUEUE ============================= -->
   <section class="view" id="view-queue">
-
-    <!-- One list, four ways to look at it. The counts are on the chips because
-         "what is happening and what did not work" is a question about numbers
-         first - and because a filter that does not say how much it would show
-         is a filter nobody presses twice.
-
-         Nothing is re-rendered to filter: the script already writes each job's
-         status onto its own row, so this only sets an attribute. -->
-    <div class="filters" id="actFilters" role="group" aria-label="Filter">
-      <button type="button" class="chip is-on" data-filter="all">All<em class="k" id="countAll"></em></button>
-      <button type="button" class="chip" data-filter="running">Running<em class="k" id="countRunning"></em></button>
-      <button type="button" class="chip" data-filter="waiting">Waiting<em class="k" id="countWaiting"></em></button>
-      <button type="button" class="chip" data-filter="failed">Failed<em class="k badge" id="failedBadge" hidden>0</em></button>
+    <div class="view-head">
+      <h2>Queue</h2>
+      <!-- Each of these shows only while it has something to act on. A row of
+           buttons that is always there but usually does nothing teaches
+           people to stop reading the row. -->
+      <button class="ghost small" id="pauseAll" hidden>Pause all</button>
+      <button class="ghost small" id="resumeAllTop" hidden>Resume all</button>
+      <button class="ghost small" id="retryAll" hidden>Retry all</button>
+      <button class="ghost small" id="clearFinished">Clear finished</button>
     </div>
     <!-- Appears once the queue is long enough to need it. A search box over
          four rows is furniture; over eighty it is the only way to find the
@@ -623,11 +472,11 @@
     </div>
     <div class="resume-bar update-bar" id="updateBar" hidden>
       <span id="updateText"></span>
-      <button class="btn sm" id="updateOpen">Open the release page</button>
+      <button class="ghost small" id="updateOpen">Open the release page</button>
     </div>
     <div class="resume-bar" id="resumeBar" hidden>
       <span id="resumeText"></span>
-      <button class="btn pri sm" id="resumeAll">Resume</button>
+      <button class="primary small" id="resumeAll">Resume</button>
     </div>
     <!-- Why nothing is starting. A queue that just sits there, saying nothing,
          is the difference between "it is waiting" and "it is broken". -->
@@ -641,34 +490,17 @@
       <span>Analyzed links land here.</span>
     </div>
     <div class="jobs" id="jobs"></div>
-
-    <!-- What came over from the Failed room. The rows sit directly under the
-         running ones because the whole point of the merge is that this is ONE
-         list - a failed download is a row that left the queue, not a second
-         page. The chips still hide the block whole. -->
-    <div class="failed-part">
-      <div class="empty" id="failedEmpty">
-        <p>Nothing has failed.</p>
-        <span>A download that will not finish is listed here, with the reason.</span>
-      </div>
-      <div class="history" id="failedList"></div>
-    </div>
-
-    <!-- The two things that are about the list rather than in it, kept at the
-         foot. They used to sit between the running rows and the failed ones,
-         which put a settings row in the middle of a list of downloads. -->
-    <!-- The tidy-up switch used to sit here. It is a setting, not a thing about
-         this list, and a settings row in the middle of a page of downloads is
-         a row nobody reads twice. It lives in Settings now. -->
-    <div class="act-foot">
-      <p class="conv-note">Failed rows are kept until you delete them, so a link
-        that would not download is still here tomorrow. Retry puts it back in
-        the queue.</p>
-    </div>
   </section>
 
   <!-- ============================ LIBRARY ============================ -->
   <section class="view" id="view-library">
+    <div class="view-head">
+      <h2>Library</h2>
+      <div class="row-gap">
+        <button class="ghost small" id="openFolder">Open folder</button>
+        <button class="ghost small danger" id="clearHistory">Clear history</button>
+      </div>
+    </div>
     <div class="lib-controls" id="libControls" hidden>
       <input type="search" id="libSearch" class="text-input lib-search"
              placeholder="Search your downloads" autocomplete="off">
@@ -679,30 +511,21 @@
         <option value="big">Biggest first</option>
       </select>
       <span class="lib-count" id="libCount"></span>
-      <button class="btn sm" id="showAccounts">Accounts</button>
+      <button class="ghost small" id="showAccounts">Accounts</button>
       <div class="chips lib-chips" id="libChips"></div>
     </div>
 
-    <!-- Built from the uploader already recorded with every finished download,
-         so nothing is fetched to produce it. Clicking one searches the library
-         for that name.
-
-         These sit in the filter row rather than in a column of their own. As a
-         side panel they took a fixed width from the list whether or not there
-         was anything in them, and uploader names in a narrow column wrapped
-         into something nobody could read. They are filters; they belong with
-         the filters. -->
-    <div class="chips accounts" id="accountsBox" hidden></div>
-
-    <div class="lib-body">
-      <div class="lib-list">
-        <div class="empty" id="libraryEmpty">
-          <p>No downloads yet.</p>
-          <span>Finished files are listed here, with the folder they went to.</span>
-        </div>
-        <div class="history" id="history"></div>
-      </div>
+    <!-- Built from the uploader already recorded with every finished
+         download, so nothing is fetched to produce it. Clicking one searches
+         the library for that name rather than being a shelf of its own -
+         there is already a search box, and a second way to filter the same
+         list would be a second thing to keep in step. -->
+    <div class="accounts" id="accountsBox" hidden></div>
+    <div class="empty" id="libraryEmpty">
+      <p>No downloads yet.</p>
+      <span>Finished files are listed here.</span>
     </div>
+    <div class="history" id="history"></div>
   </section>
 
   <!-- ============================ FAILED =============================
@@ -711,283 +534,275 @@
        still having the next day was the one thing that did not last. Nothing
        here disappears on its own: no age limit, no count limit, and every
        button that removes a row is pressed by hand. -->
+  <section class="view" id="view-failed">
+    <div class="view-head">
+      <h2>Failed downloads</h2>
+      <div class="row-gap">
+        <button class="ghost small" id="failedRetryAll">Retry all</button>
+        <button class="ghost small danger" id="failedClear">Delete all</button>
+      </div>
+    </div>
+
+    <p class="conv-note">Kept until you delete them, so a link that would not
+      download is still here tomorrow. Retry puts it back in the queue.</p>
+
+    <!-- The one thing this page is allowed to tidy by itself, and only after
+         being told to. Off means a link that downloads in the end stays here
+         with "downloaded later" beside it; on means the page is a list of
+         what is still outstanding. -->
+    <div class="field">
+      <div class="field-text">
+        <label>Remove a row once it downloads</label>
+        <span>Off, a link that works on a later try stays here marked
+              <b>downloaded later</b>. On, it is taken off this page.</span>
+      </div>
+      <button class="toggle {% if settings.failed_clear_on_success %}on{% endif %}"
+              id="setFailedTidy" role="switch"><i></i></button>
+    </div>
+
+    <div class="empty" id="failedEmpty">
+      <p>Nothing has failed.</p>
+      <span>A download that will not finish is listed here, with the reason.</span>
+    </div>
+    <div class="history" id="failedList"></div>
+  </section>
 
   <!-- ============================ CONVERT ============================ -->
+  <section class="view" id="view-convert">
+    <div class="view-head">
+      <h2>Convert to audio</h2>
+      <button class="ghost small" id="convPick">Choose files from this PC…</button>
+    </div>
+
+    <p class="conv-note">Pulls the sound out of anything already on your
+      computer. The original is never touched.</p>
+
+    <div class="conv-controls">
+      <label class="conv-field">
+        <span>Format</span>
+        <select id="convFormat"></select>
+      </label>
+      <label class="conv-field">
+        <span>Quality</span>
+        <select id="convQuality"></select>
+      </label>
+      <label class="conv-field conv-where">
+        <input type="checkbox" id="convBeside" checked>
+        <span>Save next to the original</span>
+      </label>
+      <button class="primary" id="convStart" disabled>Convert</button>
+    </div>
+
+    <div class="conv-picked" id="convPicked" hidden></div>
+
+    <div class="view-head sub-head">
+      <h3>From your library</h3>
+      <label class="conv-field"><input type="checkbox" id="convAll"><span>Select all</span></label>
+    </div>
+    <div class="empty" id="convEmpty">
+      <p>Nothing to convert yet.</p>
+      <span>Download something, or choose a file from this PC.</span>
+    </div>
+    <ul class="conv-list" id="convList"></ul>
+  </section>
 
   <!-- ============================= WATCH ============================= -->
   <section class="view" id="view-watch">
+    <div class="view-head">
+      <h2>Watch</h2>
+      <div class="row-gap">
+        <span class="share-state" id="watchState">off</span>
+        <button class="toggle" id="setWatch" role="switch"
+                title="Check watched links for new videos"><i></i></button>
+      </div>
+    </div>
 
-    <div class="filters">
-      <button type="button" class="chip on" id="watchFilterAll" data-wfilter="all">
-        Watching <span class="k" id="watchCount">0</span></button>
-      <button type="button" class="chip" id="watchFilterNew" data-wfilter="new"
-              hidden>New <span class="k" id="watchNewCount">0</span></button>
-      <span class="grow"></span>
-      <span class="f12 faint">Riplox never downloads on its own &mdash; it only tells you.</span>
-      <label class="f12 faint" for="watchHours">Check every</label>
-      <select id="watchHours" class="input">
-        <option value="6">6 hours</option>
-        <option value="12">12 hours</option>
-        <option value="24">24 hours</option>
-        <option value="48">2 days</option>
-      </select>
-      <span class="share-state" id="watchState">off</span>
-      <button class="toggle" id="setWatch" role="switch"
-              title="Check watched links for new videos"><i></i></button>
+    <p class="conv-note">Riplox checks the channels and playlists you add here
+      and tells you what is new. It never downloads anything on its own.</p>
+
+    <div class="watch-add">
+      <input type="url" id="watchUrl" class="text-input"
+             placeholder="Paste a channel or playlist link" autocomplete="off">
+      <button class="ghost small" id="addChannel">Add channel</button>
+      <button class="ghost small" id="addPlaylist">Add playlist</button>
+    </div>
+    <p class="warn" id="watchError" hidden></p>
+
+    <div class="watch-pick" id="watchPick" hidden>
+      <p class="more-note">That is a whole channel. Pick the section to watch —
+        a channel's front page never changes when a video is posted.</p>
+      <div class="chips" id="watchTabs"></div>
+    </div>
+
+    <div class="view-head sub-head">
+      <h3>Watching <span class="lib-count" id="watchCount"></span></h3>
+      <div class="row-gap">
+        <label class="watch-every">Check every
+          <select id="watchHours">
+            <option value="6">6 hours</option>
+            <option value="12">12 hours</option>
+            <option value="24">24 hours</option>
+            <option value="48">2 days</option>
+          </select>
+        </label>
+        <button class="ghost small" id="watchCheckAll">Check now</button>
+      </div>
     </div>
 
     <div class="empty" id="watchEmpty">
       <p>Nothing being watched.</p>
-      <span>Add a channel or a playlist and Riplox will tell you when
-        something new is posted.</span>
+      <span>Paste a channel or playlist link above.</span>
     </div>
+    <div id="watchList"></div>
 
-    <div class="rows" id="watchList"></div>
-
-    <!-- The ladder, behind the row that is being challenged. Five steps, the
-         cheapest first, each with the control that does it. -->
-    <div class="watch-fix" id="watchFix" hidden>
-      <div class="alert a-warn" style="margin-bottom:20px">
-        <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.7"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 3.5 19 6v6c0 4.2-2.9 7.4-7 8.5-4.1-1.1-7-4.3-7-8.5V6z"/>
-          <path d="m9 12 2 2 4-4"/></svg>
-        <div>
-          <h4>YouTube asked whether this is a bot</h4>
-          <p>This is usually temporary and it breaks nothing &mdash; ordinary
-            downloads keep working. Riplox already slowed this item down on its
-            own. Work down the list; most people never get past step two.</p>
+    <details class="more" id="watchHelp">
+      <summary>If YouTube starts asking whether you are a bot</summary>
+      <div class="more-body">
+        <p class="more-note">This is the one thing watching can cause. It is
+          usually temporary and it does not break anything — ordinary downloads
+          keep working. In order:</p>
+        <div class="more-sec">
+          <label>1 · Slow it down</label>
+          <p class="more-note">Set <b>Check every</b> to 24 hours or 2 days, and
+            remove any channel you do not really follow. Every watched item is
+            another request.</p>
+        </div>
+        <div class="more-sec">
+          <label>2 · Wait it out</label>
+          <p class="more-note">Turn Watch off for a day. These blocks lift on
+            their own far more often than not.</p>
+        </div>
+        <div class="more-sec">
+          <label>3 · Sign in</label>
+          <p class="more-note"><b>Settings → Sign-in → Sign in to YouTube</b>.
+            A signed-in request is rarely challenged. Use an account you do not
+            mind losing — heavy automated use can get the account itself
+            limited, and that is a real risk, not a formality.</p>
+        </div>
+        <div class="more-sec">
+          <label>4 · Turn on the helper</label>
+          <p class="more-note"><b>Settings → YouTube → proof-of-origin
+            helper</b>. It answers the check YouTube is making, which is exactly
+            what this failure is.</p>
+        </div>
+        <div class="more-sec">
+          <label>5 · Update the engine</label>
+          <p class="more-note"><b>Settings → Advanced → Update engine</b>. When
+            YouTube changes something, the fix usually arrives there first.</p>
         </div>
       </div>
-
-      <div class="rows">
-        <div class="drow step">
-          <div class="wnum">1</div>
-          <div class="grow" style="min-width:0">
-            <div class="f15 w500 step-head">Slow it down
-              <span class="badge b-run" id="fixSlowBadge" hidden>Doing this now</span></div>
-            <div class="f12 faint">Every watched item is another request. 24 hours or
-              2 days is plenty for a channel that posts weekly.</div>
-          </div>
-          <div class="step-act">
-            <label class="sr-only" for="fixHours">Check every</label>
-            <select id="fixHours" class="input">
-              <option value="6">Every 6 hours</option>
-              <option value="12">Every 12 hours</option>
-              <option value="24">Every 24 hours</option>
-              <option value="48">Every 2 days</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="drow step">
-          <div class="wnum">2</div>
-          <div class="grow" style="min-width:0">
-            <div class="f15 w500 step-head">Wait it out
-              <span class="badge b-run" id="fixOffBadge" hidden>Watching is off</span></div>
-            <div class="f12 faint">Turn watching off for a day. These blocks lift on
-              their own far more often than not.</div>
-          </div>
-          <div class="step-act">
-            <button class="toggle" id="fixWatchOn" role="switch"
-                    title="Watching, on or off"><i></i></button>
-          </div>
-        </div>
-
-        <div class="drow step">
-          <div class="wnum">3</div>
-          <div class="grow" style="min-width:0">
-            <div class="f15 w500 step-head">Sign in</div>
-            <div class="f12 faint">A signed-in request is rarely challenged. Use an
-              account you would not mind losing &mdash; heavy automated use can get
-              the account itself limited, and that is a real risk, not a formality.</div>
-          </div>
-          <div class="step-act">
-            <button type="button" class="btn sm" id="fixSignIn">Sign in to YouTube</button>
-          </div>
-        </div>
-
-        <div class="drow step">
-          <div class="wnum">4</div>
-          <div class="grow" style="min-width:0">
-            <div class="f15 w500 step-head">Turn on the helper
-              <span class="badge b-ok" id="fixPotBadge" hidden>Already on</span></div>
-            <div class="f12 faint">It answers exactly the check being made here.</div>
-          </div>
-          <div class="step-act">
-            <button type="button" class="btn sm" id="fixPot">Turn it on</button>
-            <span class="badge b-ok" id="fixPotDone" hidden>Installed</span>
-          </div>
-        </div>
-
-        <div class="drow step">
-          <div class="wnum">5</div>
-          <div class="grow" style="min-width:0">
-            <div class="f15 w500 step-head">Update the engine</div>
-            <div class="f12 faint">When YouTube changes something, the fix usually
-              arrives here first.</div>
-          </div>
-          <div class="step-act">
-            <button type="button" class="btn sm" id="fixEngine">Check for an update</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="summary" id="fixSummary">
-        <span class="grow">Riplox will not un-pause this on its own. When you
-          think it has passed, press <b>Check it now</b> &mdash; one request, and
-          it either works or it does not.</span>
-        <button type="button" class="btn sm" id="fixCheckNow">Check it now</button>
-      </div>
-    </div>
-
-    <!-- Every new video from every watched item, in one place. They used to be
-         nested inside each row, which meant the answer to "what is new" was
-         spread across however many rows were open. -->
-    <div class="card" id="watchNew" hidden>
-      <div class="card-head">
-        <h3>New since you last looked</h3>
-        <span class="f12 faint" id="watchNewSub"></span>
-        <button type="button" class="btn sm more" id="watchGetAll">Download all</button>
-        <button type="button" class="btn sm" id="watchSkipAll">Clear</button>
-      </div>
-      <div class="rows" id="watchNewList"></div>
-    </div>
+    </details>
   </section>
 
   <!-- =========================== SHARING ============================= -->
   <section class="view" id="view-sharing">
-
-    <!-- The one thing on this screen that needs a decision, above the things
-         that do not. Hidden entirely when nothing is held, so an empty card
-         never sits at the top of the room. -->
-    <div class="card" id="waitingCard" hidden>
-      <div class="card-head">
-        <h3>Waiting for you</h3>
-        <span class="f12 faint">Nothing downloads until you say so</span>
-        <button type="button" class="btn sm more" id="approveAll">Approve all</button>
+    <div class="view-head">
+      <h2>Send to Riplox</h2>
+      <div class="row-gap">
+        <span class="share-state" id="shareState">off</span>
+        <button class="toggle" id="setSharing" role="switch"
+                title="Let paired devices send links here"><i></i></button>
       </div>
-      <div class="rows" id="waitingList"></div>
     </div>
 
-    <div class="two">
-      <div class="card">
-        <div class="card-head">
-          <h3>Pair a device</h3>
-          <span class="f12 faint more">One device, two minutes</span>
+    <p class="conv-note">Share a link from your phone — it downloads on this
+      PC. Only the link travels, and nothing on the internet can reach this
+      computer.</p>
+
+    <!-- Asked the practical way round. A PC cannot reliably wake a phone to
+         ask it anything, but the relay already holds undelivered links for
+         seven days - so the PC asks the relay instead. Counts only; the relay
+         cannot read the links and is not asked to hand them over. -->
+    <div class="share-check">
+      <button class="ghost small" id="checkStuck">Check for anything missed</button>
+      <span class="share-check-note" id="stuckNote">Links sent while this PC
+        was off are kept for a week and arrive when it comes back.</span>
+    </div>
+
+    <div class="share-grid">
+      <div class="panel share-pair">
+        <div class="field">
+          <div class="field-text">
+            <label>Pair a device</label>
+            <span>One device, two minutes.</span>
+          </div>
+          <div class="row-gap">
+            <input type="text" id="shareName" class="text-input pair-name"
+                   maxlength="24" autocomplete="off" placeholder="Whose phone?">
+            <button class="ghost small" id="shareInvite">Show code</button>
+          </div>
         </div>
-        <div class="row" style="gap:20px;align-items:flex-start">
+        <div class="qr-box" id="qrBox" hidden>
           <div class="qr" id="qrImage"></div>
-          <div class="grow">
-            <label class="sr-only" for="shareName">Whose phone?</label>
-            <div class="row gap8">
-              <input type="text" id="shareName" class="input"
-                     maxlength="24" autocomplete="off" placeholder="Whose phone?">
-              <button class="btn sm" id="shareInvite">Show code</button>
+          <div class="qr-side">
+            <p class="qr-note" id="qrExpiry"></p>
+            <code id="qrCode"></code>
+            <p class="qr-note dim">Can't scan? Open
+              <code class="inline">relay.xniperbuilds.com/p/</code> on the phone
+              and paste this code.</p>
+            <div class="btn-row">
+              <button class="ghost small" id="qrCopy">Copy code</button>
+              <button class="ghost small" id="qrCopyLink">Copy link</button>
             </div>
-            <div id="qrBox" hidden>
-              <div class="f12 faint" style="margin:12px 0 8px">Scan it, or type the code:</div>
-              <div class="code" id="qrCode"></div>
-              <p class="f12 faint" style="margin-top:12px;line-height:1.8">
-                <span id="qrExpiry"></span><br>
-                Can't scan? Open
-                <span class="mono muted">relay.xniperbuilds.com/p/</span> on the phone.</p>
-              <div class="row gap8" style="margin-top:14px">
-                <button class="btn sm" id="qrCopy">Copy code</button>
-                <button class="btn sm" id="qrCopyLink">Copy link</button>
-              </div>
-              <code id="qrLink" hidden></code>
-            </div>
+            <code id="qrLink" hidden></code>
           </div>
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-head">
+      <div class="panel">
+        <div class="view-head sub-head panel-head">
           <h3>Paired devices</h3>
-          <span class="f12 faint" id="devCount"></span>
-          <button class="btn sm danger more" id="revokeAll" hidden>Remove all</button>
+          <button class="ghost small danger" id="revokeAll" hidden>Remove all</button>
         </div>
         <div class="empty small" id="devicesEmpty">
           <p>No devices yet.</p>
-          <span>Pair one and it appears here.</span>
+          <span>Pair one above and it appears here.</span>
         </div>
-        <div class="rows" id="devicesList"></div>
-
-        <p class="f12 faint" id="devicesNote">Each device can be renamed, paused
-          or removed on its own. Removing one does not disturb the others, and a
-          removed device cannot pair again with the old code.</p>
+        <div id="devicesList"></div>
       </div>
     </div>
 
-    <!-- Asked of the relay rather than of the phone: a PC cannot reliably wake
-         a phone, and the relay already keeps undelivered links for a week.
-         Counts only - the relay cannot read them and is not asked to hand them
-         over. -->
-    <div class="card" id="missedCard">
-      <div class="card-head">
-        <h3>Anything missed</h3>
-        <button type="button" class="btn sm more" id="checkStuck">Check now</button>
-      </div>
-      <div class="summary">
-        Only the link travels, and nothing on the internet can reach this
-        computer. Links sent while this PC was off are held for
-        <b>seven days</b> and arrive when it comes back. Riplox asks the relay
-        for a <b>count only</b>.
-      </div>
-      <div class="rows">
-        <div class="drow flat missed-row">
-          <span class="dot" id="stuckDot"></span>
-          <div class="grow" style="min-width:0">
-            <div class="f14 w500" id="stuckNote">Not checked yet</div>
-            <div class="f12 faint" id="stuckWhen">Checked when this room opens.</div>
-          </div>
+    <details class="more phone-help">
+      <summary>One tap from the share sheet</summary>
+      <div class="more-body">
+        <div class="more-sec">
+          <label>Android — the app</label>
+          <p class="more-note">Open the paired link on the phone and tap
+            <b>Download Riplox Send</b> (77 KB). Pair it with the code above,
+            and from then on <b>Share → Riplox Send</b> sends the link with
+            <b>nothing opening at all</b> — just a tick.</p>
+        </div>
+        <div class="more-sec">
+          <label>Android — without installing</label>
+          <p class="more-note">Open the paired link in Chrome →
+            <b>menu → Install app</b>. Riplox appears in the share sheet the
+            same way, but sharing opens the page for a moment.</p>
+        </div>
+        <div class="more-sec">
+          <label>iPhone</label>
+          <p class="more-note">iOS has no share target for web pages. In
+            Shortcuts: <b>new Shortcut → Open URLs</b>, tick <b>Show in Share
+            Sheet</b>, accept <b>URLs</b>, and set the URL to your paired link
+            with <code class="inline">?text=</code> and the <b>Shortcut
+            Input</b> on the end.</p>
         </div>
       </div>
-    </div>
+    </details>
 
-    <!-- Three ways, three cards. They were three paragraphs behind a summary,
-         which is the wrong shape for a set of alternatives: you cannot compare
-         three things you have to open one at a time. -->
-    <div class="card-head" style="margin:20px 0 10px">
-      <h3>One tap from the phone's share sheet</h3></div>
-    <div class="three">
-      <div class="card tight">
-        <div class="f15 w500" style="margin-bottom:8px">Android &mdash; the app</div>
-        <p class="f12 faint" style="line-height:1.8;margin:0">Open the paired link
-          on the phone and tap <b>Download Riplox Send</b> (77&nbsp;KB). After
-          that, <b>Share &rarr; Riplox Send</b> sends the link with nothing
-          opening at all &mdash; just a tick.</p>
-      </div>
-      <div class="card tight">
-        <div class="f15 w500" style="margin-bottom:8px">Android &mdash; no install</div>
-        <p class="f12 faint" style="line-height:1.8;margin:0">Open the paired link
-          in Chrome &rarr; <b>menu &rarr; Install app</b>. It appears in the share
-          sheet the same way, but sharing opens the page for a moment.</p>
-      </div>
-      <div class="card tight">
-        <div class="f15 w500" style="margin-bottom:8px">iPhone</div>
-        <p class="f12 faint" style="line-height:1.8;margin:0">iOS has no share
-          target for web pages. In Shortcuts: <b>new Shortcut &rarr; Open
-          URLs</b>, tick <b>Show in Share Sheet</b>, accept <b>URLs</b>, and put
-          the <b>Shortcut Input</b> on the end of your paired link after
-          <code class="inline">?text=</code>.</p>
-      </div>
-    </div>
-
-    <div class="card-head" style="margin:20px 0 10px">
+    <div class="view-head sub-head">
       <h3>Incoming</h3>
-      <button class="btn sm more" id="shareClearLog">Clear</button>
+      <button class="ghost small" id="shareClearLog">Clear</button>
     </div>
     <div class="empty small" id="incomingEmpty">
       <p>Nothing has been sent yet.</p>
       <span>Links sent from a paired device show up here.</span>
     </div>
-    <div class="rows" id="incomingList"></div>
+    <div id="incomingList"></div>
   </section>
 
   <!-- =========================== SETTINGS ============================ -->
   <section class="view" id="view-settings">
+    <div class="view-head"><h2>Settings</h2></div>
 
     <!-- This was an accordion - one shut row per group, opened one at a time.
          It worked at eight groups and stopped working at thirteen: every
@@ -1036,7 +851,7 @@
           <label>Save downloads to</label>
           <code id="dirLabel">{{ settings.download_dir }}</code>
         </div>
-        <button class="btn sm" id="chooseDir">Change</button>
+        <button class="ghost small" id="chooseDir">Change</button>
       </div>
 
       <div class="field">
@@ -1111,23 +926,6 @@
         </div>
       </div>
 
-      <!-- Two clock inputs tell you what you typed. They do not tell you that
-           22:00 to 06:00 is eight hours, or that it is a window at all. The
-           bar does, and it is the same twenty-four hours the engine checks
-           against. -->
-      <div class="field night-field">
-        <div class="night" id="nightBox">
-          <div class="night-bar" id="nightBar" aria-hidden="true"></div>
-          <div class="row night-legend">
-            <span class="f10 faint">00</span>
-            <span class="grow"></span>
-            <span class="f12" id="nightSays"></span>
-            <span class="grow"></span>
-            <span class="f10 faint">24</span>
-          </div>
-        </div>
-      </div>
-
       <!-- The number is not a guess: two maintained downloaders allow about
            one Instagram request every eight to twelve seconds, and sharing a
            dozen reels at once runs straight into that. Only Instagram is
@@ -1179,27 +977,23 @@
           <label>Only from these sites</label>
           <span id="clipSitesNote">Instant download acts on any site.</span>
         </div>
-        <button class="btn sm" id="clipSitesBtn">Choose sites</button>
+        <button class="ghost small" id="clipSitesBtn">Choose sites</button>
       </div>
 
-      <div class="field">
+      <div class="field sub-field">
         <div class="field-text">
-          <label>Shortcut</label>
+          <label>Shortcut: <code class="inline" id="hotkeyLabel">checking…</code></label>
           <span id="hotkeyNote">Downloads the copied link from any program.
                 Restart Riplox after changing this.</span>
         </div>
-        <div class="row-gap">
-          <span class="badge b-wait" id="hotkeyState">checking</span>
-          <code class="inline" id="hotkeyLabel">&hellip;</code>
-          <button class="toggle {% if settings.hotkey %}on{% endif %}"
-                  id="setHotkey" role="switch"><i></i></button>
-        </div>
+        <button class="toggle {% if settings.hotkey %}on{% endif %}"
+                id="setHotkey" role="switch"><i></i></button>
       </div>
 
       <!-- Riplox tries four combinations and takes whichever Windows grants.
            When all four are spoken for there was, until now, no shortcut and
            no way to ask for a different one. -->
-      <div class="field">
+      <div class="field sub-field">
         <div class="field-text">
           <label>Choose your own keys</label>
           <span>Press <b>Pick keys</b>, then hold the combination you want -
@@ -1207,7 +1001,7 @@
                 <b>automatic</b> and Riplox keeps choosing for you.</span>
           <span class="hint" id="comboNote"></span>
         </div>
-        <button class="btn sm" id="pickCombo">Pick keys</button>
+        <button class="ghost small" id="pickCombo">Pick keys</button>
       </div>
     </div>
 
@@ -1295,18 +1089,6 @@
         <button class="toggle {% if settings.skip_existing %}on{% endif %}"
                 id="setSkipExisting" role="switch"><i></i></button>
       </div>
-
-      <!-- Moved here from Activity. It was standing in the middle of a list of
-           downloads, which is a settings row where nobody is looking for one. -->
-      <div class="field">
-        <div class="field-text">
-          <label>Take a failed row off the list once it downloads</label>
-          <span>Off, a link that works on a later try stays on Activity marked
-                <b>downloaded later</b>. On, it is removed.</span>
-        </div>
-        <button class="toggle {% if settings.failed_clear_on_success %}on{% endif %}"
-                id="setFailedTidy" role="switch"><i></i></button>
-      </div>
     </div>
 
     <!-- ------------------------------------------------------ YouTube -->
@@ -1343,15 +1125,14 @@
       <div class="field">
         <div class="field-text">
           <label>YouTube helper</label>
-          <span>A <span id="potSize">44 MB</span> helper that runs on this PC.
-                It answers the proof-of-origin check behind &ldquo;confirm
-                you're not a bot&rdquo; &mdash; a fix, not a preference.</span>
-          <span class="footnote" id="potNote" hidden></span>
+          <span>A <span id="potSize">44 MB</span> helper that runs on this PC,
+                for when YouTube asks you to prove you are not a bot.</span>
+          <code id="potState">checking…</code>
         </div>
         <div class="row-gap">
-          <span class="badge b-wait" id="potState">checking</span>
-          <button class="btn sm" id="setPotoken">Install</button>
-          <button class="btn sm" id="removePotoken" hidden>Remove</button>
+          <button class="toggle {% if settings.potoken %}on{% endif %}"
+                  id="setPotoken" role="switch"><i></i></button>
+          <button class="ghost small" id="removePotoken" hidden>Remove</button>
         </div>
       </div>
     </div>
@@ -1373,8 +1154,8 @@
           <code id="cookieState">checking…</code>
         </div>
         <div class="row-gap">
-          <button class="btn sm" id="refreshCookies" hidden>Refresh</button>
-          <button class="btn sm" id="forgetCookies" hidden>Forget all</button>
+          <button class="ghost small" id="refreshCookies" hidden>Refresh</button>
+          <button class="ghost small" id="forgetCookies" hidden>Forget all</button>
         </div>
       </div>
 
@@ -1397,8 +1178,8 @@
           <div class="cookie-files" id="cookieFileList"></div>
         </div>
         <div class="row-gap">
-          <button class="btn sm" id="chooseCookies">Add files</button>
-          <button class="btn sm" id="clearCookies">Clear all</button>
+          <button class="ghost small" id="chooseCookies">Add files</button>
+          <button class="ghost small" id="clearCookies">Clear all</button>
         </div>
       </div>
 
@@ -1463,10 +1244,7 @@
                 shortcut above suits you.</span>
           <span class="hint" id="extPath"></span>
         </div>
-        <div class="row-gap">
-          <span class="badge b-wait" id="extThere">checking</span>
-          <button class="btn sm" id="openExtFolder">Open its folder</button>
-        </div>
+        <button class="ghost small" id="openExtFolder">Open its folder</button>
       </div>
 
       <div class="field">
@@ -1509,10 +1287,7 @@
                 take that entry back out.</span>
           <span class="hint" id="extConnectState"></span>
         </div>
-        <div class="row-gap">
-          <span class="badge b-wait" id="extConnected">checking</span>
-          <button class="btn sm" id="connectBrowser">Connect</button>
-        </div>
+        <button class="ghost small" id="connectBrowser">Connect</button>
       </div>
     </div>
 
@@ -1525,9 +1300,9 @@
           <span>Every video you have downloaded, as a list or a spreadsheet.</span>
         </div>
         <div class="btn-row">
-          <button class="btn sm" data-export="txt">.txt</button>
-          <button class="btn sm" data-export="csv">.csv</button>
-          <button class="btn sm" data-export="json">.json</button>
+          <button class="ghost small" data-export="txt">.txt</button>
+          <button class="ghost small" data-export="csv">.csv</button>
+          <button class="ghost small" data-export="json">.json</button>
         </div>
       </div>
 
@@ -1538,8 +1313,8 @@
                 machine.</span>
         </div>
         <div class="btn-row">
-          <button class="btn sm" id="settingsExport">Save</button>
-          <button class="btn sm" id="settingsImport">Restore</button>
+          <button class="ghost small" id="settingsExport">Save</button>
+          <button class="ghost small" id="settingsImport">Restore</button>
         </div>
       </div>
     </div>
@@ -1565,15 +1340,11 @@
           <div class="field-text">
             <label>Download engine</label>
             <span id="engineVersion">checking…</span>
-            <span class="footnote" id="engineChecked"></span>
             <!-- Only ever a line of text. The check asks which version is
                  published; nothing is fetched until Update is pressed. -->
             <span id="engineUpdate" class="warn" hidden></span>
           </div>
-          <div class="row-gap">
-            <span class="badge b-wait" id="engineState">checking</span>
-            <button class="btn sm" id="updateEngine">Update</button>
-          </div>
+          <button class="ghost small" id="updateEngine">Update</button>
         </div>
 
         <div class="field">
@@ -1629,7 +1400,7 @@
             <label>Check now</label>
             <span>You are on v{{ version }}.</span>
           </div>
-          <button class="btn sm" id="checkUpdateNow">Check</button>
+          <button class="ghost small" id="checkUpdateNow">Check</button>
         </div>
 
         <p class="footnote">
@@ -1710,7 +1481,7 @@
                 last result per site. No links, no sign-ins, and your account
                 name is taken out of the paths.</span>
         </div>
-        <button class="btn sm" id="copyDiag">Copy report</button>
+        <button class="ghost small" id="copyDiag">Copy report</button>
       </div>
       <pre class="diag" id="diagBox" hidden></pre>
     </div>
@@ -1852,11 +1623,10 @@
         <div class="field-text">
           <label>Report a bug or ask for a feature</label>
           <span>Opens the issue tracker. Say what you did and what happened —
-                and if a download failed, open <b>What happened</b> on that row
-                and press <b>Copy this report</b>. That is everything needed,
-                in one paste.</span>
+                and if a download failed, <b>Copy error details</b> on the
+                failed row puts everything needed in one paste.</span>
         </div>
-        <button class="btn sm" id="reportIssue">Open</button>
+        <button class="ghost small" id="reportIssue">Open</button>
       </div>
     </div>
 
@@ -1865,7 +1635,6 @@
   </section>
 
 </main>
-  </div>
 </div><!-- /stage -->
 </div><!-- /app -->
 
@@ -1874,286 +1643,16 @@
      "127.0.0.1:50473 says" - which looks like something has gone wrong and
      puts a port number in front of the user for no reason. Same fix as
      Transport Ledger and RentLedger. -->
-<!-- Convert was a room you visited in order to point back at files that were
-     already in the library. The rows have carried a one-click Convert to MP3
-     for a while, so all the room really held was the decisions: which format,
-     which quality, where the new file goes, and files from outside. That is a
-     dialog, not a destination. -->
-  <!-- Adding moves behind the Add button: it is done once and then never
-       again, so it does not need to sit at the top of the screen forever. -->
-<!-- The only question worth asking in this state, answered both ways. Five
-     and five, and every line is something Riplox actually does. -->
-<div class="scrim" id="limitedDlg" hidden>
-  <div class="sheet sheet-wide" role="dialog" aria-modal="true"
-       aria-labelledby="limitedTitle">
-    <div class="card-head">
-      <h3 id="limitedTitle">Without the media tool</h3>
-      <button type="button" class="icon-btn more" id="limitedClose" title="Close"
-              aria-label="Close">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
-      </button>
-    </div>
-    <div class="two">
-      <div class="card">
-        <div class="card-head"><h3>What still works</h3></div>
-        <div class="f13 muted lim-list">
-          <div class="row gap8"><span class="dot"></span>Downloading up to 720p, in one file</div>
-          <div class="row gap8"><span class="dot"></span>Every site Riplox supports</div>
-          <div class="row gap8"><span class="dot"></span>Watching channels and playlists</div>
-          <div class="row gap8"><span class="dot"></span>Sending links from a phone</div>
-          <div class="row gap8"><span class="dot"></span>Subtitles, thumbnails and descriptions</div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-head"><h3>What needs the media tool</h3></div>
-        <div class="f13 faint lim-list">
-          <div class="row gap8"><span class="dot bad"></span>1080p and above &mdash; video and audio
-            arrive separately and have to be merged</div>
-          <div class="row gap8"><span class="dot bad"></span>MP3, and any audio conversion</div>
-          <div class="row gap8"><span class="dot bad"></span>Chapters saved as separate files</div>
-          <div class="row gap8"><span class="dot bad"></span>Most-replayed moments cut into clips</div>
-          <div class="row gap8"><span class="dot bad"></span>Trimming part of a video</div>
-        </div>
-      </div>
-    </div>
-    <p class="dlg-msg">Riplox installs the media tool with itself. Reinstalling
-      restores it, and nothing you have downloaded or set up is touched.</p>
-  </div>
-</div>
-
-<div class="scrim" id="watchAddDlg" hidden>
-    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="watchAddTitle">
-      <div class="card-head">
-        <h3 id="watchAddTitle">Watch a channel or playlist</h3>
-        <button type="button" class="icon-btn more" id="watchAddClose" title="Close"
-                aria-label="Close">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
-        </button>
-      </div>
-      <p class="dlg-msg">Riplox checks it every few hours and tells you what is
-        new. It never downloads anything on its own.</p>
-
-      <label class="sr-only" for="watchUrl">Channel or playlist link</label>
-      <input type="url" id="watchUrl" class="input"
-             placeholder="Paste a channel or playlist link" autocomplete="off">
-      <p class="warn" id="watchError" hidden></p>
-
-      <div class="watch-pick" id="watchPick" hidden>
-        <p class="more-note">That is a whole channel. Pick the section to watch &mdash;
-          a channel's front page never changes when a video is posted.</p>
-        <div class="chips" id="watchTabs"></div>
-      </div>
-
-      <div class="dlg-row">
-        <button type="button" class="btn sm" id="addPlaylist">Add as playlist</button>
-        <button type="button" class="btn pri sm" id="addChannel">Add channel</button>
-      </div>
-    </div>
-  </div>
-
-<div class="scrim" id="convDlg" hidden>
-  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="convDlgTitle">
-    <div class="dlg-head">
-      <h3 id="convDlgTitle">Convert to audio</h3>
-      <button class="btn sm" id="convPick">Choose files from this PC…</button>
-    </div>
-
-
-    <p class="conv-note">Pulls the sound out of anything already on your
-      computer. The original is never touched.</p>
-
-    <div class="conv-controls">
-      <label class="conv-field">
-        <span>Format</span>
-        <select id="convFormat"></select>
-      </label>
-      <label class="conv-field">
-        <span>Quality</span>
-        <select id="convQuality"></select>
-      </label>
-      <label class="conv-field conv-where">
-        <input type="checkbox" id="convBeside" checked>
-        <span>Save next to the original</span>
-      </label>
-      <button class="btn pri" id="convStart" disabled>Convert</button>
-    </div>
-
-    <div class="conv-picked" id="convPicked" hidden></div>
-
-    <div class="view-head sub-head">
-      <h3>From your library</h3>
-      <label class="conv-field"><input type="checkbox" id="convAll"><span>Select all</span></label>
-    </div>
-    <div class="empty" id="convEmpty">
-      <p>Nothing to convert yet.</p>
-      <span>Download something, or choose a file from this PC.</span>
-    </div>
-    <ul class="conv-list" id="convList"></ul>
-
-    <div class="dlg-foot">
-      <button class="btn" id="convClose">Close</button>
-    </div>
-  </div>
-</div>
-
-<!-- What one download actually did. The log has always been kept; until now
-     the only thing you could do with it was copy it blind and paste it
-     somewhere else to read it. -->
-<!-- One way in. The app has four search boxes - queue, library, settings,
-     sites - and six rooms, and the commonest thing anybody does here is paste
-     a link. Ctrl+K takes all of it. -->
-<!-- Riplox opened straight onto an empty screen, so every default was found
-     out later - usually by being wrong once. Three questions, and the third
-     is not a question. -->
-<!-- Riplox already records the site, the size and the date of every finished
-     download, and the failures separately. It had never shown any of it back.
-     Nothing here is fetched or stored - it is those two files, counted. -->
-<div class="scrim" id="insights" hidden>
-  <div class="sheet sheet-wide" role="dialog" aria-modal="true" aria-labelledby="insightsTitle">
-    <div class="dlg-head">
-      <div>
-        <h3 id="insightsTitle">Insights</h3>
-        <p class="dlg-msg" id="insSub"></p>
-      </div>
-      <!-- Every figure above is counted from the library file, so what this
-           exports is that file - one row per finished download. Named for
-           what it writes rather than for the screen it is on. -->
-      <button type="button" class="btn sm more" data-export="csv"
-              title="One row per finished download - the file these figures are counted from">
-        Export the library as CSV</button>
-    </div>
-
-    <div class="ins-tiles">
-      <div class="panel tight"><h4>Downloaded</h4><b id="insFiles"></b><span id="insSize"></span></div>
-      <div class="panel tight"><h4>This week</h4><b id="insWeek"></b><span id="insWeekSize"></span></div>
-      <div class="panel tight"><h4>Worked first try</h4><b id="insFirst"></b><span id="insFirstOf"></span></div>
-      <div class="panel tight"><h4>Most from</h4><b id="insTop"></b><span id="insTopShare"></span></div>
-    </div>
-
-    <div class="panel tight">
-      <b>Where it comes from, and how often it works</b>
-      <div class="ins-sites" id="insSites"></div>
-    </div>
-
-    <div class="dlg-foot">
-      <button class="btn" id="insightsClose">Close</button>
-    </div>
-  </div>
-</div>
-
-<div class="scrim" id="firstRun" hidden>
-  <div class="sheet sheet-wide" role="dialog" aria-modal="true" aria-labelledby="firstRunTitle">
-    <div class="dlg-head">
-      <div>
-        <h3 id="firstRunTitle">Welcome to Riplox</h3>
-        <p class="dlg-msg">Three things, then it is out of your way.</p>
-      </div>
-    </div>
-
-    <div class="panel tight fr-card">
-      <b>Where should downloads go?</b>
-      <div class="btn-row">
-        <button class="btn" id="frDir"><span class="mono" id="frDirText"></span></button>
-        <button class="btn sm" id="frDirPick">Change</button>
-      </div>
-      <label class="check"><input type="checkbox" id="frPerSite"><span>Keep a folder per site</span></label>
-    </div>
-
-    <div class="panel tight fr-card">
-      <b>Should Riplox watch your clipboard?</b>
-      <p>Copy a link anywhere and Riplox offers to take it. You can turn it off
-        later in <b>Doing it for you</b>.</p>
-      <label class="check"><input type="checkbox" id="frClip"><span>Watch the clipboard</span></label>
-    </div>
-
-    <div class="panel tight fr-card">
-      <b>Media tool <span class="badge" id="frFfmpeg"></span></b>
-      <p id="frFfmpegWhy"></p>
-    </div>
-
-    <div class="dlg-foot">
-      <span class="fr-note">Everything here can be changed later.</span>
-      <button class="btn" id="frSkip">Skip</button>
-      <button class="btn pri" id="frDone">Start using Riplox</button>
-    </div>
-  </div>
-</div>
-
-<div class="scrim scrim-top" id="palette" hidden>
-  <div class="sheet" role="dialog" aria-modal="true" aria-label="Search Riplox">
-    <div class="omni">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
-           stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
-      <input type="text" id="paletteInput" autocomplete="off" spellcheck="false"
-             placeholder="Search, or paste a link&hellip;">
-      <kbd>esc</kbd>
-    </div>
-    <div class="sheet-body" id="paletteList"></div>
-    <div class="sheet-foot">
-      <span><kbd>&uarr;</kbd><kbd>&darr;</kbd> move</span>
-      <span><kbd>&crarr;</kbd> run</span>
-      <span class="grow"></span>
-      <span>Paste a link here and it is analysed straight away</span>
-    </div>
-  </div>
-</div>
-
-<div class="scrim" id="jobDetail" hidden>
-  <div class="sheet sheet-wide" role="dialog" aria-modal="true"
-       aria-labelledby="jobDetailTitle">
-    <div class="card-head">
-      <div class="rthumb jd-thumb" id="jdThumb"></div>
-      <div class="grow" style="min-width:0">
-        <h3 id="jobDetailTitle">What happened</h3>
-        <span class="f12 faint mono trunc" id="jdUrl"></span>
-      </div>
-      <span class="badge b-wait" id="jdBadge"></span>
-      <button type="button" class="icon-btn" id="jobDetailClose" title="Close"
-              aria-label="Close">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
-      </button>
-    </div>
-
-    <!-- Three readings of one log. Nothing is fetched by pressing these; the
-         log arrived in one piece and is only being shown a part at a time. -->
-    <div class="tabs" id="jdTabs">
-      <button type="button" class="tab on" data-jdtab="what">What happened</button>
-      <button type="button" class="tab" data-jdtab="cmd">Command</button>
-      <button type="button" class="tab" data-jdtab="out">Engine output
-        <span class="n" id="jdOutN">0</span></button>
-    </div>
-
-    <div class="jd-body">
-      <div class="rows" id="jdWhat"></div>
-      <pre class="cmd" id="jdCmd" hidden></pre>
-      <pre class="cmd job-log" id="jobLogBox" hidden></pre>
-    </div>
-
-    <div class="summary" id="jdAdvice" hidden></div>
-
-    <div class="row gap8 jd-foot">
-      <button type="button" class="btn sm" id="jobLogCopy">Copy this report</button>
-      <button type="button" class="btn sm" id="jdOpenFolder">Open the folder it would have used</button>
-      <span class="grow"></span>
-      <button type="button" class="btn" id="jdForget" hidden>Forget it</button>
-      <button type="button" class="btn pri" id="jdRetry" hidden>Try again</button>
-    </div>
-  </div>
-</div>
-
 <div class="scrim" id="xdlg" hidden>
-  <div class="sheet sheet-ask" role="dialog" aria-modal="true" aria-labelledby="xdlgTitle">
+  <div class="dlg dlg-ask" role="dialog" aria-modal="true" aria-labelledby="xdlgTitle">
     <h3 id="xdlgTitle">Riplox</h3>
     <p class="dlg-msg" id="xdlgMsg"></p>
     <div class="dlg-input" id="xdlgInputWrap" hidden>
       <input type="text" id="xdlgInput" class="text-input" autocomplete="off">
     </div>
     <div class="dlg-foot">
-      <button class="btn" id="xdlgCancel">Cancel</button>
-      <button class="btn pri" id="xdlgOk">OK</button>
+      <button class="ghost" id="xdlgCancel">Cancel</button>
+      <button class="primary" id="xdlgOk">OK</button>
     </div>
   </div>
 </div>
@@ -2163,7 +1662,7 @@
      that makes repeated requests on its own, and the one that can get a
      Google account limited. It should not be possible to click past it. -->
 <div class="scrim" id="watchWarn" hidden>
-  <div class="sheet sheet-ask" role="dialog" aria-modal="true" aria-labelledby="watchWarnTitle">
+  <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="watchWarnTitle">
     <h3 id="watchWarnTitle">Read this before turning watching on</h3>
     <ul class="dlg-list">
       <li><b>This is automated.</b> Riplox will ask the site for each watched
@@ -2183,8 +1682,8 @@
         temporary, and ordinary downloads keep working.</li>
     </ul>
     <div class="dlg-foot">
-      <button class="btn" id="watchWarnNo">Cancel</button>
-      <button class="btn pri" id="watchWarnOk" disabled>I understand (15)</button>
+      <button class="ghost" id="watchWarnNo">Cancel</button>
+      <button class="primary" id="watchWarnOk" disabled>I understand (15)</button>
     </div>
   </div>
 </div>
@@ -2195,35 +1694,16 @@
      The two lists are deliberately not interchangeable: a filter naming
      "youtube:tab" would match nothing, forever, and say nothing about it. -->
 <div class="scrim" id="sitePicker" hidden>
-  <div class="sheet" role="dialog" aria-modal="true"
+  <div class="dlg dlg-sites" role="dialog" aria-modal="true"
        aria-labelledby="sitePickerTitle">
-    <div class="card-head">
-      <h3 id="sitePickerTitle">Supported sites</h3>
-      <button type="button" class="icon-btn more" id="sitePickerClose" title="Close"
-              aria-label="Close">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
-      </button>
-    </div>
+    <h3 id="sitePickerTitle">Sites</h3>
     <p class="dlg-msg" id="sitePickerMsg"></p>
 
     <label class="sr-only" for="siteSearch">Search sites</label>
-    <input type="search" id="siteSearch" class="input" autocomplete="off"
+    <input type="search" id="siteSearch" class="text-input" autocomplete="off"
            spellcheck="false" placeholder="Search sites…">
 
-    <!-- Two sets, and they are genuinely different: one is what Riplox can
-         read a page from, the other is everything it can download given a
-         direct link. Stacking them left the reader to work out why there were
-         two lists. Chips with counts say it. -->
-    <div class="filters" id="siteKinds" role="group" aria-label="Which sites">
-      <button type="button" class="chip is-on" data-which="pick">Pick from a page<em class="k" id="countPick"></em></button>
-      <button type="button" class="chip" data-which="all">Download only<em class="k" id="countAllSites"></em></button>
-    </div>
-    <p class="site-why"><b>Pick from a page</b> means Riplox can read the page
-      and list every video on it. Everything else downloads fine from a direct
-      link &mdash; it just cannot be browsed.</p>
-
-    <div class="sgrid" id="sitePickList"></div>
+    <div class="site-pick" id="sitePickList"></div>
 
     <div class="site-all" id="siteAllWrap" hidden>
       <div class="site-all-head" id="siteAllHead"></div>
@@ -2231,8 +1711,8 @@
     </div>
 
     <div class="dlg-foot">
-      <button class="btn" id="sitePickerCancel">Cancel</button>
-      <button class="btn pri" id="sitePickerSave">Save</button>
+      <button class="ghost" id="sitePickerCancel">Cancel</button>
+      <button class="primary" id="sitePickerSave">Save</button>
     </div>
   </div>
 </div>

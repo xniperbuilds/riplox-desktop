@@ -19,71 +19,6 @@
 
   var $ = function (id) { return document.getElementById(id); };
 
-  /* ---------------------------------------------------------------- scale
-
-     Every size in this interface is measured for a 1440px-wide screen: the
-     320 rail, the 68 rows, the two-column panels, the type scale. None of
-     that shrinks on its own.
-
-     A 1080p laptop at Windows' default 150% hands the page 1280 CSS pixels,
-     not 1920. So the 1440 layout was being squeezed into 1280 and everything
-     came out looking oversized - the rail wider than it should be, the titles
-     too large, less room for the thing you came for.
-
-     Scaling the page instead gives the layout the width it was drawn for and
-     makes everything land at the size it was designed at. The floor is there
-     because past a point small stops being faithful and starts being unusable.
-  */
-  function fitToDesign() {
-    var DESIGN = 1440, TALL = 1024, FLOOR = 0.5;
-    var b = document.body;
-    // On <body>, not on <html>. Zooming the root scales what is drawn but the
-    // layout still only gets the window's width, so everything shrinks and the
-    // right side goes empty. On body it does what is wanted: the interface is
-    // laid out at 1440 and then drawn smaller - measured here, the stage went
-    // from 960 to 1024 while the rail went from 320 to 256.
-    //
-    // getBoundingClientRect stays in real pixels whatever the zoom, so this
-    // reads the same number every pass and cannot oscillate.
-    // The viewport, not the body. A body's height is whatever its content
-    // happens to be, so measuring it and then scaling by the result chases its
-    // own tail - it settled on the floor here. documentElement's clientWidth
-    // and clientHeight stay in real pixels whatever the zoom, which is exactly
-    // what this needs.
-    var d = document.documentElement;
-    var box = { width: d.clientWidth, height: d.clientHeight };
-    var cur = parseFloat(b.style.zoom) || 1;
-    // Both directions. Fitting the width alone gave the layout 1440 across but
-    // only ~790 down, so the video screen - which is drawn for 1024 - had to
-    // scroll. Taking the smaller of the two means the whole screen fits, which
-    // is the thing the design was checked for.
-    // Width only. Fitting the height as well was worse than the problem it
-    // solved: a window is about 1.78 wide to tall and the design is 1.41, so
-    // scaling to the height left roughly 900px of the window empty and pushed
-    // the whole interface into its left half. A screen that has to scroll is a
-    // smaller fault than a screen using half the window it was given.
-    var k = Math.min(1, Math.max(FLOOR, box.width / DESIGN));
-    if (Math.abs(k - cur) > 0.002) b.style.zoom = k === 1 ? "" : k.toFixed(4);
-
-    // The shell fills the window: `height:100%` inside a zoomed element still
-    // resolves against the parent's real pixels, which left a band underneath.
-    b.style.height = Math.round(box.height / k) + "px";
-    b.style.width = "";
-  }
-  fitToDesign();
-  addEventListener("resize", fitToDesign);
-  // A window can also be resized while nobody is looking - moved to another
-  // monitor, or the display scale changed - and resize does not always fire.
-  setInterval(fitToDesign, 500);
-
-  /* The Rip button is two lines: RIP on top, what it will take underneath.
-     Writing textContent on the button itself would delete both of them, so
-     only the second line is ever touched. */
-  function ripWhat(text) {
-    var el = $("ripWhat");
-    if (el) el.textContent = text;
-  }
-
   function api(path, body) {
     return fetch(path, {
       method: body === undefined ? "GET" : "POST",
@@ -200,16 +135,6 @@
     });
   }
 
-  /* Hours and minutes rather than 6:12:04 - a selection's length is a size to
-     weigh up, not a timestamp to read. */
-  function fmtLong(sec) {
-    sec = Math.round(sec || 0);
-    var h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
-    if (h && m) return h + "h " + m + "m";
-    if (h) return h + "h";
-    return Math.max(1, m) + "m";
-  }
-
   function fmtDuration(sec) {
     sec = Math.round(sec || 0);
     if (!sec) return "";
@@ -217,263 +142,6 @@
     var pad = function (n) { return n < 10 ? "0" + n : "" + n; };
     return h ? h + ":" + pad(m) + ":" + pad(s) : m + ":" + pad(s);
   }
-
-  /* ------------------------------------------------------- the palette */
-
-  /* Everything below is already on the page. The rooms are the rail's own
-     buttons and their badges; the settings rows are the labels the settings
-     search already reads; the library is the array the library screen holds.
-     Opening this fetches nothing. */
-
-  var palIndex = 0;
-  var palRows = [];
-
-  function palResults(term) {
-    var q = term.trim().toLowerCase();
-    var out = [];
-
-    // A link is the commonest thing anybody does here, so it comes first and
-    // it is offered as itself rather than as a search result.
-    if (/^https?:\/\//i.test(term.trim())) {
-      out.push({ group: "Do", label: "Analyse this link", hint: "and pick a quality",
-                 run: function () { $("urlInput").value = term.trim(); analyze(term.trim()); } });
-      out.push({ group: "Do", label: "Find every video on that page", hint: "reads the page",
-                 run: function () { $("urlInput").value = term.trim(); grabPage(term.trim()); } });
-      return out;
-    }
-    if (!q) return out;
-
-    // Go to - the rail, with whatever its badges say. Matched on [data-view]
-    // rather than on a class, so a restyle cannot quietly empty this list
-    // again: an item without a view is not a room, whatever it is called.
-    document.querySelectorAll(".nav-item[data-view]").forEach(function (item) {
-      var label = item.querySelector("span");
-      var name = label ? label.textContent.trim() : "";
-      if (!name || name.toLowerCase().indexOf(q) < 0) return;
-      var badge = item.querySelector(".pill");
-      out.push({
-        group: "Go to", label: name,
-        hint: badge && !badge.hidden ? badge.textContent + " waiting" : "",
-        run: function () { show(item.dataset.view); }
-      });
-    });
-
-    // Do - every settings row, found the way the settings search finds them.
-    document.querySelectorAll("#view-settings .field").forEach(function (row) {
-      var label = row.querySelector("label");
-      var name = label ? label.textContent.trim() : "";
-      if (!name || name.toLowerCase().indexOf(q) < 0) return;
-      var group = row.closest(".panel");
-      var head = group && group.previousElementSibling;
-      out.push({
-        group: "Do", label: name,
-        hint: head && head.classList.contains("group-head")
-          ? "Settings \u2192 " + head.textContent.trim() : "Settings",
-        run: function () {
-          show("settings");
-          row.scrollIntoView({ block: "center" });
-          row.classList.add("has-hit");
-          setTimeout(function () { row.classList.remove("has-hit"); }, 1600);
-        }
-      });
-    });
-
-    // In your library - what is already downloaded.
-    libraryItems.forEach(function (h) {
-      if (out.length > 24) return;
-      if (!h.title || h.title.toLowerCase().indexOf(q) < 0) return;
-      out.push({
-        group: "In your library", label: h.title,
-        hint: (h.quality || "") + (h.size ? " \u00b7 " + h.size : ""),
-        run: function () { show("library"); $("libSearch").value = h.title;
-                           $("libSearch").dispatchEvent(new Event("input")); }
-      });
-    });
-
-    return out;
-  }
-
-  function renderPalette() {
-    var rows = palResults($("paletteInput").value);
-    palRows = rows;
-    if (palIndex >= rows.length) palIndex = Math.max(0, rows.length - 1);
-
-    var box = $("paletteList");
-    if (!rows.length) {
-      box.innerHTML = '<p class="pal-none">'
-        + ($("paletteInput").value.trim()
-            ? "Nothing matches that."
-            : "Type to search, or paste a link.")
-        + "</p>";
-      return;
-    }
-    var html = "", group = "";
-    rows.forEach(function (r, i) {
-      if (r.group !== group) {
-        group = r.group;
-        html += '<div class="rail-label">' + esc(group) + "</div>";
-      }
-      html += '<div class="lrow' + (i === palIndex ? " is-on" : "") + '" data-i="' + i + '">' +
-        '<span class="grow">' + esc(r.label) + "</span>" +
-        (r.hint ? '<span class="pal-hint">' + esc(r.hint) + "</span>" : "") +
-        "</div>";
-    });
-    box.innerHTML = html;
-    var on = box.querySelector(".lrow.is-on");
-    if (on) on.scrollIntoView({ block: "nearest" });
-  }
-
-  function openPalette() {
-    $("palette").hidden = false;
-    $("paletteInput").value = "";
-    palIndex = 0;
-    renderPalette();
-    $("paletteInput").focus();
-  }
-
-  function closePalette() { $("palette").hidden = true; }
-
-  function runPalette(i) {
-    var row = palRows[i];
-    if (!row) return;
-    closePalette();
-    row.run();
-  }
-
-  $("paletteInput").addEventListener("input", function () {
-    palIndex = 0;
-    renderPalette();
-  });
-
-  $("paletteList").addEventListener("click", function (e) {
-    var row = e.target.closest(".lrow");
-    if (row) runPalette(+row.dataset.i);
-  });
-
-  $("palette").addEventListener("click", function (e) {
-    if (e.target === $("palette")) closePalette();
-  });
-
-  document.addEventListener("keydown", function (e) {
-    if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) {
-      e.preventDefault();
-      if ($("palette").hidden) openPalette(); else closePalette();
-      return;
-    }
-    if ($("palette").hidden) return;
-    if (e.key === "Escape") { e.preventDefault(); closePalette(); return; }
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      e.preventDefault();
-      if (!palRows.length) return;
-      palIndex = (palIndex + (e.key === "ArrowDown" ? 1 : -1) + palRows.length) % palRows.length;
-      renderPalette();
-      return;
-    }
-    if (e.key === "Enter") { e.preventDefault(); runPalette(palIndex); }
-  });
-
-  /* -------------------------------------------------------------- insights */
-
-  $("openInsights").addEventListener("click", function () {
-    $("insights").hidden = false;
-    api("/api/insights").then(function (r) {
-      if (!r || !r.ok) return;
-      /* "since <date>" would read as "this is when you started". The library
-         only keeps the last few hundred, so once it is full that date is the
-         oldest one still kept and nothing more. */
-      $("insSub").textContent = !r.files
-        ? "Nothing downloaded yet."
-        : r.capped
-          ? "the last " + r.files + " files \u00b7 " + r.size
-            + " \u00b7 older ones are not kept"
-          : r.files + " files \u00b7 " + r.size
-            + (r.since ? " \u00b7 since " + r.since : "");
-      $("insFiles").textContent = r.files;
-      $("insSize").textContent = r.size;
-      $("insWeek").textContent = r.week;
-      $("insWeekSize").textContent = r.week_size;
-      $("insFirst").textContent = r.first_try + "%";
-      $("insFirstOf").textContent = r.files + " of " + r.first_try_of;
-      $("insTop").textContent = r.top || "\u2014";
-      $("insTopShare").textContent = r.top ? r.top_share + "% of the library" : "";
-
-      /* The failure rate per site is the useful part: "it feels broken
-         lately" becomes a number about one site rather than an average that
-         hides which one. */
-      var most = (r.sites[0] && r.sites[0].done) || 1;
-      $("insSites").innerHTML = r.sites.map(function (s) {
-        var width = Math.max(2, Math.round(100 * s.done / most));
-        return '<div class="ins-row">' +
-          '<div class="ins-head"><span>' + esc(s.site) + "</span>" +
-          '<span class="pal-hint">' + s.done + " \u00b7 " + esc(s.size) +
-          (s.failed
-            ? ' \u00b7 <em class="ins-bad">' + s.rate + "% failed</em>"
-            : "") +
-          "</span></div>" +
-          '<div class="meter"><i style="width:' + width + '%"></i></div>' +
-          "</div>";
-      }).join("") || '<p class="pal-none">Nothing to count yet.</p>';
-    });
-  });
-
-  $("insightsClose").addEventListener("click", function () {
-    $("insights").hidden = true;
-  });
-  $("insights").addEventListener("click", function (e) {
-    if (e.target === $("insights")) $("insights").hidden = true;
-  });
-
-  /* ------------------------------------------------------------ first run */
-
-  /* Nothing here is a new setting - all three exist and all three have
-     defaults. This only puts them in front of someone once. */
-  function openFirstRun() {
-    $("frDirText").textContent = settings.download_dir || "";
-    $("frDir").title = settings.download_dir || "";
-    $("frPerSite").checked = !!settings.subfolder_per_site;
-    $("frClip").checked = !!settings.auto_paste;
-
-    // Said, not asked: it is bundled, and the alternative to saying so is
-    // finding out at the first 1080p download.
-    var badge = $("frFfmpeg");
-    badge.textContent = S.hasFfmpeg ? "Found" : "Missing";
-    badge.className = "badge " + (S.hasFfmpeg ? "b-ok" : "b-bad");
-    $("frFfmpegWhy").textContent = S.hasFfmpeg
-      ? "1080p and above, MP3, chapters and clips all need it. It ships with "
-        + "this install, so there is nothing for you to do."
-      : "1080p and above, MP3, chapters and clips all need it, and this "
-        + "install cannot find it. Those will be unavailable until it is there.";
-
-    $("firstRun").hidden = false;
-  }
-
-  function closeFirstRun() {
-    $("firstRun").hidden = true;
-    saveSetting({ first_run_done: true });
-  }
-
-  $("frDirPick").addEventListener("click", function () {
-    api("/api/choose-folder-once", {}).then(function (res) {
-      if (res.cancelled || !res.ok) return;
-      $("frDirText").textContent = res.dir;
-      $("frDir").title = res.dir;
-    });
-  });
-
-  $("frSkip").addEventListener("click", closeFirstRun);
-
-  $("frDone").addEventListener("click", function () {
-    var patch = {
-      subfolder_per_site: $("frPerSite").checked,
-      auto_paste: $("frClip").checked,
-      first_run_done: true
-    };
-    var dir = $("frDirText").textContent.trim();
-    if (dir && dir !== settings.download_dir) patch.download_dir = dir;
-    saveSetting(patch).then(function () { $("firstRun").hidden = true; });
-  });
-
-  if (!settings.first_run_done) openFirstRun();
 
   /* --------------------------------------------------------------- theme */
 
@@ -485,9 +153,6 @@
     var pick = settings.theme || "auto";
     var mode = pick === "auto" ? (media && media.matches ? "light" : "dark") : pick;
     document.documentElement.setAttribute("data-theme", mode);
-    // The design's tokens live on .frame / .frame.light, so the class is the
-    // real switch now; the attribute stays for the app's own older rules.
-    document.body.classList.toggle("light", mode === "light");
     document.querySelectorAll("#themePick button").forEach(function (b) {
       b.classList.toggle("is-on", b.dataset.theme === pick);
     });
@@ -511,162 +176,31 @@
 
   /* ---------------------------------------------------------------- tabs */
 
-  var views = ["capture", "queue", "library", "watch",
+  var views = ["capture", "queue", "library", "failed", "convert", "watch",
                "sharing", "settings"];
 
-  /* What each room is called and what it is for. The design gives every screen
-     a topbar carrying both, so this is where they live rather than inside the
-     content where they used to scroll away. */
-  var ROOM = {
-    capture:  ["Download",       "Paste a link, or copy one anywhere and Riplox catches it"],
-    queue:    ["Activity",       "What is running, what is waiting, and what did not work"],
-    library:  ["Library",        "Everything Riplox has finished, and who it came from"],
-    watch:    ["Watch",          "Channels and playlists Riplox checks - it never downloads on its own"],
-    sharing:  ["Send to Riplox", "Share a link from your phone and it downloads on this PC"],
-    settings: ["Settings",       "Everything Riplox can be told to do, grouped"]
-  };
-
   function show(view) {
-    // A sub-screen that took over the topbar does not survive going to another
-    // room - or coming back to this one.
-    closeWatchFix();
     views.forEach(function (v) {
       $("view-" + v).classList.toggle("is-active", v === view);
     });
-    document.querySelectorAll(".nav-item").forEach(function (b) {
-      b.classList.toggle("on", b.dataset.view === view);
+    document.querySelectorAll(".tab").forEach(function (b) {
+      b.classList.toggle("is-active", b.dataset.view === view);
     });
 
-    var room = ROOM[view] || ["", ""];
-    $("pageTitle").textContent = room[0];
-    $("pageSub").textContent = room[1];
-    $("pageTitle").classList.remove("sm");
-    document.querySelectorAll(".room-actions").forEach(function (g) {
-      g.hidden = g.dataset.room !== view;
-    });
-
-    /* If a video is still open, the Download room's topbar belongs to it, not
-       to the room - so coming back from another room finds it where it was
-       left rather than reset to the room's own name. */
-    if (view === "capture" && current && !$("preview").hidden) topbarForVideo(current);
-
-    // One room, so both lists are fetched when it opens.
-    if (view === "queue") { pollJobs(); loadFailed(); }
-    if (view === "library") { loadHistory(); if (accountsShown) loadAccounts(); }
+    if (view === "queue") pollJobs();
+    if (view === "library") loadHistory();
+    if (view === "failed") loadFailed();
+    if (view === "convert") loadConvert();
     if (view === "watch") loadWatch();
-    // Asked on open, because the only thing the press ever did was fetch a
-    // count - the links themselves arrive on their own while Sharing is on.
-    if (view === "sharing") { loadSharing(); askRelay(true); }
+    if (view === "sharing") loadSharing();
     if (view === "settings") {
       loadEngineVersion(); loadCookies(); loadPot(); checkEngineUpdate(false);
     }
   }
 
-  document.querySelectorAll(".nav-item").forEach(function (b) {
+  document.querySelectorAll(".tab").forEach(function (b) {
     b.addEventListener("click", function () { show(b.dataset.view); });
   });
-
-  /* The site row on the Download screen. The design's point about it: "the
-     site row is live status, not a sentence claiming a number." The app has
-     measured how each site behaved on this machine for a while and only ever
-     showed it inside Settings, so this is the same data where the question is
-     actually asked - before anything has even been pasted.
-
-     Six sites, then the count. The six are the ones people paste, and the
-     dot is this PC's own last result: green when the engine handled it,
-     amber when only Riplox's own route did, red when neither. A site with no
-     recent result gets no claim made about it. */
-  var SITE_ROW = ["YouTube", "TikTok", "Instagram", "X", "Reddit", "Facebook"];
-
-  // Kept where both the site row and the picker's cells can read it, so one
-  // request answers both and they cannot disagree.
-  var siteHealth = {};
-
-  function paintSiteRow(health) {
-    var row = $("siteRow");
-    if (!row) return;
-    var state = siteHealth;
-    (health || []).forEach(function (h) { state[(h.site || "").toLowerCase()] = h; });
-
-    row.innerHTML = SITE_ROW.map(function (name) {
-      var h = state[name.toLowerCase()];
-      var colour = !h ? "var(--line-mid)" : h.state === "ok" ? "var(--good)"
-                 : h.state === "door" ? "var(--warn)" : "var(--bad)";
-      var why = !h ? name + " - nothing tried here recently"
-              : h.state === "ok" ? name + " worked " + h.ago
-              : h.state === "door" ? name + " needed Riplox's own route " + h.ago
-              : name + " did not work " + h.ago + (h.why ? " - " + h.why : "");
-      return '<span class="site" title="' + esc(why) + '">' +
-        "<i" + (colour ? ' style="background:' + colour + '"' : "") + "></i>" +
-        esc(name) + "</span>";
-    }).join("") +
-      '<button type="button" class="site faint" id="siteMore">+' +
-      ((S.sites || []).length > SITE_ROW.length
-        ? ((S.sites || []).length - SITE_ROW.length).toLocaleString() : "1,744") +
-      " more</button>";
-
-    $("siteMore").addEventListener("click", function () { $("browseSites").click(); });
-    var count = $("siteCount");
-    if (count && (S.sites || []).length) count.textContent = S.sites.length.toLocaleString();
-  }
-
-  api("/api/health").then(function (res) {
-    paintSiteRow(res && res.ok ? res.sites : []);
-  }).catch(function () { paintSiteRow([]); });
-
-  /* How many sites, from the endpoint that actually knows. S.sites is the
-     short pickable list - thirteen names a rule can be written against - and
-     saying "works on 13 sites" would be the screen understating the app by two
-     orders of magnitude. `all` is every extractor the installed engine
-     carries, which is the honest answer to the question being asked. */
-  api("/api/sites").then(function (res) {
-    if (!res || !res.ok) return;
-    var n = (res.all || []).length || res.count || 0;
-    if (!n) return;
-    $("siteCount").textContent = n.toLocaleString();
-    var more = $("siteMore");
-    if (more) more.textContent = "+" + (n - SITE_ROW.length).toLocaleString() + " more";
-  }).catch(function () {});
-
-  /* Leaving the video behind. The topbar goes back to being the room's, which
-     is the one thing that has to happen however you leave - so both buttons
-     and the rail's own action go through here. */
-  function clearVideo() {
-    current = null;
-    heroVisible(true);
-    $("preview").hidden = true;
-    $("playlistWrap").hidden = true;
-    $("channelWrap").hidden = true;
-    $("analyzeError").hidden = true;
-    $("videoActions").hidden = true;
-    $("pageTitle").classList.remove("sm");
-    show("capture");
-  }
-
-  // A chip that says a video has fourteen subtitle tracks should be the way to
-  // the fourteen subtitle tracks.
-  $("pvHas").addEventListener("click", function (e) {
-    var chip = e.target.closest("[data-goto]");
-    if (chip) $(chip.dataset.goto).click();
-  });
-
-  $("videoBack").addEventListener("click", clearVideo);
-  $("videoClear").addEventListener("click", function () {
-    clearVideo();
-    $("urlInput").value = "";
-    $("urlInput").focus();
-  });
-
-  // The rail's "New download" button is gone - the Download room is that
-  // screen and it is the first item in the list directly below it. Its handler
-  // went with it rather than being left behind a guard: a guard would have made
-  // this a reference to an id that does not exist, which is the thing
-  // test_ids_exist.py is for.
-
-  // The topbar is filled by show(), and the page opens on Download - so it is
-  // told once here, or the room's name and subtitle stay blank until the first
-  // click on the rail.
-  show("capture");
 
   /* ------------------------------------------------------------- analyze */
 
@@ -741,375 +275,11 @@
       }
       current = res.info;
       renderPreview(res.info);
-      grabNote(res.info);
       toast(res.info.count + " found on that page", "good");
     }).catch(function () {
       setBusy(false);
       toast("The app lost contact with its engine.", "bad");
     });
-  }
-
-  /* Which group of the read page is on screen. "" is the pickable list, which
-     is the one you came for. */
-  var grabShowing = "";
-
-  /* A link that is already downloaded. The library is already in the page, so
-     this is free - no request, no guess - and it is the one thing this screen
-     can catch that nothing else will: downloading the same video twice. */
-  /* Only the parts that are not about where the link came from. The query
-     cannot be dropped wholesale - YouTube keeps the video's id in it - so the
-     ones that are known to be tracking come off and the rest stays.
-     lazy: a fixed list. A link carrying some other site's tracking parameter
-     will not match, and the cost of that is one video downloaded twice, which
-     is what happens today. Matching harder risks the opposite - hiding a
-     video from the pickable list because it looked like one already saved -
-     and that is the worse mistake here. */
-  var TRACKING = /^(utm_[a-z]+|igsh?i?|si|fbclid|gclid|feature|ref|ref_src|source|share_id)$/i;
-
-  function bareUrl(url) {
-    var s = String(url || "").split("#")[0];
-    var cut = s.indexOf("?");
-    if (cut < 0) return s.replace(/\/+$/, "");
-    var kept = s.slice(cut + 1).split("&").filter(function (pair) {
-      return pair && !TRACKING.test(pair.split("=")[0]);
-    });
-    return (s.slice(0, cut).replace(/\/+$/, "") +
-            (kept.length ? "?" + kept.join("&") : "")).toLowerCase();
-  }
-
-  function inLibrary(url) {
-    var bare = bareUrl(url);
-    for (var i = 0; i < libraryItems.length; i++) {
-      if (bare && bareUrl(libraryItems[i].url) === bare) return libraryItems[i];
-    }
-    return null;
-  }
-
-  /* What did not make it onto the list, and why. Four different reasons, said
-     as four different things - "48 left out" would be true and useless. */
-  function grabNote(info) {
-    var s = info.skipped || {};
-    var left = info.left_out || {};
-
-    $("grabSource").hidden = false;
-    $("grabUrl").textContent = info.page || "";
-    $("grabUrl").title = info.page || "";
-    $("grabTime").textContent = info.read_ms
-      ? "Read in " + (info.read_ms / 1000).toFixed(1) + "s" : "Read";
-    $("grabFoot").hidden = false;
-
-    /* Already downloaded is worked out here rather than asked for, and it is
-       taken off the pickable count: a chip that says 6 while the list holds 8
-       is worse than no chip. */
-    var known = [];
-    (info.entries || []).forEach(function (e, i) {
-      var hit = inLibrary(e.url);
-      if (hit) known.push({ url: e.url, title: e.title, site: e.site, hit: hit, index: i });
-    });
-
-    var groups = [
-      ["", "To download", (info.entries || []).length - known.length],
-      ["known", "In your library", known.length],
-      ["duplicates", "Repeated on the page", s.duplicates || 0],
-      ["unsupported", "No reader for the site", s.unsupported || 0],
-    ];
-    $("grabChips").hidden = false;
-    $("grabChips").innerHTML = groups
-      .filter(function (g) { return g[2] > 0 || g[0] === ""; })
-      .map(function (g) {
-        return '<button type="button" class="chip' +
-          (grabShowing === g[0] ? " on" : "") + '" data-grabgroup="' + g[0] +
-          '">' + g[1] + '<span class="k">' + g[2] + "</span></button>";
-      }).join("");
-
-    grabGroups = { known: known, duplicates: left.duplicates || [],
-                   unsupported: left.unsupported || [] };
-    paintGrabGroup();
-
-    // The one thing that is still a sentence: a cap is about the read, not
-    // about any particular link, so there is nothing to list.
-    var note = $("plNote");
-    note.hidden = !s.capped;
-    if (s.capped) {
-      note.textContent = "The page had more than " + info.count +
-        " and the read stopped there. Paste a later part of the page to see the rest.";
-    }
-  }
-
-  var grabGroups = { known: [], duplicates: [], unsupported: [] };
-
-  var GRAB_WHY = {
-    known: "Already in your library",
-    duplicates: "The same link appears more than once on that page",
-    unsupported: "Riplox has no reader for this site. Listed so you know it was seen, not skipped.",
-  };
-
-  function paintGrabGroup() {
-    var pick = grabShowing === "";
-    $("playlistBox").hidden = !pick;
-    document.querySelector(".playlist-bar").hidden = !pick;
-    $("grabLeftOut").hidden = pick;
-    if (pick) return;
-
-    var rows = grabGroups[grabShowing] || [];
-    $("grabLeftOut").innerHTML = rows.map(function (r) {
-      var why = GRAB_WHY[grabShowing];
-      if (grabShowing === "known" && r.hit && r.hit.when) {
-        // The same string the library rows show, so the two agree.
-        why = "Already in your library - saved " +
-          String(r.hit.when).replace("T", " ").slice(0, 16);
-      }
-      return '<div class="drow flat is-aside">' +
-        '<div class="grow" style="min-width:0">' +
-        '<div class="f15 w500 trunc">' + esc(r.title || r.url) + "</div>" +
-        '<div class="f12 ' + (grabShowing === "unsupported" ? "" : "faint") + '"' +
-          (grabShowing === "unsupported" ? ' style="color:var(--warn)"' : "") +
-          ">" + esc(why) + "</div></div>" +
-        '<span class="f12 faint mono trunc" style="max-width:240px">' +
-          esc(r.site || "") + "</span>" +
-        '<button type="button" class="btn sm" data-copy-url="' + esc(r.url) +
-          '">Copy link</button>' +
-        "</div>";
-    }).join("");
-  }
-
-  $("grabChips").addEventListener("click", function (e) {
-    var chip = e.target.closest("[data-grabgroup]");
-    if (!chip) return;
-    grabShowing = chip.dataset.grabgroup;
-    document.querySelectorAll("#grabChips .chip").forEach(function (c) {
-      c.classList.toggle("on", c.dataset.grabgroup === grabShowing);
-    });
-    paintGrabGroup();
-  });
-
-  $("grabLeftOut").addEventListener("click", function (e) {
-    var b = e.target.closest("[data-copy-url]");
-    if (!b) return;
-    copyText(b.dataset.copyUrl);
-  });
-
-  $("grabAgain").addEventListener("click", function () {
-    grabPage($("grabUrl").textContent || $("urlInput").value.trim());
-  });
-
-  /* --------------------------------------------------------- limited mode */
-
-  $("limitedWhat").addEventListener("click", function () {
-    $("limitedDlg").hidden = false;
-  });
-  $("limitedClose").addEventListener("click", function () {
-    $("limitedDlg").hidden = true;
-  });
-  $("limitedDlg").addEventListener("click", function (e) {
-    if (e.target === $("limitedDlg")) $("limitedDlg").hidden = true;
-  });
-
-  /* ------------------------------------------------------- the night window */
-
-  /* Twenty-four cells, one an hour, lit for the hours inside the window - the
-     same span the engine checks a queued download against, including the
-     ordinary case where it runs past midnight. */
-  function paintNight() {
-    var from = $("setScheduleFrom").value || "01:00";
-    var to = $("setScheduleTo").value || "08:00";
-    var a = parseInt(from.split(":")[0], 10) || 0;
-    var b = parseInt(to.split(":")[0], 10) || 0;
-    var on = $("setSchedule").classList.contains("on");
-
-    var hours = 0;
-    var cells = "";
-    for (var h = 0; h < 24; h++) {
-      // a < b is an ordinary daytime window; a > b wraps past midnight, which
-      // is what a night window nearly always is.
-      var inside = a === b ? false : a < b ? (h >= a && h < b) : (h >= a || h < b);
-      if (inside) hours++;
-      cells += '<i' + (inside ? ' class="on"' : "") + "></i>";
-    }
-    $("nightBar").innerHTML = cells;
-    $("nightBox").classList.toggle("is-off", !on);
-    $("nightSays").textContent = a === b
-      ? "Both times are the same, so the window is empty"
-      : from + " \u2192 " + to + " \u00b7 " +
-        hours + (hours === 1 ? " hour" : " hours") +
-        /* "a night" is the design's phrase and it is a guess: 01:00 to
-           08:00 is a night to most people and the app cannot know that.
-           Running past midnight is not a guess, so that is what it says. */
-        (a > b ? ", running past midnight" : "");
-  }
-
-  ["setScheduleFrom", "setScheduleTo"].forEach(function (id) {
-    $(id).addEventListener("input", paintNight);
-  });
-  $("setSchedule").addEventListener("click", function () {
-    // After the class flips, not before - bindToggle owns the flip itself.
-    setTimeout(paintNight, 0);
-  });
-  paintNight();
-
-  /* ------------------------------------------------ watch: the bot check */
-
-  var watchFixId = "";
-
-  function openWatchFix(id) {
-    var it = (watchState ? watchState.items : []).find(function (one) {
-      return one.id === id;
-    });
-    if (!it) { toast("That one is no longer being watched.", "bad"); return; }
-    watchFixId = id;
-
-    $("pageTitle").textContent = it.title;
-    $("pageTitle").classList.add("sm");
-    $("pageSub").textContent = "Paused by YouTube \u00b7 watching stopped by itself";
-    document.querySelectorAll(".room-actions").forEach(function (g) { g.hidden = true; });
-    $("watchFixActions").hidden = false;
-
-    $("watchFix").hidden = false;
-    $("watchList").hidden = true;
-    $("watchNew").hidden = true;
-    $("watchEmpty").hidden = true;
-    document.querySelector("#view-watch .filters").hidden = true;
-
-    paintWatchFix();
-  }
-
-  /* Each step says whether it is already done, from the same state the rest
-     of the app reads. Nothing here is a claim - the interval is the setting,
-     the switch is the setting, and the helper is installed or it is not. */
-  function paintWatchFix() {
-    var s = watchState || { hours: 12, on: true };
-    $("fixHours").value = String(s.hours);
-    $("fixSlowBadge").hidden = s.hours < 24;
-    $("fixWatchOn").classList.toggle("on", !!s.on);
-    $("fixOffBadge").hidden = !!s.on;
-    $("fixPotBadge").hidden = !S.hasPotoken;
-    $("fixPotDone").hidden = !S.hasPotoken;
-    $("fixPot").hidden = !!S.hasPotoken;
-  }
-
-  function closeWatchFix() {
-    if (!watchFixId) return;
-    watchFixId = "";
-    $("watchFix").hidden = true;
-    $("watchList").hidden = false;
-    $("watchFixActions").hidden = true;
-    document.querySelector("#view-watch .filters").hidden = false;
-    $("pageTitle").classList.remove("sm");
-    if (watchState) renderWatch(watchState);
-  }
-
-  $("fixBack").addEventListener("click", function () {
-    closeWatchFix();
-    show("watch");
-  });
-
-  $("fixHours").addEventListener("change", function (e) {
-    saveSetting({ watch_hours: parseInt(e.target.value, 10) }).then(function () {
-      loadWatch();
-      toast("Checking every " + e.target.selectedOptions[0].textContent.toLowerCase()
-              .replace("every ", ""), "good");
-    });
-  });
-
-  $("fixWatchOn").addEventListener("click", function () {
-    var on = !$("fixWatchOn").classList.contains("on");
-    saveSetting({ watch: on }).then(function () { loadWatch(); paintWatchFix(); });
-    $("fixWatchOn").classList.toggle("on", on);
-    $("fixOffBadge").hidden = on;
-  });
-
-  $("fixSignIn").addEventListener("click", function () {
-    signIn("youtube", "YouTube");
-  });
-
-  $("fixPot").addEventListener("click", function () {
-    var btn = $("fixPot");
-    btn.disabled = true;
-    btn.textContent = "Setting it up\u2026";
-    api("/api/fix-botcheck", {}).then(function (r) {
-      btn.disabled = false;
-      btn.textContent = "Turn it on";
-      if (!r.ok) { toast(r.error || "Could not set that up.", "bad"); return; }
-      S.hasPotoken = true;
-      paintWatchFix();
-      toast("The helper is on.", "good");
-    });
-  });
-
-  $("fixEngine").addEventListener("click", function () {
-    var btn = $("fixEngine");
-    btn.disabled = true;
-    api("/api/check-engine", { force: true }).then(function (r) {
-      btn.disabled = false;
-      if (!r) { toast("Could not check.", "bad"); return; }
-      toast(r.newer
-        ? "A newer engine is published (" + r.latest + ") - update it in Settings."
-        : "The engine is already the latest.", r.newer ? "good" : "");
-    });
-  });
-
-  $("fixCheckNow").addEventListener("click", function () {
-    var btn = $("fixCheckNow");
-    btn.disabled = true;
-    btn.textContent = "Checking\u2026";
-    api("/api/watch/check", { id: watchFixId }).then(function (r) {
-      btn.disabled = false;
-      btn.textContent = "Check it now";
-      if (!r.ok) { toast(r.error || "That check failed.", "bad"); return; }
-      if (r.state) renderWatch(r.state);
-      var still = (r.state ? r.state.items : []).find(function (one) {
-        return one.id === watchFixId;
-      });
-      if (still && !still.botcheck) {
-        toast("It went through. Watching again.", "good");
-        closeWatchFix();
-      } else {
-        toast("Still being challenged. Try the next step.", "");
-      }
-    });
-  });
-
-  /* A playlist is not a read page, so none of the above belongs to it. */
-  function grabHide() {
-    grabShowing = "";
-    $("grabSource").hidden = true;
-    $("grabChips").hidden = true;
-    $("grabLeftOut").hidden = true;
-    $("grabFoot").hidden = true;
-    $("playlistBox").hidden = false;
-    var bar = document.querySelector(".playlist-bar");
-    if (bar) bar.hidden = false;
-  }
-
-  /* The design gives the topbar over to what you are looking at once there is
-     something to look at: the video's own name at 24 rather than the room's at
-     31, and the source, the length and the best quality where the room's
-     description was. Back and Clear appear with it, because a screen that has
-     taken over the topbar needs a way out of it. */
-  /* The design has no hero on the Video screen - the URL bar's job is done the
-     moment there is something to look at, and Back is how you get it again.
-     Leaving them both on screen is what squeezed the video into half a canvas. */
-  function heroVisible(on) {
-    $("captureHero").hidden = !on;
-    $("view-capture").classList.toggle("has-video", !on);
-  }
-
-  function topbarForVideo(info) {
-    heroVisible(false);
-    tabTouched = false;          // a new link picks its own tab again
-    var isList = info.kind === "playlist";
-    var bits = [];
-    if (info.extractor) bits.push(esc(info.extractor));
-    if (!isList && info.duration) bits.push(fmtDuration(info.duration));
-    // The tallest numbered rung, not options[0]. options[0] is "best", whose
-    // label is "Best available" - so the line read "Best available available".
-    var tallest = (info.options || []).filter(function (o) { return /^\d+$/.test(o); })[0];
-    if (tallest) bits.push(tallest + "p available");
-    if (isList && info.count) bits.push(info.count + " videos");
-    $("pageTitle").textContent = info.title || "Untitled";
-    $("pageTitle").classList.add("sm");
-    $("pageSub").textContent = bits.join(" · ");
-    $("videoActions").hidden = false;
   }
 
   function renderPreview(info) {
@@ -1121,42 +291,12 @@
     }
 
     var isList = info.kind === "playlist";
-    if (!info.grabbed) grabHide();
 
     // A page that was read for its links is not a playlist, and saying so
     // would be the app claiming to know more about it than it does.
     $("pvKind").textContent = info.grabbed ? "ON THIS PAGE"
       : (isList ? "PLAYLIST" : "VIDEO");
     $("pvTitle").textContent = info.title || "Untitled";
-
-    topbarForVideo(info);
-
-    /* What else is there to be had. All three numbers were already in the
-       analyse result and only ever surfaced inside More options, where you
-       had to open a panel to find out whether a video even had subtitles.
-       Pressing one opens the tab that owns it. */
-    var has = [];
-    var subs = (info.sub_langs || []).length;
-    var thumbs = (info.thumbs || []).length;
-    if (subs) has.push(["Subtitles", subs, "tabExtras"]);
-    if (thumbs) has.push(["Thumbnails", thumbs, "tabExtras"]);
-    // has_description, not description: the analyse result carries whether
-    // there is one, not its text. Checking `info.description` meant this chip
-    // was never once shown.
-    if (info.has_description) has.push(["Description", "", "tabExtras"]);
-    $("pvHas").innerHTML = has.map(function (h) {
-      return '<button type="button" class="chip" data-goto="' + h[2] + '">' +
-        h[0] + (h[1] ? '<em class="k">' + h[1] + "</em>" : "") + "</button>";
-    }).join("");
-    $("pvHas").hidden = !has.length;
-
-    var len = $("pvLen");
-    if (!isList && info.duration) {
-      len.textContent = fmtDuration(info.duration);
-      len.hidden = false;
-    } else {
-      len.hidden = true;
-    }
     var thumb = $("pvThumb");
     // An empty src makes the browser re-request the page itself, so only set
     // it when there is a real image.
@@ -1167,10 +307,6 @@
       thumb.removeAttribute("src");
       thumb.style.visibility = "hidden";
     }
-    // No picture, no frame. A read page never has one, and an empty 296px box
-    // with a label on it is the app dressing up the fact that it has nothing
-    // to show.
-    document.querySelector(".preview-media").hidden = !info.thumbnail;
     thumb.alt = info.title || "";
 
     var bits = [];
@@ -1194,46 +330,24 @@
     // and finding that out from the progress bar is finding out too late.
     var sizes = (info && info.sizes) || {};
 
-    /* A tile per quality, the size on top and what it is underneath. The
-       second line is the one the old chips could not carry: "MP4 · 512 MB"
-       answers "how big is this going to be" without being asked. */
     $("qualityChips").innerHTML = options.map(function (q) {
       var from = upscaled[q];
-      // The two rungs whose name is not self-explanatory say what they are for
-      // here, on the line that already exists, instead of carrying it inside
-      // the label. "Max" alone would be picked by somebody who just wanted the
-      // best-looking file; "re-upload" is the word that stops that.
-      var kind = q === "max" ? "re-upload"
-               : q === "best" ? "plays anywhere"
-               : q === "mp3" ? "audio" : "MP4";
-      var what = kind + (sizes[q] ? " · " + esc(sizes[q]) : "");
-      return '<button type="button" class="qbox' +
+      return '<button type="button" class="chip' +
         (q === "mp3" ? " audio" : "") +
         (from ? " upscaled" : "") +
         (q === quality ? " is-on" : "") +
         '" data-q="' + q + '"' +
         (from ? ' title="YouTube made this with AI from a ' + from + 'p original"' : "") +
-        "><b>" + esc(labels[q] || q) + "</b>" +
-        "<span>" + what + (from ? " · AI-upscaled" : "") + "</span>" +
+        ">" + esc(labels[q] || q) +
+        (sizes[q] ? '<em class="chip-size"> · ' + esc(sizes[q]) + "</em>" : "") +
+        (from ? '<em> · AI-upscaled from ' + from + "p</em>" : "") +
         "</button>";
     }).join("");
 
-    /* The design puts the size of the chosen quality in the card's head,
-       where it answers "how big is this" before any tile is read. */
-    $("qualityTotal").textContent = sizes[quality] || "";
-
     $("preview").hidden = false;
 
-    /* Trimming needs the media tool, and only makes sense for one video at a
-       time. Missing the tool is not the same as not applying: a list has no
-       single video to trim, so the panel does not belong there at all - but
-       without the tool it belongs there and cannot run, which is a thing to
-       say rather than a panel to remove. */
-    $("trimBlock").hidden = isList;
-    $("trimBlock").classList.toggle("is-inert", !S.hasFfmpeg);
-    $("trimBlock").querySelectorAll("input, button, select").forEach(function (el) {
-      el.disabled = !S.hasFfmpeg;
-    });
+    // Trimming needs ffmpeg, and only makes sense for one video at a time.
+    $("trimBlock").hidden = isList || !S.hasFfmpeg;
     resetTrim();
     $("channelWrap").hidden = true;
 
@@ -1244,6 +358,7 @@
     // A preference is not the same thing. Picking the same audio language or
     // player client before every single download is what people are asking to
     // stop doing, so those - and only those - come back afterwards.
+    $("moreBox").open = false;
     resetMore();
     // Cleared for every new link: wanting the audio of one video says nothing
     // about wanting the audio of the next.
@@ -1254,7 +369,6 @@
     // there - null and [] have to mean different things on that screen.
     renderChapters(isList ? null : info.chapters);
     renderHeatmap(isList ? null : info);
-    syncTabs();
     fillFormats(info);
     restoreOpts();
     // A playlist has no single format table, and a name for one file makes no
@@ -1269,7 +383,7 @@
     } else {
       selected = null;
       $("downloadBtn").disabled = false;
-      ripWhat("Everything");
+      $("downloadBtn").textContent = "Download";
     }
   }
 
@@ -1307,6 +421,7 @@
     var known = !!rows;
     chapterRows = rows || [];
     chapterPicks = [];
+    box.open = false;
     box.hidden = !chapterRows.length;
     note.hidden = !known || chapterRows.length > 0;
     $("chapterAll").checked = false;
@@ -1334,17 +449,10 @@
           + others.join(", ") + " - chapters are asked for by their title, so "
           + "these arrive together.") + '">&times;' + group.length + "</span>";
       }
-      // The design's row: tick, time, title, and how long it runs. The length
-      // is the number that decides whether a chapter is worth taking on its
-      // own, and it was the one thing the row did not say.
-      var runs = (c.end && c.start != null) ? fmtDuration(c.end - c.start) : "";
-      return '<li><label class="lrow">'
-        + (canCut ? '<input type="checkbox" class="ch-pick" data-i="' + i + '">'
-                  + '<span class="tick" aria-hidden="true"></span>' : "")
-        + '<span class="ch-at time">' + esc(at) + "</span>"
-        + '<span class="ch-title">' + esc(c.title) + mark + "</span>"
-        + (runs ? '<span class="ch-runs">' + esc(runs) + "</span>" : "")
-        + "</label></li>";
+      return "<li><label>"
+        + (canCut ? '<input type="checkbox" class="ch-pick" data-i="' + i + '">' : "")
+        + '<span class="ch-at">' + esc(at) + "</span>"
+        + '<span class="ch-title">' + esc(c.title) + mark + "</span></label></li>";
     }).join("");
     syncChapters();
   }
@@ -1375,8 +483,8 @@
     var youtube = !!info && info.kind === "video"
       && String(info.extractor || "").indexOf("youtube") === 0;
 
+    box.open = false;
     box.hidden = !rows.length;
-    $("heatCard").hidden = !rows.length;
     note.hidden = !youtube || rows.length > 0;
     // One line for both panels, so it is said once rather than twice.
     $("cutNoFf").hidden = S.hasFfmpeg
@@ -1484,7 +592,6 @@
     }
     syncCutButton();
     syncNameField();
-    syncTabs();
   }
 
   $("clipOn").addEventListener("change", function () {
@@ -1551,23 +658,7 @@
     $("trimBlock").hidden = picking || !current || current.kind === "playlist"
                             || !S.hasFfmpeg;
 
-    /* The design puts a short chip beside the switch - "3 picked - 9:07" - and
-       the sentence that warns about the folder belongs under the list, not in
-       the chip. Both are still said; they are just said where each fits. */
-    var chip = $("chapterPicked");
-    chip.hidden = !picking;
-    if (picking) {
-      var secs = 0, known = true;
-      chapterPicks.forEach(function (i) {
-        var row = chapterRows[i];
-        if (!row || row.start === null || row.end === null) { known = false; return; }
-        secs += row.end - row.start;
-      });
-      chip.textContent = chapterPicks.length + " picked"
-        + (known && secs ? " · " + fmtDuration(secs) : "");
-    }
-
-    var line = $("chapterNote2");
+    var line = $("chapterPicked");
     line.hidden = !picking;
     if (picking) {
       // Said before it is pressed, because a folder appearing where a file
@@ -1580,7 +671,6 @@
     }
     syncCutButton();
     syncNameField();
-    syncTabs();
   }
 
   /* A name typed by hand names one file. A playlist already disables this for
@@ -1618,64 +708,14 @@
     if (!cutting) $("cutExact").checked = false;
   }
 
-  /* What is actually going to be written, counted once and said twice: on the
-     button, and in the line above it.
-
-     Chapters and clips cannot both happen - the engine takes one set of
-     sections - and ticking chapters replaces the whole video rather than
-     adding to it. So this counts what the app will really do rather than
-     adding up numbers that cannot occur together. */
-  function plural(n, one, many) {
-    return n + " " + (n === 1 ? one : many);
-  }
-
-  function describeOutput() {
-    var chapters = chapterPicks.length;
-    var clips = $("clipOn") && $("clipOn").checked ? currentClips().length : 0;
-    var audio = $("alsoAudio") && $("alsoAudio").checked
-             && !$("alsoAudioWrap").hidden ? 1 : 0;
-
-    var parts = [];
-    if (chapters) parts.push(plural(chapters, "chapter", "chapters"));
-    else if (clips) parts.push(plural(clips, "clip", "clips"));
-    else parts.push("1 video");
-    if (audio) parts.push("1 MP3");
-
-    var files = (chapters || clips || 1) + audio;
-    return { files: files, parts: parts, chapters: chapters, clips: clips };
-  }
-
-  /* The last folder or two of the path, because the whole thing is usually
-     longer than the line and the tail is the part anyone recognises. */
-  function shortDir(path) {
-    var bits = String(path || "").split(/[\\/]/).filter(Boolean);
-    return bits.slice(-2).join("\\") || "your downloads folder";
-  }
-
-  function syncSummary() {
-    var box = $("pvSummary");
-    if (!box) return;
-    if (!current || current.kind === "playlist" || current.kind === "channel") {
-      box.hidden = true;
-      return;
-    }
-    var out = describeOutput();
-    var where = onceDir || settings.download_dir;
-    box.hidden = false;
-    box.innerHTML = "Riplox will save <b>" + esc(out.parts.join(" and ")) + "</b>"
-      + (out.files > 1 ? " - " + plural(out.files, "file", "files") : "")
-      + " into <b>" + esc(shortDir(where)) + "</b>.";
-  }
-
   function syncCutButton() {
     syncExactCut();
-    var out = describeOutput();
-    ripWhat(
-      out.chapters ? plural(out.chapters, "chapter", "chapters")
-      : out.clips ? plural(out.clips, "clip", "clips")
-      : out.files > 1 ? plural(out.files, "file", "files")
-      : "Everything");
-    syncSummary();
+    var chapters = chapterPicks.length;
+    var clips = $("clipOn") && $("clipOn").checked ? currentClips().length : 0;
+    $("downloadBtn").textContent =
+      chapters ? "Download " + chapters + (chapters === 1 ? " chapter" : " chapters")
+      : clips ? "Download " + clips + (clips === 1 ? " clip" : " clips")
+      : "Download";
   }
 
   $("chapterList").addEventListener("change", function (e) {
@@ -1743,7 +783,6 @@
   }
 
   function renderPlaylist(entries) {
-    var grabbing = !!(current && current.grabbed);
     var shown = Math.min(entries.length, PL_LIMIT);
     selected = new Set();
     lastPicked = -1;
@@ -1754,18 +793,12 @@
 
     var html = [];
     for (var i = 0; i < shown; i++) {
-      /* One already downloaded does not start ticked. It is still on the list
-         - a file can be deleted, and asking for it again is a real thing to
-         want - it just is not part of the answer to "download everything on
-         this page", which is what pressing the button means. */
-      var have = grabbing ? inLibrary(entries[i].url) : null;
-      if (!have) selected.add(i);
+      selected.add(i);
       html.push(
-        '<li data-i="' + i + '"' + (have ? ' class="is-had"' : "") + ">" +
-          '<input type="checkbox" class="pl-check"' + (have ? "" : " checked") + ">" +
+        '<li data-i="' + i + '">' +
+          '<input type="checkbox" class="pl-check" checked>' +
           "<b>" + (i + 1) + "</b>" +
-          "<span>" + esc(entries[i].title) +
-            (have ? ' <em class="had">already saved</em>' : "") + "</span>" +
+          "<span>" + esc(entries[i].title) + "</span>" +
           "<em>" + esc(fmtDuration(entries[i].duration)) + "</em>" +
           '<button type="button" class="pl-get" title="Download just this one">&#8595;</button>' +
         "</li>");
@@ -1881,28 +914,13 @@
 
     $("plAll").checked = rows.length > 0 && pickedHere === rows.length;
     $("plAll").indeterminate = pickedHere > 0 && pickedHere < rows.length;
-    /* The design's point about this bar: "82 selected" without a magnitude is
-       not a decision anyone can make, so the count states what it weighs too.
-       It says a size; Riplox cannot know one without analysing every entry,
-       and a playlist of two hundred would be two hundred requests to a site
-       that would start asking whether we are a person. It does know how long
-       the selection runs, which is a real magnitude and is free - so that is
-       what it says, and it says nothing at all when the site gave no times
-       rather than adding up the ones it happens to have. */
-    var runs = 0, allKnown = true;
-    current.entries.forEach(function (e, i) {
-      if (!selected.has(i)) return;
-      if (typeof e.duration === "number" && e.duration > 0) runs += e.duration;
-      else allKnown = false;
-    });
-    $("plCount").textContent = count + " of " + total + " selected"
-      + (count && allKnown && runs ? " · " + fmtLong(runs) : "");
+    $("plCount").textContent = count + " of " + total + " selected";
 
     var btn = $("downloadBtn");
     btn.disabled = count === 0;
-    ripWhat(count === 0 ? "Nothing selected"
-      : count === total ? "All " + total
-      : count + " selected");
+    btn.textContent = count === 0 ? "Nothing selected"
+      : count === total ? "Download all " + total
+      : "Download " + count + " selected";
 
     updateNote(total);
   }
@@ -2026,8 +1044,6 @@
      tool there is no MP3 to make at all - so the choice is hidden rather than
      shown as something that would quietly do nothing. */
   function syncAlsoAudio() {
-    // The audio copy is one of the files the summary counts.
-    setTimeout(syncSummary, 0);
     var wrap = $("alsoAudioWrap");
     if (!wrap) return;
     var possible = quality !== "mp3" && S.hasFfmpeg;
@@ -2036,10 +1052,10 @@
   }
 
   $("qualityChips").addEventListener("click", function (e) {
-    var chip = e.target.closest(".qbox");
+    var chip = e.target.closest(".chip");
     if (!chip) return;
     quality = chip.dataset.q;
-    document.querySelectorAll("#qualityChips .qbox").forEach(function (c) {
+    document.querySelectorAll("#qualityChips .chip").forEach(function (c) {
       c.classList.toggle("is-on", c === chip);
     });
 
@@ -2067,6 +1083,7 @@
     current = null;
     selected = null;
     resetTrim();
+    $("moreBox").open = false;
     resetMore();
     $("preview").hidden = true;
     $("playlistWrap").hidden = true;
@@ -2286,90 +1303,6 @@
     refreshCommand();
   });
 
-  /* ------------------------------------------------------------- panels */
-
-  /* One panel at a time. A tab whose panel has nothing to show is not
-     disabled, it is absent - the same rule the chapter list already followed,
-     and for the same reason: a control that is visible but never usable
-     teaches people to ignore the area it sits in. */
-  var PANELS = ["panelFormat", "chapterBox", "heatBox",
-                "panelTrim", "panelExtras", "panelNaming"];
-  var panelTab = {
-    panelFormat: "tabFormat", chapterBox: "tabChapters", heatBox: "tabHeat",
-    panelTrim: "tabTrim", panelExtras: "tabExtras", panelNaming: "tabNaming"
-  };
-  var openPanel = "panelFormat";
-  // Cleared for every new link, so the next video opens on its own best tab
-  // rather than on whatever the last one was left on.
-  var tabTouched = false;
-
-  function showPanel(name) {
-    if (PANELS.indexOf(name) < 0) return;
-    openPanel = name;
-    tabTouched = true;
-    syncTabs();
-  }
-
-  /* What each tab has to say for itself. The counts are the reason a tab can
-     replace a panel that reset itself when it closed: whatever is set is
-     readable without opening anything. */
-  /* What each tab is holding. Counting per tab rather than for the panel as a
-     whole is the whole reason a tab can replace something that used to reset
-     itself when it closed: whatever is set is readable from the bar. */
-  function tabCount(name) {
-    if (name === "chapterBox") return chapterPicks.length || chapterRows.length;
-    if (name === "heatBox") return currentClips().length;
-    if (name === "panelTrim") return $("trimOn").checked ? 1 : 0;
-    if (name === "panelNaming") {
-      return ($("optName").value.trim() ? 1 : 0) + (onceDir ? 1 : 0);
-    }
-    if (name === "panelExtras") {
-      return ["optSubsOnly", "optThumbAll", "optWriteDesc", "optLiveFromStart"]
-        .filter(function (id) { return $(id).checked; }).length
-        + (pickedThumb ? 1 : 0);
-    }
-    // Format: the exact format, the languages, and the sign-in choice for
-    // this one download - everything moreOpts() collects that is not named
-    // above.
-    var o = moreOpts();
-    ["outtmpl", "dest_dir"].forEach(function (k) { delete o[k]; });
-    return Object.keys(o).length;
-  }
-
-  function syncTabs() {
-    var live = PANELS.filter(function (p) { return !$(p).hidden; });
-    if (live.indexOf(openPanel) < 0) openPanel = live[0] || "";
-
-    /* Which tab a new video opens on. Format is the right answer only when
-       there is nothing more interesting: a video with chapters opens on its
-       chapters, because that is the thing somebody came to this screen to
-       pick. Once a tab has been pressed the choice is theirs and this stops. */
-    if (!tabTouched) {
-      if (live.indexOf("chapterBox") >= 0) openPanel = "chapterBox";
-      else if (live.indexOf("heatBox") >= 0) openPanel = "heatBox";
-    }
-
-    PANELS.forEach(function (p) {
-      var tab = $(panelTab[p]), on = p === openPanel;
-      tab.hidden = $(p).hidden;
-      tab.classList.toggle("is-on", on);
-      tab.setAttribute("aria-selected", on ? "true" : "false");
-      // The panel keeps its own hidden flag for "there is nothing here"; this
-      // one is only about which of the live panels is showing.
-      $(p).classList.toggle("is-shown", on);
-
-      var n = tab.querySelector(".n"), c = tabCount(p);
-      n.textContent = c || "";
-      n.hidden = !c;
-    });
-    $("pvTabs").hidden = live.length < 2;
-  }
-
-  $("pvTabs").addEventListener("click", function (e) {
-    var tab = e.target.closest(".tab");
-    if (tab && tab.dataset.panel) showPanel(tab.dataset.panel);
-  });
-
   function resetMore() {
     pickedFormat = "";
     onceDir = "";
@@ -2396,10 +1329,10 @@
     });
   }
 
-  /* Every option below already asks whether it was set, so the panel's own
-     state was never doing the work - it only threw the answers away when it
-     closed. The tab's count says the same thing without the throwing away. */
+  // Empty whenever the panel is closed, which is what makes "it resets when
+  // you close it" true rather than a claim in a comment.
   function moreOpts() {
+    if (!$("moreBox").open) return {};
     var o = {};
     if (pickedFormat) o.format_id = pickedFormat;
     /* The star is not a language, so it never goes out as one - it becomes the
@@ -2475,11 +1408,10 @@
     if (last.player_client) $("optClient").value = last.player_client;
     $("optCookies").value = last.no_cookies ? "off" : "on";
 
-    /* Selected, because a remembered choice that is not visible is a
-       setting acting on the download while hidden - the thing this app tries
-       not to do anywhere. The tab also carries the count, so it says so even
-       when another tab is the one on screen. */
-    showPanel("panelFormat");
+    // Opened, because a remembered choice that is not visible is a setting
+    // acting on the download while hidden - which is the thing this app is
+    // trying not to do anywhere.
+    $("moreBox").open = true;
   }
 
   function fillFormats(info) {
@@ -2617,7 +1549,7 @@
   }
 
   function refreshCommand() {
-    if (!current || current.kind === "channel") return;
+    if (!$("moreBox").open || !current || current.kind === "channel") return;
     clearTimeout(cmdTimer);
     cmdTimer = setTimeout(function () {
       var body = {
@@ -2647,179 +1579,12 @@
   });
   $("optName").addEventListener("input", refreshCommand);
 
-  /* The tab's count is the promise that nothing is set invisibly, so it has
-     to be redrawn by the same events that change what is set. */
-  ["optName", "optCookies", "optClient", "optAudioLang", "optSubLang",
-   "optSubsOnly", "optThumbAll", "optWriteDesc", "optLiveFromStart"
-  ].forEach(function (id) {
-    $(id).addEventListener("change", syncTabs);
-  });
-  $("optName").addEventListener("input", syncTabs);
-  $("trimOn").addEventListener("change", syncTabs);
-
-
-  $("jobLogCopy").addEventListener("click", function () {
-    copyText($("jobLogBox").textContent || "");
-  });
-  /* One log, read three ways.
-
-     _diagnostic() in the engine writes a fixed head - job, url, quality,
-     engine, js, exit, command - then a blank line, then the last forty lines
-     of what the engine actually said. So the tabs are a reading of what is
-     already there. A log written by some other path (a conversion, or the
-     signed-in/signed-out pair) will not match, and then What happened says
-     what it has and the whole text goes under Engine output. */
-  var JD_LABEL = {
-    url: "Link", quality: "Quality asked for", engine: "Engine",
-    js: "Bundled JS", exit: "Exit code", attempt: "Attempt",
-  };
-
-  function readLog(text) {
-    var out = { head: [], command: "", body: text || "" };
-    var lines = String(text || "").split("\n");
-    var i = 0;
-    var first = (lines[0] || "");
-    if (first.indexOf("Riplox job ") === 0) {
-      var att = first.match(/attempt\s+(\d+)/);
-      if (att) out.head.push(["attempt", att[1]]);
-      i = 1;
-      for (; i < lines.length; i++) {
-        var line = lines[i];
-        if (!line.trim()) { i++; break; }
-        var m = line.match(/^([a-z]+)\s\s+(.*)$/);
-        if (!m) break;
-        if (m[1] === "command") out.command = m[2];
-        else out.head.push([m[1], m[2]]);
-      }
-      out.body = lines.slice(i).join("\n");
+  $("moreBox").addEventListener("toggle", function () {
+    if ($("moreBox").open) {
+      refreshCommand();
+    } else {
+      resetMore();
     }
-    return out;
-  }
-
-  var jdJob = null;      // what the drawer is currently showing
-
-  function jdTab(which) {
-    $("jdWhat").hidden = which !== "what";
-    $("jdCmd").hidden = which !== "cmd";
-    $("jobLogBox").hidden = which !== "out";
-    $("jdTabs").querySelectorAll(".tab").forEach(function (t) {
-      t.classList.toggle("on", t.dataset.jdtab === which);
-    });
-    if (which === "out") $("jobLogBox").scrollTop = $("jobLogBox").scrollHeight;
-  }
-
-  /* job: { title, url, thumbnail, status, error, log, botcheck, failedId } */
-  function openJobDetail(job) {
-    jdJob = job;
-    var read = readLog(job.log);
-
-    $("jobDetailTitle").textContent = job.title || job.url || "This download";
-    $("jdUrl").textContent = job.url || "";
-    $("jdUrl").title = job.url || "";
-
-    var thumb = $("jdThumb");
-    thumb.innerHTML = job.thumbnail
-      ? '<img src="' + esc(job.thumbnail) + '" alt="">' : "";
-    thumb.hidden = !job.thumbnail;
-
-    var bad = job.status === "error" || !!job.failedId;
-    $("jdBadge").className = "badge " + (bad ? "b-bad"
-      : job.status === "done" ? "b-ok" : "b-run");
-    $("jdBadge").textContent = bad ? "Failed"
-      : STATE_TEXT[job.status] || job.status || "";
-
-    /* The facts the log carries, each on its own line. The design draws a
-       timeline with a clock time against every step; Riplox records no
-       per-step times, and putting a made-up one next to a real failure would
-       be the worst kind of helpful. */
-    var rows = [];
-    if (job.error) rows.push(["What the site said", job.error, true]);
-    read.head.forEach(function (pair) {
-      rows.push([JD_LABEL[pair[0]] || pair[0], pair[1], false]);
-    });
-    $("jdWhat").innerHTML = rows.length
-      ? rows.map(function (r) {
-          /* .row, not .drow. The design draws these at 44 and a data row is
-             68 - it uses its plain row here for exactly that reason, and
-             borrowing the taller component would put a size the verifier
-             rightly flags into a screen that has no need of it. */
-          return '<div class="row jd-row' + (r[2] ? " is-bad" : "") + '">' +
-            '<span class="f12 faint jd-key">' + esc(r[0]) + "</span>" +
-            '<span class="f14 grow' + (r[2] ? "" : " mono") + '">' +
-              esc(r[1]) + "</span></div>";
-        }).join("")
-      : '<p class="f12 faint">Riplox kept the engine\u2019s output for this one but ' +
-        "not a summary of it. The Engine output tab has everything there is.</p>";
-
-    $("jdCmd").textContent = read.command ||
-      "The command was not recorded for this one.";
-    $("jobLogBox").textContent = read.body || "Nothing was logged.";
-    $("jdOutN").textContent = read.body
-      ? read.body.split("\n").filter(function (l) { return l.trim(); }).length : 0;
-
-    /* Advice only where the app already knows the answer. Anything else would
-       be a guess dressed as instruction. */
-    var low = ((job.error || "") + " " + (job.log || "")).toLowerCase();
-    var advice = "";
-    if (job.botcheck) {
-      advice = S.hasPotoken
-        ? "<b>What to do:</b> the proof-of-origin helper is already on, so the " +
-          "next thing to try is signing in \u2014 Settings \u2192 Sign-in."
-        : "<b>What to do:</b> turn on the proof-of-origin helper in " +
-          "Settings \u2192 YouTube. It answers the exact check this site is making.";
-    } else if (low.indexOf("members only") >= 0 || low.indexOf("private video") >= 0 ||
-               low.indexOf("sign in") >= 0 || low.indexOf("login required") >= 0) {
-      advice = "<b>What to do:</b> this one needs an account. Sign in again in " +
-        "Settings \u2192 Sign-in. Downloads from this site that do not need an " +
-        "account are unaffected.";
-    }
-    $("jdAdvice").hidden = !advice;
-    $("jdAdvice").innerHTML = advice;
-
-    $("jdForget").hidden = !job.failedId;
-    $("jdRetry").hidden = !job.failedId;
-
-    jdTab("what");
-    $("jobDetail").hidden = false;
-  }
-
-  $("jdTabs").addEventListener("click", function (e) {
-    var t = e.target.closest("[data-jdtab]");
-    if (t) jdTab(t.dataset.jdtab);
-  });
-
-  $("jdOpenFolder").addEventListener("click", function () {
-    // No path: /api/open with nothing opens the download folder, which is
-    // where this one would have landed.
-    api("/api/open", {}).then(function (r) {
-      if (r && r.ok === false) toast(r.error || "Could not open that.", "bad");
-    });
-  });
-
-  $("jdForget").addEventListener("click", function () {
-    if (!jdJob || !jdJob.failedId) return;
-    api("/api/failed/forget", { id: jdJob.failedId }).then(function () {
-      $("jobDetail").hidden = true;
-      loadFailed();
-    });
-  });
-
-  $("jdRetry").addEventListener("click", function () {
-    if (!jdJob || !jdJob.failedId) return;
-    api("/api/failed/retry", { id: jdJob.failedId }).then(function (r) {
-      if (!r.ok) { toast(r.error || "Could not queue that again.", "bad"); return; }
-      $("jobDetail").hidden = true;
-      toast("Back in the queue", "good");
-      show("queue");
-      pollJobs();
-    });
-  });
-
-  $("jobDetailClose").addEventListener("click", function () {
-    $("jobDetail").hidden = true;
-  });
-  $("jobDetail").addEventListener("click", function (e) {
-    if (e.target === $("jobDetail")) $("jobDetail").hidden = true;
   });
 
   $("cmdCopy").addEventListener("click", function () {
@@ -2943,8 +1708,6 @@
     var badge = $("queueBadge");
     badge.textContent = active;
     badge.hidden = active === 0;
-    syncActivity();
-    syncRailLive(jobs);
 
     $("queueEmpty").hidden = jobs.length > 0;
 
@@ -3071,7 +1834,7 @@
     done: [["open", ICON.play, "Play file", "go"],
            ["reveal", ICON.folder, "Show in folder", ""]],
     error: [["retry", ICON.retry, "Try again", "go"],
-            ["log", ICON.copy, "What happened", ""]],
+            ["log", ICON.copy, "Copy error details", ""]],
     cancelled: [["retry", ICON.retry, "Try again", "go"]],
     paused: [["retry", ICON.play, "Resume", "go"]],
     busy: [["cancel", ICON.stop, "Stop", "stop"]]
@@ -3088,32 +1851,6 @@
       set.unshift(["fix", ICON.fix, "Fix this and try again", "go"]);
     }
     return set.concat([["remove", ICON.trash, "Remove", ""]]);
-  }
-
-  /* The rail's live panel. Two rows at most: it is a glance, not a list, and
-     the list is one click away in Activity. */
-  function syncRailLive(jobs) {
-    var live = jobs.filter(function (j) {
-      return j.status === "downloading" || j.status === "converting";
-    });
-    $("railLive").hidden = live.length === 0;
-    if (!live.length) { $("liveRows").innerHTML = ""; return; }
-
-    $("liveCount").textContent = live.length > 2
-      ? "2 of " + live.length : String(live.length);
-
-    $("liveRows").innerHTML = live.slice(0, 2).map(function (j) {
-      var pct = j.stage && j.percent < 1 ? 0 : j.percent;
-      var left = j.stage && j.percent < 1
-        ? esc(j.stage)
-        : pct.toFixed(0) + "%" + (j.size ? " · " + esc(j.size) : "");
-      return '<div class="live-row">' +
-        '<div class="live-title">' + esc(j.title || "") + "</div>" +
-        '<div class="meter"><i style="width:' + pct.toFixed(0) + '%"></i></div>' +
-        '<div class="live-meta"><span>' + left + "</span>" +
-        "<span>" + (j.speed ? esc(j.speed) : "") + "</span></div>" +
-        "</div>";
-    }).join("");
   }
 
   function updateRow(row, j) {
@@ -3201,31 +1938,6 @@
     }
   }
 
-  /* The chips only set an attribute; the stylesheet does the hiding. The
-     counts are read off the rows themselves, so they cannot drift from what
-     the list is actually showing. */
-  function syncActivity() {
-    var rows = $("jobs").children;
-    var running = 0, waiting = 0;
-    for (var i = 0; i < rows.length; i++) {
-      var c = rows[i].className;
-      if (/\b(downloading|converting|starting)\b/.test(c)) running++;
-      else if (/\b(queued|paused)\b/.test(c)) waiting++;
-    }
-    $("countAll").textContent = rows.length || "";
-    $("countRunning").textContent = running || "";
-    $("countWaiting").textContent = waiting || "";
-  }
-
-  $("actFilters").addEventListener("click", function (e) {
-    var chip = e.target.closest(".chip");
-    if (!chip) return;
-    $("actFilters").querySelectorAll(".chip").forEach(function (c) {
-      c.classList.toggle("is-on", c === chip);
-    });
-    $("view-queue").dataset.filter = chip.dataset.filter;
-  });
-
   $("jobs").addEventListener("click", function (e) {
     var btn = e.target.closest("[data-act]");
     if (!btn) return;
@@ -3234,12 +1946,7 @@
     if (act === "log") {
       api("/api/job-log", { id: id }).then(function (r) {
         if (!r || !r.log) { toast("No details were kept for that one.", "bad"); return; }
-        var job = (window._jobs || []).find(function (j) { return j.id === id; }) || {};
-        openJobDetail({
-          title: job.title, url: job.url, thumbnail: job.thumbnail,
-          status: job.status, error: job.error, botcheck: job.botcheck,
-          log: r.log,
-        });
+        copyText(r.log);
       });
       return;
     }
@@ -3348,7 +2055,7 @@
         " asked Riplox to slow down. Waiting about " + mins +
         (mins === 1 ? " minute" : " minutes") +
         " — everything else carries on.</span>" +
-        '<button class="btn sm" data-gonow="' + esc(c.site) +
+        '<button class="ghost small" data-gonow="' + esc(c.site) +
         '" data-n="' + (c.account || 0) + '">Go now anyway</button></div>';
     }).join("");
   }
@@ -3456,29 +2163,14 @@
     var names = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; });
     if (libSource !== "all" && names.indexOf(libSource) === -1) libSource = "all";
 
-    /* The design filters the library by what a file is - video, audio, a clip -
-       not by where it came from. Where it came from is the uploader column
-       beside the list, which is the old Accounts panel folded in, so putting
-       it in the bar as well would be two ways to do one thing.
-
-       Kind is read off what the app already recorded: the quality it was
-       asked for says audio, and a clip carries the range it was cut to. */
-    var kinds = { video: 0, audio: 0, clip: 0 };
-    libraryItems.forEach(function (it) {
-      if (it.clip) kinds.clip++;
-      else if (it.quality === "mp3") kinds.audio++;
-      else kinds.video++;
-    });
-    var KINDS = [["all", "All", libraryItems.length],
-                 ["video", "Video", kinds.video],
-                 ["audio", "Audio", kinds.audio],
-                 ["clip", "Clips", kinds.clip]];
-    $("libChips").innerHTML = KINDS.filter(function (k) {
-      return k[0] === "all" || k[2];        // a kind nothing is is not a filter
-    }).map(function (k) {
-      return '<button type="button" class="chip' + (libSource === k[0] ? " is-on" : "") +
-        '" data-src="' + k[0] + '">' + k[1] + '<em class="k">' + k[2] + "</em></button>";
-    }).join("");
+    $("libChips").innerHTML =
+      ['<button type="button" class="chip' + (libSource === "all" ? " is-on" : "") +
+       '" data-src="all">All · ' + libraryItems.length + "</button>"]
+        .concat(names.map(function (n) {
+          return '<button type="button" class="chip' +
+            (n === libSource ? " is-on" : "") + '" data-src="' + esc(n) + '">' +
+            esc(n) + " · " + counts[n] + "</button>";
+        })).join("");
   }
 
   function renderHistory() {
@@ -3486,11 +2178,7 @@
     var sort = $("libSort").value;
 
     var shown = libraryItems.filter(function (h) {
-      // The chips are kinds now, so the filter reads the same thing they count.
-      if (libSource !== "all") {
-        var kind = h.clip ? "clip" : h.quality === "mp3" ? "audio" : "video";
-        if (kind !== libSource) return false;
-      }
+      if (libSource !== "all" && h._source !== libSource) return false;
       if (!term) return true;
       // The uploader counts as well as the title. Without it, searching for
       // a name found nothing even though every file was by that person -
@@ -3577,16 +2265,13 @@
      stays until it is deleted. */
 
   var failedItems = [];
+  var failedOpen = "";       // whose details are showing
 
   function setFailedBadge(count) {
     var badge = $("failedBadge");
     if (!badge) return;
     badge.textContent = count;
     badge.hidden = !count;
-    /* Same rule the queue's own buttons follow: a button that is always there
-       and usually does nothing teaches people to stop reading the row. */
-    $("failedRetryAll").hidden = !count;
-    $("failedClear").hidden = !count;
   }
 
   function loadFailed() {
@@ -3617,6 +2302,7 @@
       var facts = [labels[f.quality] || f.quality || "", f.site || "",
                    whenText(f.last || f.when)];
       if (f.tries > 1) facts.push(f.tries + " tries");
+      var open = failedOpen === f.id;
 
       return '<div class="hrow fail-row' + (f.fixed ? " is-fixed" : "") + '">' +
         (f.thumbnail
@@ -3626,12 +2312,15 @@
           (f.fixed ? ' <em class="tag">downloaded later</em>' : "") + "</div>" +
         '<div class="m">' + esc(facts.filter(Boolean).join(" · ")) + "</div>" +
         '<div class="m fail-why">' + esc(f.error || "No reason was recorded.") + "</div>" +
+        (open ? '<pre class="fail-log">' + esc(f.log || "Nothing was logged.") + "</pre>" : "") +
         "</div>" +
         // All four in one grid cell - see .hrow-acts. Four loose buttons in a
         // three-column grid put three of them on a row of their own.
         '<div class="hrow-acts">' +
-        '<button class="icon-btn" data-details="' + esc(f.id) +
-          '" title="What happened">' + ICON.expand + "</button>" +
+        '<button class="icon-btn' + (open ? " is-open" : "") +
+          '" data-details="' + esc(f.id) + '" title="' +
+          (open ? "Hide details" : "Show details") + '">' + ICON.expand +
+          "</button>" +
         '<button class="icon-btn" data-copyfail="' + esc(f.id) +
           '" title="Copy the link and the reason">' + ICON.copy + "</button>" +
         '<button class="icon-btn go" data-refail="' + esc(f.id) +
@@ -3645,13 +2334,8 @@
   $("failedList").addEventListener("click", function (e) {
     var details = e.target.closest("[data-details]");
     if (details) {
-      var one = failedItems.find(function (f) { return f.id === details.dataset.details; });
-      if (!one) { toast("That row is gone.", "bad"); return; }
-      openJobDetail({
-        title: one.title, url: one.url, thumbnail: one.thumbnail,
-        status: "error", error: one.error, botcheck: one.botcheck,
-        log: one.log, failedId: one.id,
-      });
+      failedOpen = failedOpen === details.dataset.details ? "" : details.dataset.details;
+      renderFailed();
       return;
     }
 
@@ -3721,6 +2405,7 @@
         + "this list.", { ok: "Delete all", danger: true }).then(function (yes) {
       if (!yes) return;
       api("/api/failed/clear", {}).then(function () {
+        failedOpen = "";
         loadFailed();
         toast("Failed list emptied", "good");
       });
@@ -3731,20 +2416,6 @@
 
   var convFiles = [];        // {path, name, size, picked}
   var convReady = false;
-
-  /* Opened from the library, because that is where the files it works on
-     already are. Loaded on open rather than on start: the format list is one
-     request and there is no reason to make it before anyone asks. */
-  $("openConvert").addEventListener("click", function () {
-    $("convDlg").hidden = false;
-    loadConvert();
-  });
-  $("convClose").addEventListener("click", function () {
-    $("convDlg").hidden = true;
-  });
-  $("convDlg").addEventListener("click", function (e) {
-    if (e.target === $("convDlg")) $("convDlg").hidden = true;
-  });
 
   function loadConvert() {
     if (!convReady) {
@@ -3927,12 +2598,6 @@
         ? res.path
         : "Not found on this PC - reinstall Riplox to get it back.";
     }
-    var there = $("extThere");
-    if (there) {
-      there.className = "badge " + (res.there ? "b-ok" : "b-bad");
-      there.textContent = res.there ? "On this PC" : "Missing";
-    }
-    lastBrowsers = res.browsers || [];
     showPortable(res);
   });
 
@@ -3948,14 +2613,7 @@
   function showPortable(res) {
     var row = $("portableRow");
     var note = $("portableWhere");
-    var portable = res.portable === "on" || res.portable === "read-only";
-    // Recorded on the row rather than only applied to it, so the settings
-    // filter can see the decision instead of overwriting it.
-    if (row) row.dataset.available = portable ? "1" : "0";
-    if ($("extConnectRow")) {
-      $("extConnectRow").dataset.available = res.canConnect ? "1" : "0";
-    }
-    if (row && note && portable) {
+    if (row && note && (res.portable === "on" || res.portable === "read-only")) {
       row.hidden = false;
       note.className = res.portable === "read-only" ? "warn" : "";
       note.textContent = res.portable === "read-only"
@@ -3967,37 +2625,23 @@
     }
 
     var connectRow = $("extConnectRow");
-    if (!connectRow) return;
-    if (!res.canConnect) { connectRow.hidden = true; return; }
+    if (!connectRow || !res.canConnect) return;
     connectRow.hidden = false;
-    paintConnect(res.connected, res.browsers || []);
+    paintConnect(res.connected);
   }
 
-  var lastBrowsers = [];
-
-  function paintConnect(connected, browsers) {
-    if (browsers) lastBrowsers = browsers;
-    var named = lastBrowsers.length ? lastBrowsers.join(" and ") : "";
+  function paintConnect(connected) {
     var btn = $("connectBrowser");
     var state = $("extConnectState");
-    var badge = $("extConnected");
     if (btn) {
       btn.textContent = connected ? "Remove" : "Connect";
       // The button's own label used to decide the next action, which breaks
       // the moment the wording changes. This does not.
       btn.dataset.on = connected ? "1" : "";
     }
-    if (badge) {
-      badge.className = "badge " + (connected ? "b-ok" : "b-wait");
-      // Which browser, not "a browser" - on a PC with Chrome and Edge both
-      // installed, knowing it is Edge that works is the whole answer.
-      badge.textContent = connected
-        ? (named || "Connected") : "Not connected";
-    }
     if (state) {
       state.textContent = connected
-        ? "The extension's button in " + (named || "your browser") +
-          " reaches this copy."
+        ? "Connected - your browser can reach this copy."
         : "Not connected - the extension's button will do nothing yet.";
     }
   }
@@ -4008,7 +2652,7 @@
       api("/api/extension/connect", { on: connectBtn.dataset.on !== "1" })
         .then(function (res) {
           if (res && res.ok) {
-            paintConnect(res.connected, res.browsers);
+            paintConnect(res.connected);
             toast(res.message || "Done", "good");
           } else {
             toast((res && (res.message || res.error)) || "Could not do that",
@@ -4045,36 +2689,6 @@
     return ago(seconds);
   }
 
-  /* Which watched item the "new" card is showing. "" is all of them; Review
-     sets it to one id. Nothing is marked seen by looking at it - that would
-     throw away the list you just asked for. Seen is what Download and Skip
-     mean. */
-  var watchOnly = "";
-
-  /* The app knows when it last checked and how long the gap is, so it knows
-     when the next check falls. It does not guess: a paused item is not
-     checked at all, and one that has never been checked says so. */
-  function nextCheck(it, hours) {
-    if (it.paused) return "Paused - not being checked";
-    if (!it.checked) return "Checks on the next sweep";
-    var due = it.checked + hours * 3600 - Date.now() / 1000;
-    return due <= 0 ? "Due now" : "Next check in " + fmtLong(due);
-  }
-
-  var MORE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
-    'stroke-width="2.2" stroke-linecap="round" aria-hidden="true">' +
-    '<path d="M6 12h.01M12 12h.01M18 12h.01"/></svg>';
-
-  /* Check, Pause and Remove were three buttons on every row. They are done
-     once in a while, and Review is done every time, so they go behind the
-     row's own menu. <details> already opens, closes and answers the keyboard,
-     so this is markup rather than a component. */
-  function rowMenu(items) {
-    return '<details class="rmenu"><summary class="icon-btn" title="More" ' +
-      'aria-label="More">' + MORE_SVG + '</summary><div class="rmenu-body">' +
-      items.join("") + "</div></details>";
-  }
-
   function renderWatch(s) {
     watchState = s;
     $("setWatch").classList.toggle("on", s.on);
@@ -4083,120 +2697,55 @@
       : s.busy ? "checking " + s.busy
       : "on";
     $("watchState").classList.toggle("on", s.on);
+
     $("watchHours").value = String(s.hours);
+    $("watchCount").textContent = s.items.length
+      ? s.items.length + " of " + s.max : "";
     $("watchCheckAll").disabled = !s.items.length || s.sweeping;
+
     $("watchEmpty").hidden = s.items.length > 0;
-
-    $("watchCount").textContent = s.items.length;
-    $("watchNewCount").textContent = s.new;
-    $("watchFilterNew").hidden = !s.new;
-    if (!s.new) watchOnly = "";
-    $("watchFilterAll").classList.toggle("on", !watchOnly);
-    $("watchFilterNew").classList.toggle("on", !!watchOnly);
-
     $("watchList").innerHTML = s.items.map(function (it) {
       var fresh = it.new || [];
 
-      /* The advice sits on the row being challenged rather than in a list at
-         the foot of the page, and only the first fix is offered - the helper
-         when it is off, because it answers the exact check that produced
-         this, and signing in when it is already on. */
-      var line, fix = "";
-      if (it.botcheck) {
-        line = '<div class="f12" style="color:var(--warn)">YouTube asked whether ' +
-          "this is a bot" + (it.paused ? " - paused" : "") + ". " +
-          (S.hasPotoken
-            ? "The helper is already on, so signing in is the next thing to try."
-            : "The proof-of-origin helper answers the exact check it is making.") +
+      var videos = fresh.map(function (v) {
+        return '<div class="new-row">' +
+          (v.thumbnail ? '<img src="' + esc(v.thumbnail) + '" alt="" loading="lazy">'
+                       : '<div class="new-thumb"></div>') +
+          '<div class="new-what"><b>' + esc(v.title) + "</b>" +
+            "<span>" + esc(fmtDuration(v.duration) || "") + "</span></div>" +
+          '<button class="primary small" data-get="' + esc(v.url) + '" data-item="' +
+            esc(it.id) + '" data-video="' + esc(v.id) + '">Download</button>' +
+          '<button class="ghost small" data-skip="' + esc(it.id) + '" data-video="' +
+            esc(v.id) + '">Skip</button>' +
           "</div>";
-        fix = '<button type="button" class="btn pri sm" data-wfixopen="' +
-          esc(it.id) + '">What to do</button>';
-      } else if (it.error) {
-        line = '<div class="f12" style="color:var(--warn)">' + esc(it.error) + "</div>";
-      } else {
-        line = '<div class="f12 faint">' + esc(nextCheck(it, s.hours)) +
-          " &middot; " + it.watching + " video" + (it.watching === 1 ? "" : "s") +
-          " seen</div>";
-      }
+      }).join("");
 
-      return '<div class="drow tall wrow' + (it.paused ? " is-paused" : "") +
-        (it.botcheck ? " has-trouble" : "") + '">' +
-        (it.thumbnail
-          ? '<img class="avatar" src="' + esc(it.thumbnail) + '" alt="" loading="lazy">'
-          : '<div class="avatar"></div>') +
-        '<div class="grow"><div class="f15 w500 trunc">' + esc(it.title) + "</div>" +
-        line + "</div>" +
-        (fresh.length ? '<span class="badge b-run">' + fresh.length + " new</span>" : "") +
-        (it.paused ? '<span class="badge b-warn">Paused</span>' : "") +
-        fix +
+      var trouble = it.error
+        ? '<p class="warn watch-err">' + esc(it.error) +
+          (it.botcheck ? " — see the note at the bottom of this page." : "") + "</p>"
+        : "";
+
+      return '<div class="watch-item' + (it.paused ? " is-paused" : "") + '">' +
+        '<div class="watch-head">' +
+          (it.thumbnail ? '<img class="watch-thumb" src="' + esc(it.thumbnail) +
+                          '" alt="" loading="lazy">' : '<div class="watch-thumb"></div>') +
+          '<div class="who"><b>' + esc(it.title) +
+            (it.paused ? ' <em class="tag">paused</em>' : "") + "</b>" +
+            '<span>' + esc(it.kind) + " · checked " + when(it.checked) +
+            (fresh.length ? " · " + fresh.length + " new" : "") + "</span></div>" +
+          '<button class="ghost small" data-check="' + esc(it.id) + '">Check</button>' +
+          '<button class="ghost small" data-wpause="' + esc(it.id) + '" data-to="' +
+            (it.paused ? "0" : "1") + '">' + (it.paused ? "Resume" : "Pause") + "</button>" +
+          '<button class="ghost small danger" data-drop="' + esc(it.id) +
+            '">Remove</button>' +
+        "</div>" + trouble +
         (fresh.length
-          ? '<button type="button" class="btn sm" data-review="' + esc(it.id) +
-            '">Review</button>'
+          ? '<div class="new-list">' + videos +
+            '<button class="ghost small" data-skip="' + esc(it.id) +
+            '">Clear all</button></div>'
           : "") +
-        rowMenu([
-          '<button type="button" data-check="' + esc(it.id) + '">Check now</button>',
-          '<button type="button" data-wpause="' + esc(it.id) + '" data-to="' +
-            (it.paused ? "0" : "1") + '">' + (it.paused ? "Resume" : "Pause") + "</button>",
-          '<button type="button" class="danger" data-drop="' + esc(it.id) +
-            '">Stop watching</button>',
-        ]) + "</div>";
+        "</div>";
     }).join("");
-
-    /* Every new video from every watched item, in one list. Riplox knows the
-       title, who posted it and how long it runs; it does not know the file
-       size until the video is analysed, so the card counts videos and says
-       nothing about gigabytes. */
-    var rows = [];
-    s.items.forEach(function (it) {
-      if (watchOnly && it.id !== watchOnly) return;
-      (it.new || []).forEach(function (v) { rows.push([it, v]); });
-    });
-
-    $("watchNew").hidden = !rows.length;
-    $("watchNewSub").textContent = rows.length + " video" +
-      (rows.length === 1 ? "" : "s") +
-      (watchOnly && s.new > rows.length ? " of " + s.new : "");
-    $("watchNewList").innerHTML = rows.map(function (pair) {
-      var it = pair[0], v = pair[1];
-      var meta = [it.title, fmtDuration(v.duration)].filter(Boolean).join(" \u00b7 ");
-      return '<div class="drow flat">' +
-        (v.thumbnail
-          ? '<img class="rthumb" src="' + esc(v.thumbnail) + '" alt="" loading="lazy">'
-          : '<div class="rthumb"></div>') +
-        '<div class="grow"><div class="f15 w500 trunc">' + esc(v.title) + "</div>" +
-        '<div class="f12 faint trunc">' + esc(meta) + "</div></div>" +
-        '<button type="button" class="btn sm" data-get="' + esc(v.url) +
-          '" data-item="' + esc(it.id) + '" data-video="' + esc(v.id) + '">Download</button>' +
-        rowMenu([
-          '<button type="button" data-skip="' + esc(it.id) + '" data-video="' +
-            esc(v.id) + '">Not interested</button>',
-        ]) + "</div>";
-    }).join("");
-
-    /* Not while the ladder is up: the topbar belongs to the item being
-       fixed, and the four-second poll would take it back. */
-    if ($("view-watch").classList.contains("is-active") && s.items.length
-        && !watchFixId) {
-      var kinds = { channel: 0, playlist: 0 };
-      var last = 0;
-      s.items.forEach(function (it) {
-        kinds[it.kind === "playlist" ? "playlist" : "channel"]++;
-        if (it.checked > last) last = it.checked;
-      });
-      var parts = [];
-      if (kinds.channel) parts.push(kinds.channel + " channel" + (kinds.channel === 1 ? "" : "s"));
-      if (kinds.playlist) parts.push(kinds.playlist + " playlist" + (kinds.playlist === 1 ? "" : "s"));
-      parts.push("checked " + ago(last));
-      $("pageSub").textContent = parts.join(" \u00b7 ");
-    }
-
-    if (watchFixId) {
-      paintWatchFix();
-      // The list stays put behind the ladder rather than reappearing under it.
-      $("watchList").hidden = true;
-      $("watchNew").hidden = true;
-      $("watchEmpty").hidden = true;
-    }
 
     $("watchBadge").textContent = s.new;
     $("watchBadge").hidden = !s.new;
@@ -4292,7 +2841,6 @@
         return;
       }
       $("watchUrl").value = "";
-      watchAddOpen(false);
       toast("Watching. New videos will show up here.", "good");
       renderWatch(res.state);
     });
@@ -4304,71 +2852,6 @@
 
   $("addPlaylist").addEventListener("click", function () {
     askFirst(function () { watchAdd($("watchUrl").value.trim(), "playlist"); });
-  });
-
-  /* Adding is behind a button now. The sheet closes on its own once the add
-     lands, because that is the whole job. */
-  function watchAddOpen(on) {
-    $("watchAddDlg").hidden = !on;
-    $("watchError").hidden = true;
-    $("watchPick").hidden = true;
-    if (on) $("watchUrl").focus();
-  }
-  $("watchAddBtn").addEventListener("click", function () { watchAddOpen(true); });
-  $("watchAddClose").addEventListener("click", function () { watchAddOpen(false); });
-  $("watchAddDlg").addEventListener("click", function (e) {
-    if (e.target === $("watchAddDlg")) watchAddOpen(false);
-  });
-  $("watchUrl").addEventListener("keydown", function (e) {
-    if (e.key === "Enter") { e.preventDefault(); $("addChannel").click(); }
-  });
-
-  $("watchFilterAll").addEventListener("click", function () {
-    watchOnly = ""; renderWatch(watchState);
-  });
-  $("watchFilterNew").addEventListener("click", function () {
-    /* One item at a time is what Review does. This chip is the other
-       direction: everything new, from everything watched. */
-    watchOnly = ""; renderWatch(watchState);
-    $("watchNew").scrollIntoView({ behavior: "smooth", block: "nearest" });
-  });
-
-  $("watchGetAll").addEventListener("click", function () {
-    var items = [], seen = [];
-    (watchState ? watchState.items : []).forEach(function (it) {
-      if (watchOnly && it.id !== watchOnly) return;
-      (it.new || []).forEach(function (v) {
-        items.push({ url: v.url });
-        seen.push([it.id, v.id]);
-      });
-    });
-    if (!items.length) return;
-    api("/api/add", { items: items, quality: quality }).then(function (res) {
-      if (!res.ok) { toast(res.error || "Could not queue those.", "bad"); return; }
-      toast(items.length + " queued", "good");
-      pollJobs();
-      Promise.all(seen.map(function (p) {
-        return api("/api/watch/seen", { id: p[0], video: p[1] });
-      })).then(loadWatch);
-    });
-  });
-
-  $("watchSkipAll").addEventListener("click", function () {
-    var ids = (watchState ? watchState.items : [])
-      .filter(function (it) { return (!watchOnly || it.id === watchOnly) && (it.new || []).length; })
-      .map(function (it) { return it.id; });
-    if (!ids.length) return;
-    Promise.all(ids.map(function (id) {
-      return api("/api/watch/seen", { id: id, video: "" });
-    })).then(loadWatch);
-  });
-
-  /* One open menu at a time, and a click anywhere else shuts it. */
-  document.addEventListener("click", function (e) {
-    var here = e.target.closest(".rmenu");
-    document.querySelectorAll(".rmenu[open]").forEach(function (d) {
-      if (d !== here) d.open = false;
-    });
   });
 
   $("watchTabs").addEventListener("click", function (e) {
@@ -4383,20 +2866,7 @@
     });
   });
 
-  /* Bound to the room rather than the list: the new videos moved out of the
-     rows into their own card, and both carry the same buttons. */
-  $("view-watch").addEventListener("click", function (e) {
-    var rev = e.target.closest("[data-review]");
-    if (rev) {
-      watchOnly = rev.dataset.review;
-      renderWatch(watchState);
-      $("watchNew").scrollIntoView({ behavior: "smooth", block: "nearest" });
-      return;
-    }
-
-    var fix = e.target.closest("[data-wfixopen]");
-    if (fix) { openWatchFix(fix.dataset.wfixopen); return; }
-
+  $("watchList").addEventListener("click", function (e) {
     var get = e.target.closest("[data-get]");
     if (get) {
       api("/api/add", { items: [{ url: get.dataset.get }], quality: quality })
@@ -4511,8 +2981,8 @@
       '<label class="rule-check"><input type="checkbox" data-f="approve"' +
         (L.approve ? " checked" : "") + "><span>Ask before starting</span></label>" +
       '<div class="btn-row rule-foot">' +
-        '<button class="btn pri sm" data-save="' + esc(d.id) + '">Save rules</button>' +
-        '<button class="btn sm" data-close="' + esc(d.id) + '">Close</button>' +
+        '<button class="primary small" data-save="' + esc(d.id) + '">Save rules</button>' +
+        '<button class="ghost small" data-close="' + esc(d.id) + '">Close</button>' +
       "</div></div>";
   }
 
@@ -4539,88 +3009,39 @@
       : s.relay === "connected" ? "ready"
       : s.relay;
     $("shareState").textContent = where;
-    var live = s.on && (s.relay === "connected" || s.lan_only);
-    $("shareState").className = "badge " + (!s.on ? "b-wait" : live ? "b-ok" : "b-warn");
+    $("shareState").classList.toggle("on", s.on && (s.relay === "connected" || s.lan_only));
 
     $("shareInvite").disabled = !s.on;
 
     $("devicesEmpty").hidden = s.devices.length > 0;
     $("revokeAll").hidden = s.devices.length < 2;
-    $("devCount").textContent = s.devices.length || "";
     $("devicesList").innerHTML = s.devices.map(function (d) {
       var used = d.used || {};
       var facts = [d.count + " sent", "last " + ago(d.last)];
       if (used.today) facts.push(used.today + " today");
       if (used.bytes) facts.push(gb(used.bytes));
 
-      /* Pause, Rules and Remove were three buttons on every device. Rules is
-         the one that is opened while thinking about it, so it stays a row of
-         its own when open; the other two go behind the menu. */
       return '<div class="dev' + (d.paused ? " is-paused" : "") + '">' +
-        '<div class="drow flat dev-row">' +
-          '<div class="grow"><div class="f15 w500 trunc">' + esc(d.name) + "</div>" +
-          '<div class="f12 faint trunc">' + esc(facts.join(" · ")) + "</div></div>" +
-          (d.paused ? '<span class="badge b-warn">Paused</span>' : "") +
-          '<button type="button" class="btn sm" data-rules="' + esc(d.id) + '">Rules</button>' +
-          rowMenu([
-            '<button type="button" data-pause="' + esc(d.id) + '" data-to="' +
-              (d.paused ? "0" : "1") + '">' + (d.paused ? "Resume" : "Pause") + "</button>",
-            '<button type="button" class="danger" data-revoke="' + esc(d.id) +
-              '">Remove device</button>',
-          ]) +
-        "</div>" +
+        '<div class="dev-row"><div class="who"><b>' + esc(d.name) +
+          (d.paused ? ' <em class="tag">paused</em>' : "") + "</b>" +
+          "<span>" + esc(facts.join(" · ")) + "</span></div>" +
+          '<button class="ghost small" data-pause="' + esc(d.id) + '" data-to="' +
+            (d.paused ? "0" : "1") + '">' + (d.paused ? "Resume" : "Pause") + "</button>" +
+          '<button class="ghost small" data-rules="' + esc(d.id) + '">Rules</button>' +
+          '<button class="ghost small danger" data-revoke="' + esc(d.id) +
+          '">Remove</button></div>' +
         (rulesOpen === d.id ? deviceRules(d, s) : "") +
         "</div>";
     }).join("");
 
     var log = s.log || [];
-
-    /* Held items come out of the log and into their own card. They are the
-       only rows on this screen that are a question rather than a record. */
-    var waiting = log.filter(function (e) { return e.state === "waiting"; });
-    $("waitingCard").hidden = !waiting.length;
-    $("shareWaiting").hidden = !waiting.length;
-    $("shareWaiting").textContent = waiting.length + " waiting";
-    $("waitingList").innerHTML = waiting.map(function (e) {
-      var why = e.why ? " \u00b7 " + esc(WHY[e.why] || e.why) : "";
-      var from = "from <b class=\"muted\">" + esc(e.from || "a device") + "</b>, " +
-        esc(ago(e.at)) + why;
-
-      /* Text is shown as dots and a length, never as itself - what arrives
-         this way is usually a key or a password, and a window is a thing
-         other people can see over your shoulder. */
-      if (e.kind === "text") {
-        return '<div class="drow tall waiting-row">' +
-          '<div class="grow" style="min-width:0">' +
-          '<div class="f15 w500 trunc mono">' +
-            "\u2022".repeat(Math.min(e.chars || 8, 32)) + "</div>" +
-          '<div class="f12 faint trunc">Plain text \u00b7 ' + from + " \u00b7 " +
-            (e.chars || 0) + " characters, nothing to download</div></div>" +
-          '<button type="button" class="btn sm" data-no="' + esc(e.id) + '">Delete</button>' +
-          '<button type="button" class="btn pri sm" data-ok="' + esc(e.id) + '">Keep</button>' +
-          "</div>";
-      }
-
-      /* No title, no picture, no length: the link has not been analysed - that
-         is what it is waiting for - so the address is what Riplox has. */
-      return '<div class="drow tall waiting-row">' +
-        '<div class="grow" style="min-width:0">' +
-        '<div class="f15 w500 trunc mono">' + esc(e.url) + "</div>" +
-        '<div class="f12 faint trunc">' + from + "</div></div>" +
-        '<span class="chip">' + esc(labels[e.quality] || e.quality || "default") + "</span>" +
-        '<button type="button" class="btn sm" data-no="' + esc(e.id) + '">No</button>' +
-        '<button type="button" class="btn pri sm" data-ok="' + esc(e.id) + '">Download</button>' +
-        "</div>";
-    }).join("");
-
     $("incomingEmpty").hidden = log.length > 0;
-    /* Everything that has already been answered. What is still waiting is in
-       its own card above - one row per item, in one place, so answering it
-       cannot leave a stale copy of itself somewhere else on the screen. */
-    $("incomingList").innerHTML = log.filter(function (e) {
-      return e.state !== "waiting";
-    }).map(function (e) {
-      var why = "";
+    $("incomingList").innerHTML = log.map(function (e) {
+      var waiting = e.state === "waiting";
+      // A link a rule stopped is waiting too, and it gets the same buttons -
+      // but "waiting" on its own would look like Riplox simply had not got to
+      // it. The reason is what turns the Approve button into a choice.
+      var why = waiting && e.why ? " · " + esc(WHY[e.why] || e.why) : "";
 
       /* Which way it came in.
        *
@@ -4642,39 +3063,32 @@
       // arrives this way is usually a key or a password, and a window is a
       // thing other people can see over your shoulder, screen-share, or
       // screenshot. Copy is the only way it comes out, and it is gone after.
-      /* One word for where it got to. The state strings are the app's own
-         (waiting, ready, queued, error) and each gets the badge that matches
-         what the person can do about it. */
-      var badge = e.state === "error" ? '<span class="badge b-bad">Failed</span>'
-        : e.state === "queued" ? '<span class="badge b-run">Queued</span>'
-        : '<span class="badge b-ok">Arrived</span>';
-
-      var caption = [esc(e.from || "A device"), ago(e.at)].join(" · ") +
-        why + (road ? " · " + road : "");
-
       if (e.kind === "text") {
-        return '<div class="drow flat in-row">' +
-          '<div class="grow" style="min-width:0">' +
-          '<div class="f14 w500 trunc mono">' +
-            "•".repeat(Math.min(e.chars || 8, 24)) + "</div>" +
-          '<div class="f12 faint trunc">' + caption + " · " +
-            (e.chars || 0) + " characters</div></div>" +
-          '<button class="btn sm" data-copytext="' + esc(e.id) + '">Copy</button>' +
-          badge +
+        return '<div class="in-row' + (waiting ? " waiting" : "") + '">' +
+          '<div class="what"><b>' + esc(e.from || "A device") + " · text" +
+          why + road + "</b><span>" + "•".repeat(Math.min(e.chars || 8, 24)) +
+          " · " + (e.chars || 0) + " characters</span></div>" +
+          (waiting
+            ? '<button class="primary small" data-ok="' + esc(e.id) + '">Approve</button>' +
+              '<button class="ghost small" data-no="' + esc(e.id) + '">No</button>'
+            : '<button class="primary small" data-copytext="' + esc(e.id) + '">Copy</button>' +
+              '<span class="in-state">' + ago(e.at) + "</span>") +
           "</div>";
       }
 
-      return '<div class="drow flat in-row">' +
-        '<div class="grow" style="min-width:0">' +
-        '<div class="f14 w500 trunc mono">' + esc(e.url) + "</div>" +
-        '<div class="f12 faint trunc">' + caption + " · " +
-          esc(e.quality || "default") + "</div></div>" +
-        badge +
+      return '<div class="in-row' + (waiting ? " waiting" : "") + '">' +
+        '<div class="what"><b>' + esc(e.from || "A device") + " · " +
+        esc(e.quality || "default") + why + road + "</b><span>" + esc(e.url) + "</span></div>" +
+        (waiting
+          ? '<button class="primary small" data-ok="' + esc(e.id) + '">Approve</button>' +
+            '<button class="ghost small" data-no="' + esc(e.id) + '">No</button>'
+          : '<span class="in-state">' + esc(e.state) + " · " + ago(e.at) + "</span>") +
         "</div>";
     }).join("");
 
-    $("shareBadge").textContent = waiting.length;
-    $("shareBadge").hidden = !waiting.length;
+    var waitingCount = log.filter(function (e) { return e.state === "waiting"; }).length;
+    $("shareBadge").textContent = waitingCount;
+    $("shareBadge").hidden = waitingCount === 0;
 
     if (!s.crypto) {
       $("shareState").textContent = "unavailable in this build";
@@ -4882,24 +3296,6 @@
     });
   });
 
-  $("approveAll").addEventListener("click", function () {
-    var ids = ((shareState && shareState.log) || [])
-      .filter(function (e) { return e.state === "waiting"; })
-      .map(function (e) { return e.id; });
-    if (!ids.length) return;
-    var btn = $("approveAll");
-    btn.disabled = true;
-    Promise.all(ids.map(function (id) {
-      return api("/api/share/approve", { id: id, ok: true });
-    })).then(function (results) {
-      btn.disabled = false;
-      var last = results[results.length - 1];
-      if (last && last.state) renderSharing(last.state);
-      toast(ids.length + " approved", "good");
-      pollJobs();
-    });
-  });
-
   /* ------------------------------------------------------------ settings */
 
   /* Save, and say so honestly when it did not happen.
@@ -4970,7 +3366,7 @@
       name.title = path;
 
       var drop = document.createElement("button");
-      drop.className = "btn sm";
+      drop.className = "ghost small";
       drop.type = "button";
       drop.textContent = "Remove";
       drop.addEventListener("click", function () {
@@ -5103,10 +3499,8 @@
   }
   bindToggle("setAutoPaste", "auto_paste");
   bindToggle("setPace", "pace_sites");
-  // In Settings, under Saved alongside. It was on the Activity page, on the
-  // theory that this is where somebody stands when they decide they want it -
-  // but it read as a settings row dropped into the middle of a list of
-  // downloads, and a list is not the place to be offered a preference.
+  // On the Failed page rather than in Settings - it is about that page, and
+  // this is where someone is standing when they decide they want it.
   bindToggle("setFailedTidy", "failed_clear_on_success");
   bindToggle("setThumb", "write_thumbnail");
   bindToggle("setPolite", "polite_mode");
@@ -5354,21 +3748,21 @@
         mark.className = "site-mark";
 
         var go = document.createElement("button");
-        go.className = "btn sm";
+        go.className = "ghost small";
         go.type = "button";
         go.addEventListener("click", function () { signIn(site.key, site.label); });
 
         /* Read from the row rather than from `site`, which is the snapshot
            this row was built with and goes stale on the next poll. */
         var hold = document.createElement("button");
-        hold.className = "btn sm";
+        hold.className = "ghost small";
         hold.type = "button";
         hold.addEventListener("click", function () {
           pauseSite(site.key, site.label, row.dataset.paused !== "1");
         });
 
         var out = document.createElement("button");
-        out.className = "btn sm";
+        out.className = "ghost small";
         out.type = "button";
         out.textContent = "Forget";
         out.addEventListener("click", function () { forgetSite(site.key, site.label); });
@@ -5377,7 +3771,7 @@
         // than hidden behind a menu, but only useful once the first one is
         // signed in - which is what the update below decides.
         var more = document.createElement("button");
-        more.className = "btn sm";
+        more.className = "ghost small";
         more.type = "button";
         more.textContent = "+ account";
         more.title = "Sign in a second account for this site";
@@ -5450,15 +3844,15 @@
           '<span class="site-name">' + esc(r.site.label) + " · " +
             esc(r.acct.label) + "</span>" +
           '<span class="site-mark">' + state + "</span>" +
-          '<button class="btn sm" data-asignin="' + esc(r.site.key) +
+          '<button class="ghost small" data-asignin="' + esc(r.site.key) +
             '" data-n="' + r.acct.n + '">' +
             (r.acct.signedIn ? "Sign in again" : "Sign in") + "</button>" +
           (r.acct.signedIn
-            ? '<button class="btn sm" data-apause="' + esc(r.site.key) +
+            ? '<button class="ghost small" data-apause="' + esc(r.site.key) +
               '" data-n="' + r.acct.n + '" data-to="' + (r.acct.paused ? "0" : "1") +
               '">' + (r.acct.paused ? "Use again" : "Pause") + "</button>"
             : "") +
-          '<button class="btn sm danger" data-aremove="' + esc(r.site.key) +
+          '<button class="ghost small danger" data-aremove="' + esc(r.site.key) +
             '" data-n="' + r.acct.n + '">Remove</button>' +
           "</div>";
       }).join("");
@@ -5554,11 +3948,11 @@
      keeps undelivered links for a week. Counts only: the relay cannot read
      them and is not asked to hand them over. */
 
-  function askRelay(quiet) {
+  $("checkStuck").addEventListener("click", function () {
     var btn = $("checkStuck");
     var note = $("stuckNote");
     btn.disabled = true;
-    if (!quiet) note.textContent = "Asking…";
+    note.textContent = "Asking…";
 
     api("/api/share/pending").then(function (res) {
       if (!res.ok) {
@@ -5568,9 +3962,7 @@
         return;
       }
       if (!res.stuck) {
-        note.textContent = "Nothing is waiting";
-        $("stuckWhen").textContent = "Last checked just now \u00b7 0 held";
-        $("stuckDot").style.background = "var(--good)";
+        note.textContent = "Nothing waiting — everything sent has arrived.";
         return;
       }
       // Two different things, and the difference is what to do next.
@@ -5584,9 +3976,7 @@
     }).catch(function () {
       note.textContent = "Could not reach the relay.";
     }).then(function () { btn.disabled = false; });
-  }
-
-  $("checkStuck").addEventListener("click", function () { askRelay(false); });
+  });
 
   /* ---------------------------------------------------------- accounts */
 
@@ -5595,38 +3985,27 @@
      so this is reading what is already there. Clicking a name puts it in the
      library search rather than making a second kind of filter. */
 
-  /* A row of chips under the filters, not a column beside the list. As a side
-     panel it held a fixed width whether or not it had anything in it, and the
-     list - the thing people opened the room for - was narrower for it. Names
-     wrapped in that column too.
-
-     They are filters, so they live with the filters, and the button that
-     reveals them hides itself when there is nothing to reveal. */
   var accountsShown = false;
 
-  function loadAccounts() {
+  $("showAccounts").addEventListener("click", function () {
+    accountsShown = !accountsShown;
     var box = $("accountsBox");
+    box.hidden = !accountsShown;
+    $("showAccounts").classList.toggle("on", accountsShown);
+    if (!accountsShown) return;
+
     api("/api/accounts").then(function (res) {
       box.innerHTML = "";
       var list = (res.ok && res.accounts) || [];
-      // Nothing recorded yet is not a message, it is a button that should not
-      // be there. It comes back on its own with the first finished download.
-      $("showAccounts").hidden = !list.length;
       if (!list.length) {
-        box.hidden = true;
-        accountsShown = false;
+        var none = document.createElement("p");
+        none.className = "accounts-none";
+        none.textContent = "No uploader has been recorded yet. This fills in "
+                         + "as you download.";
+        box.appendChild(none);
         return;
       }
-      /* The most-downloaded first, and only a dozen of them. This machine has
-         240 uploaders recorded: as a full list it is not a filter row, it is a
-         wall nobody reads, and the twelve that matter are buried in it. The
-         rest are a search away, which is what the box above is for. */
-      var TOP = 12;
-      var sorted = list.slice().sort(function (a, b) { return (b.count || 0) - (a.count || 0); });
-      var shown = sorted.slice(0, TOP);
-      var rest = sorted.length - shown.length;
-
-      shown.forEach(function (row) {
+      list.forEach(function (row) {
         var chip = document.createElement("button");
         chip.type = "button";
         chip.className = "chip account-chip";
@@ -5644,29 +4023,7 @@
         });
         box.appendChild(chip);
       });
-
-      // Said out loud rather than silently cut. A list that stops at twelve
-      // without saying so is a list that looks like all there is.
-      if (rest > 0) {
-        var more = document.createElement("span");
-        more.className = "accounts-rest";
-        more.textContent = "+" + rest + " more · search by name";
-        box.appendChild(more);
-      }
     });
-  }
-
-  $("showAccounts").addEventListener("click", function () {
-    accountsShown = !accountsShown;
-    $("accountsBox").hidden = !accountsShown;
-    $("showAccounts").classList.toggle("on", accountsShown);
-    if (accountsShown) loadAccounts();
-  });
-
-  // Asked once on load so the button knows whether it has anything behind it.
-  // The chips stay hidden until they are asked for; this only counts them.
-  api("/api/accounts").then(function (res) {
-    $("showAccounts").hidden = !((res.ok && res.accounts) || []).length;
   });
 
   /* ------------------------------------------------------- how sites are */
@@ -5817,9 +4174,10 @@
     var heads = Array.prototype.slice.call(view.querySelectorAll(".group-head"));
     if (!heads.length) return;
 
-    var cols  = mk("div", "set");
-    var nav   = mk("nav", "set-list");
+    var cols  = mk("div", "set-cols");
+    var nav   = mk("nav", "set-nav");
     var body  = mk("div", "set-body");
+    var about = mk("div", "set-about");
     nav.setAttribute("aria-label", "Settings categories");
     cols.appendChild(nav);
     cols.appendChild(body);
@@ -5846,21 +4204,16 @@
       body.appendChild(g.box);
       panel.hidden = false;              // the wrapper does the hiding now
 
+      var target = g.info ? about : nav;
+      target.appendChild(g.info ? aboutCard(g) : navButton(g));
       groups.push(g);
     });
 
-    /* One list. The four that are not settings sit at its foot under a label
-       of their own - they were a second list below the columns, with its own
-       look, for four rows. */
-    groups.filter(function (g) { return !g.info; })
-      .forEach(function (g) { nav.appendChild(navButton(g)); });
-
-    var info = groups.filter(function (g) { return g.info; });
-    if (info.length) {
-      var label = mk("div", "rail-label");
+    if (about.childNodes.length) {
+      var label = mk("div", "set-about-label");
       label.textContent = "About Riplox";
-      nav.appendChild(label);
-      info.forEach(function (g) { nav.appendChild(navButton(g)); });
+      about.insertBefore(label, about.firstChild);
+      cols.parentNode.insertBefore(about, cols.nextSibling);
     }
 
     showGroup(byName(SETTINGS_OPEN_BY_DEFAULT) || groups[0]);
@@ -5880,24 +4233,16 @@
   }
 
   function navButton(g) {
-    var btn = mk("button", "set-item" + (g.info ? " blank" : ""));
+    var btn = mk("button", "set-cat");
     btn.type = "button";
 
-    // The design's dot: filled on the group you are in, and never drawn for
-    // the four that are not settings.
-    btn.appendChild(mk("i"));
-
     var name = mk("span", "set-cat-name");
-    name.textContent = g.info ? (g.head.dataset.short || g.name) : g.name;
+    name.textContent = g.name;
 
-    /* On a settings group the count is what makes the list worth reading
-       rather than just clickable - it says how much is behind each name
-       before you go there. The four that are not settings have no rows to
-       count, so they carry their own line instead. */
+    // The count is what makes the list worth reading rather than just
+    // clickable: it says how much is behind each name before you go there.
     var tally = mk("span", "set-cat-count");
-    tally.textContent = g.info ? (g.head.dataset.sub || "")
-      : (g.count ? g.count : "");
-    if (g.info) tally.className = "set-cat-count f12 faint";
+    tally.textContent = g.count ? g.count : "";
 
     btn.appendChild(name);
     btn.appendChild(tally);
@@ -5912,6 +4257,27 @@
     return btn;
   }
 
+  function aboutCard(g) {
+    var card = mk("button", "set-info");
+    card.type = "button";
+
+    var text = mk("span", "set-info-text");
+    var b = mk("b");  b.textContent = g.head.dataset.short || g.name;
+    var s = mk("small"); s.textContent = g.head.dataset.sub || "";
+    text.appendChild(b);
+    text.appendChild(s);
+    card.appendChild(text);
+
+    card.addEventListener("click", function () {
+      if ($("setSearch").value) $("setSearch").value = "";
+      showGroup(g);
+      applySettingsFilter();
+      g.box.scrollIntoView({ block: "nearest" });
+    });
+    g.btn = card;
+    return card;
+  }
+
   /* Show exactly one group. Used while nothing is being searched for; a
      search takes over and shows every match instead, across all of them. */
   function showGroup(g) {
@@ -5920,7 +4286,7 @@
     groups.forEach(function (o) {
       o.box.hidden = o !== g;
       if (o.btn) {
-        o.btn.classList.toggle("on", o === g);
+        o.btn.classList.toggle("is-on", o === g);
         o.btn.setAttribute("aria-current", o === g ? "true" : "false");
       }
     });
@@ -5970,14 +4336,8 @@
       // While searching, an advanced row still shows: hiding a thing someone
       // just typed the name of would be the app arguing with them.
       var allowed = advanced || term || !row.dataset.adv;
-      /* Some rows are not the filter's to show. A copy that cannot connect to
-         a browser hides that row on purpose, and a filter that walks every
-         .field would put it back - with a button that answers "the installed
-         Riplox already did this". The app's decision wins over the search's. */
-      var available = row.dataset.available !== "0";
-      var show = matches && allowed && available;
-      row.hidden = !show;
-      if (show) hits++;
+      row.hidden = !(matches && allowed);
+      if (matches && allowed) hits++;
     });
 
     // While a search is running the categories step aside and every group
@@ -5998,7 +4358,7 @@
         g.box.hidden = label.indexOf(term) < 0;
       }
       if (g.btn) {
-        g.btn.classList.toggle("on", !term && g === currentGroup);
+        g.btn.classList.toggle("is-on", !term && g === currentGroup);
         // A category still holding matches is worth pointing at, so the list
         // stays useful during a search instead of going inert.
         g.btn.classList.toggle("has-hit", !!term && !g.box.hidden);
@@ -6013,11 +4373,8 @@
       // hidden row and a removed feature look identical, so a count that
       // over-promises is not a cosmetic problem, it is the app telling you
       // something untrue. The toggle still says how many are hidden overall.
-      // The four that are not settings have no rows to count - their line is
-      // what they are, and recounting it as 0 or 2 was the list describing
-      // "What's new" as a quantity.
       var tally = g.btn && g.btn.querySelector(".set-cat-count");
-      if (tally && !g.info) {
+      if (tally) {
         var shown = g.panel.querySelectorAll(".field:not([hidden])").length;
         tally.textContent = g.count ? shown : "";
       }
@@ -6083,68 +4440,25 @@
   function renderPickable() {
     var box = $("sitePickList");
     box.innerHTML = "";
-    // Browse mode used to skip this entirely - the sheet only ever wanted the
-    // long list. The chips now offer both, so the cells are drawn either way
-    // and only picking is switched off.
-    var picking = pickerState.mode === "pick";
+    if (pickerState.mode !== "pick") return;
 
     var term = $("siteSearch").value.trim().toLowerCase();
     (siteData.pickable || []).forEach(function (name) {
       if (term && name.toLowerCase().indexOf(term) < 0) return;
-      /* A cell is a button when it can be picked and a div when it is only
-         being read. Using a disabled button for the second was wrong twice
-         over: the platform greys a disabled button's text, so the site's name
-         nearly vanished, and it is not disabled - there is simply nothing to
-         press. */
-      var picking2 = pickerState.mode === "pick";
-      var chip = document.createElement(picking2 ? "button" : "div");
-      if (picking2) chip.type = "button";
-      chip.className = "scell" + (pickerState.picked.indexOf(name) >= 0 ? " is-on" : "");
-      /* The design puts what a site can do on the second line - "videos -
-         playlists - channels". Riplox does not know that for 1,750 sites and
-         inventing it would be the screen claiming knowledge it has not got.
-         It does know what happened here last time, which is the thing this
-         screen is open to answer. A site with no recent result says so
-         instead of being given a colour. */
-      var h = siteHealth[name.toLowerCase()];
-      var dot = !h ? "var(--line-mid)" : h.state === "ok" ? "var(--good)"
-              : h.state === "door" ? "var(--warn)" : "var(--bad)";
-      var line = !h ? "not tried here yet"
-               : h.state === "ok" ? "worked " + h.ago
-               : h.state === "door" ? "needed the fallback " + h.ago
-               : "did not work " + h.ago;
-      chip.innerHTML =
-        '<span class="dot"' + (dot ? ' style="background:' + dot + '"' : "") + "></span>" +
-        "<div><b>" + esc(name) + "</b><span>" + esc(line) + "</span></div>";
+      var chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "chip" + (pickerState.picked.indexOf(name) >= 0 ? " is-on" : "");
+      chip.textContent = name;
       chip.setAttribute("aria-pressed", pickerState.picked.indexOf(name) >= 0);
-      if (picking) {
-        chip.addEventListener("click", function () {
-          var at = pickerState.picked.indexOf(name);
-          if (at >= 0) pickerState.picked.splice(at, 1);
-          else pickerState.picked.push(name);
-          renderPickable();
-        });
-      }
+      chip.addEventListener("click", function () {
+        var at = pickerState.picked.indexOf(name);
+        if (at >= 0) pickerState.picked.splice(at, 1);
+        else pickerState.picked.push(name);
+        renderPickable();
+      });
       box.appendChild(chip);
     });
   }
-
-  /* Which of the two lists is on show. One attribute, and the stylesheet does
-     the rest - the same way Activity filters, and for the same reason: neither
-     list is rebuilt to switch between them. */
-  function syncSiteKinds() {
-    $("countPick").textContent = (siteData && siteData.pickable || []).length || "";
-    $("countAllSites").textContent = (siteData && siteData.all || []).length || "";
-  }
-
-  $("siteKinds").addEventListener("click", function (e) {
-    var chip = e.target.closest(".chip");
-    if (!chip) return;
-    $("siteKinds").querySelectorAll(".chip").forEach(function (c) {
-      c.classList.toggle("is-on", c === chip);
-    });
-    $("sitePicker").dataset.which = chip.dataset.which;
-  });
 
   function renderAll() {
     var head = $("siteAllHead"), list = $("siteAllList");
@@ -6201,14 +4515,13 @@
         onSave: opts.onSave || null
       };
 
-      $("sitePickerTitle").textContent = opts.title || "Supported sites";
+      $("sitePickerTitle").textContent = opts.title || "Sites";
       $("sitePickerMsg").textContent = opts.message ||
         (pickerState.mode === "pick"
           ? "Nothing picked means every site."
           : "Every site the installed engine can read.");
       $("siteSearch").value = "";
       $("siteAllWrap").hidden = pickerState.mode === "pick" && !data.all.length;
-      syncSiteKinds();
       // Browse mode has nothing to save, so it gets one way out, not two.
       $("sitePickerSave").hidden = pickerState.mode !== "pick";
       $("sitePickerCancel").textContent =
@@ -6227,10 +4540,6 @@
 
   $("siteSearch").addEventListener("input", function () {
     if (pickerState.open) renderPicker();
-  });
-
-  $("sitePickerClose").addEventListener("click", function () {
-    $("sitePicker").hidden = true;
   });
 
   $("sitePickerCancel").addEventListener("click", closeSitePicker);
@@ -6297,46 +4606,18 @@
 
   var potTimer = null;
 
-  /* Four situations, and the one thing each of them allows. The badge is the
-     situation; the button is the move. "Installed but switched off" is a real
-     state an older config can be in, so it is named rather than hidden. */
   function renderPot(p) {
     var state = $("potState");
     if (!state) return;
-    var wanted = !!(settings && settings.potoken);
-    var note = $("potNote");
-    var btn = $("setPotoken");
-    var cls = "b-wait", says = "Not installed", act = "Install", hide = false;
 
     if (p.busy) {
-      cls = "b-run";
-      says = (p.message || "Downloading") + " \u00b7 " + p.percent + "%";
-      hide = true;
+      state.textContent = (p.message || "Downloading") + " · " + p.percent + "%";
     } else if (p.error) {
-      cls = "b-bad";
-      says = "Failed";
-      act = "Try again";
-    } else if (p.installed && wanted) {
-      cls = "b-ok";
-      says = "Installed \u00b7 working";
-      hide = true;
+      state.textContent = "Failed: " + p.error;
     } else if (p.installed) {
-      cls = "b-warn";
-      says = "Installed \u00b7 off";
-      act = "Turn it on";
-    }
-
-    state.className = "badge " + cls;
-    state.textContent = says;
-    btn.hidden = hide;
-    btn.textContent = act;
-    btn.disabled = !!p.busy;
-
-    if (note) {
-      note.hidden = !(p.error || (p.installed && p.release));
-      note.textContent = p.error ? p.error
-        : p.installed ? "Release " + p.release + (p.running ? ", running now" : "")
-        : "";
+      state.textContent = "Installed " + p.release + (p.running ? " · running" : "");
+    } else {
+      state.textContent = "Not installed";
     }
 
     if ($("potSize")) $("potSize").textContent = p.sizeMb + " MB";
@@ -6358,30 +4639,26 @@
     });
   }
 
-  /* One button, and what it does follows from the state above it. Installing
-     also switches it on: nobody downloads 44 MB in order to leave it off. */
   $("setPotoken").addEventListener("click", function () {
     var btn = $("setPotoken");
-    btn.disabled = true;
-    saveSetting({ potoken: true }).then(function (res) {
-      btn.disabled = false;
+    var on = !btn.classList.contains("on");
+    btn.classList.toggle("on", on);
+    saveSetting({ potoken: on }).then(function (res) {
       if (!res.ok) return;
-      api("/api/potoken/install", {}).then(function (r) {
-        if (!r.ok) { toast(r.error || "Could not start the download.", "bad"); return; }
-        if (r.already) toast("The helper is on.", "good");
+      if (!on) { toast("YouTube helper off"); return; }
+      api("/api/potoken/install", {}).then(function (res) {
+        if (!res.ok) { toast(res.error || "Could not start the download.", "bad"); return; }
+        if (res.already) { toast("Already installed", "good"); }
         loadPot();
       });
     });
   });
 
   $("removePotoken").addEventListener("click", function () {
-    // Off as well as gone: leaving the setting on would have the app looking
-    // for something that is no longer there.
-    saveSetting({ potoken: false }).then(function () {
-      api("/api/potoken/remove", {}).then(function () {
-        loadPot();
-        toast("Helper removed");
-      });
+    api("/api/potoken/remove", {}).then(function () {
+      $("setPotoken").classList.remove("on");
+      loadPot();
+      toast("Helper removed");
     });
   });
 
@@ -6407,29 +4684,9 @@
     api("/api/settings").then(function (res) {
       var env = res.environment || {};
       $("setAutostart").classList.toggle("on", !!res.autostart);
-      var have = res.engineVersion && res.engineVersion !== "missing"
-        ? res.engineVersion : "";
-      $("engineVersion").textContent = have
-        ? "Version " + have + " (" + (env.channel || "stable") + ")"
+      $("engineVersion").textContent = res.engineVersion && res.engineVersion !== "missing"
+        ? "Version " + res.engineVersion + " (" + (env.channel || "stable") + ")"
         : "Not installed";
-
-      /* Whether that version is the current one. Riplox has recorded the
-         answer since 1.3 - engine_checked and engine_latest - and no screen
-         has ever read them, so the row said a version number and left
-         "is that recent?" to the reader. */
-      var st = $("engineState");
-      if (st) {
-        var s = res.settings || {};
-        var latest = s.engine_latest || "";
-        var behind = have && latest && latest !== have;
-        st.className = "badge " + (!have ? "b-bad" : behind ? "b-warn" : "b-ok");
-        st.textContent = !have ? "Not installed"
-          : behind ? "Update available" : "Up to date";
-        $("engineChecked").textContent = s.engine_checked
-          ? "Last asked " + ago(s.engine_checked) +
-            (behind ? " \u00b7 newest is " + latest : "")
-          : "Never asked whether a newer one exists.";
-      }
 
       // The three things that decide whether YouTube behaves, in one line.
       var line = $("envLine");
@@ -6519,21 +4776,6 @@
           pollJobs();
         }
         lastAutoCount = res.autoCount;
-      }
-
-      /* The state Riplox already knew and never said. Set every poll rather
-         than once, because "off" is a real answer too and the switch can be
-         turned off after the first report. */
-      var badge = $("hotkeyState");
-      if (badge) {
-        var st = res.hotkey || "off";
-        badge.className = "badge " +
-          (st === "on" ? "b-ok" : st === "fallback" ? "b-warn"
-           : st === "taken" ? "b-bad" : "b-wait");
-        badge.textContent = st === "on" ? "Working"
-          : st === "fallback" ? "Different keys"
-          : st === "taken" ? "No keys free"
-          : "Off";
       }
 
       if (!hotkeyWarned && res.hotkey && res.hotkey !== "off") {
@@ -6650,26 +4892,6 @@
   }
   watchBadge();
   setInterval(watchBadge, 60000);
-
-  /* The same for a link waiting to be approved. "Ask before starting" only
-     means anything if you find out something is waiting - and until this, the
-     count on the rail was only refreshed by opening Sharing, so a held link
-     was invisible until you happened to go and look at the room it was held
-     in. Same shape as watchBadge: skipped while the room itself is open,
-     because the room keeps its own list up to date. */
-  function shareBadge() {
-    if ($("view-sharing").classList.contains("is-active")) return;
-    api("/api/share/state", {}).then(function (res) {
-      if (!res.ok || !res.state) return;
-      var waiting = (res.state.log || []).filter(function (e) {
-        return e.state === "waiting";
-      }).length;
-      $("shareBadge").textContent = waiting;
-      $("shareBadge").hidden = waiting === 0;
-    });
-  }
-  shareBadge();
-  setInterval(shareBadge, 60000);
   // Always polling: even with clipboard watching off, this is how the window
   // hears about downloads the global shortcut started.
   startClipboardWatch();

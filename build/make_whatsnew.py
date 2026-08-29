@@ -46,6 +46,41 @@ INTERNAL = (
     "What's new writes itself",
 )
 
+# Lines that were true when the commit was written and are not true now,
+# because the change was taken back out. History is not rewritten for this -
+# the commits happened - but a panel that announces a room nobody can find is
+# worse than one that says nothing, and it is the app's own voice saying it.
+#
+# The whole 1.5 redesign was reverted to the classic interface on 30 August.
+# These eight lines describe screens that no longer exist. Matched on a
+# fragment, like INTERNAL, so tidying the wording later cannot silently
+# resurrect one.
+# Checked one at a time against the interface that is actually shipping, not
+# assumed from the commit they came in: every line here names something that
+# was built on a redesigned screen and has no home in the classic one. Two
+# lines from that same range survived the check and are still in the panel -
+# the shortcut telling you which keys Windows granted, and a download's own
+# log - because the classic interface has both.
+WITHDRAWN = (
+    "Riplox has been redesigned",
+    "Queue and Failed are one room",
+    "Converting to audio opens over your library",
+    "Press Ctrl+K anywhere",
+    "Insights shows what your library already knows",
+    "Insights can write your library out",
+    "The rail shows what is downloading right now",
+    "says what it left out",
+    "asked three questions on first run",
+    "already in your library",
+    "when each channel is next checked",
+    "whether you are a bot",
+    "Links held by ask-before-starting",
+    "lists what still works",
+    "download window is drawn as a bar",
+    "whether the download engine is the current one",
+    "filters by what a file is",
+)
+
 
 def git(*args: str) -> str:
     """Run git in the repo. Empty string if it fails for any reason."""
@@ -81,7 +116,7 @@ def collect() -> list:
     if not raw:
         return []
 
-    items, hidden = [], 0
+    items, hidden, gone = [], 0, 0
     for message in raw.split("\x00"):
         for found in TRAILER.finditer(message):
             line = " ".join(found.group(1).split())
@@ -89,6 +124,9 @@ def collect() -> list:
                 continue
             if any(mark in line for mark in INTERNAL):
                 hidden += 1          # real work, but nothing a user can act on
+                continue
+            if any(mark in line for mark in WITHDRAWN):
+                gone += 1            # shipped in a commit, taken back out since
                 continue
             items.append(line)
 
@@ -98,6 +136,8 @@ def collect() -> list:
     # is still counted so the run says how many lines it left out.
     if hidden:
         print(f"  {hidden} internal line(s) left out - this panel is features only")
+    if gone:
+        print(f"  {gone} line(s) left out - the change was reverted since")
     return items[:MAX_ITEMS]
 
 

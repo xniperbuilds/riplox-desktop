@@ -2222,16 +2222,9 @@ def main() -> None:
     _window = webview.create_window(
         APP_TITLE,
         f"http://127.0.0.1:{port}",
-        # Asking for 1440 was wrong. On a 150% display - which is the default
-        # on most 1080p laptops - a 1920px screen only hands out 1280 CSS
-        # pixels, so a 1440 window cannot exist and Windows clamps it. The
-        # design then had to squeeze into 1280 and everything read as too big.
-        #
-        # The window asks for what fits everywhere, and the page scales itself
-        # to the 1440 the design is drawn for. See fitToDesign() in app.js.
         width=1180,
-        height=700,
-        min_size=(980, 620),
+        height=780,
+        min_size=(940, 620),
         background_color="#0A101B",
         text_select=False,
         hidden=quiet,

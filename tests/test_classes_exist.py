@@ -27,13 +27,14 @@ from pathlib import Path
 
 SRC = Path(__file__).resolve().parent.parent / "src"
 JS = (SRC / "static" / "js" / "app.js").read_text(encoding="utf-8")
-# Every stylesheet the page loads, not just the app's own. The design ships as
-# tokens.css and components.css and they are linked after app.css, so a class
-# defined only there is still defined - reading one file reported `light` as
-# unstyled the moment the theme switch started using the design's own class.
+# Every stylesheet the page loads, not just the first one. The interface is a
+# single app.css today; a second file linked after it would still be defining
+# classes, and reading only one of them reported perfectly styled names as
+# unstyled the last time there were two.
+STYLESHEETS = ("app.css", "tokens.css", "components.css", "app-shell.css")
 CSS = "\n".join(
     (SRC / "static" / "css" / name).read_text(encoding="utf-8")
-    for name in ("app.css", "tokens.css", "components.css", "app-shell.css")
+    for name in STYLESHEETS
     if (SRC / "static" / "css" / name).exists()
 )
 
@@ -109,14 +110,18 @@ authored = set()
 # `libSource` as missing styles, which was the test being wrong rather than
 # the app.
 #
-# Two ways in. Markup the script writes as a string, and elements it builds and
+# Three ways in. Markup the script writes as a string; elements it builds and
 # assigns a className to - about forty names arrive that second way, and until
-# this line they went on the page without this file ever seeing them. That is
-# the same silent failure the whole test exists for, one line of syntax away.
+# this line they went on the page without this file ever seeing them; and the
+# element factory, `mk("span", "set-cat-count")`, which assigns its second
+# argument to className out of sight of every pattern above. Thirteen call
+# sites, and this file was blind to all of them - the same silent failure the
+# whole test exists for, one line of syntax away.
 CLASS_SOURCES = [
     r'class=\\?"([^"\'+]*)',
     r'\.className\s*=\s*"([^"\'+]*)',
     r'\.classList\.(?:add|remove|toggle)\(\s*"([\w-]+)"',
+    r'\bmk\(\s*"[a-z]+"\s*,\s*"([^"\'+]*)"',
 ]
 for pattern in CLASS_SOURCES:
     for chunk in re.findall(pattern, JS):
@@ -127,6 +132,12 @@ for pattern in CLASS_SOURCES:
             if re.fullmatch(r"[a-z][\w-]*", n) and not n.endswith("-"):
                 authored.add(n)
 print(f"      {len(authored)} distinct classes written from JavaScript")
+
+# Rename the factory and the pattern above quietly stops matching: no error,
+# no fewer classes reported, just a file that has gone blind again. So it has
+# to still be there, under that name, with the class as its second argument.
+check("the element factory this file reads is still mk(tag, cls)",
+      re.search(r"function mk\(\s*tag\s*,\s*cls\s*\)", JS) is not None)
 
 homeless = sorted(c for c in authored if c not in styled and c not in SCRIPT_ONLY)
 check("every class the script authors is defined in the stylesheet",
@@ -171,11 +182,12 @@ print("\n-- one class, one block, within a file -------------------------------"
 # silently wins and the earlier one is dead. That is what happened when I added
 # a .summary the file already had.
 #
-# The same class in app.css *and* in the design's components.css is a different
-# thing - it is the migration, mid-way. The design is linked last and wins, and
-# the app's copy is dead weight to be deleted as each screen moves across. So
-# that is counted and listed rather than failed: it is the work remaining, and
-# it should only ever go down.
+# The same class in two *different* stylesheets is worse and harder to see: the
+# later file wins for whichever properties it names and the earlier one keeps
+# the rest, so one component ends up wearing half of each. `.toggle.on i` got a
+# translate from one file and a left from the other, both applied, and that was
+# a switch that would not switch. Listed, because two files is a state the app
+# can be in legitimately, and it should only ever go down.
 from collections import Counter
 
 
@@ -198,7 +210,7 @@ def bare_blocks(css):
 
 
 per_file = {}
-for name in ("app.css", "tokens.css", "components.css", "app-shell.css"):
+for name in STYLESHEETS:
     f = SRC / "static" / "css" / name
     if f.exists():
         per_file[name] = bare_blocks(f.read_text(encoding="utf-8"))
@@ -210,14 +222,16 @@ check("...and there are enough of them for that to mean something",
       sum(len(c) for c in per_file.values()) >= 100,
       str(sum(len(c) for c in per_file.values())))
 
-app_own = set(per_file.get("app.css", {}))
-design = set(per_file.get("components.css", {}))
-overlap = sorted(app_own & design)
-print(f"      still defined in both app.css and the design: {len(overlap)}")
+overlap = sorted(
+    n for i, a in enumerate(per_file.values())
+    for b in list(per_file.values())[i + 1:]
+    for n in set(a) & set(b)
+)
+print(f"      classes defined in more than one stylesheet: {len(overlap)}")
 if overlap:
     print("        " + " ".join(overlap))
-    print("      (the design wins - these are the app rules to delete as each")
-    print("       screen moves across, and the number should only go down)")
+    print("      (the file linked last wins, property by property - these are")
+    print("       the rules to merge, and the number should only go down)")
 
 
 print("\n-- the reading is of selectors, not of comments --------------------")
@@ -231,10 +245,11 @@ check("a rule inside @media is read like any other",
       "deep" in styled_names("@media (max-width: 900px) { .deep { color: red; } }"))
 
 
-print("\n-- what this will catch when the redesign lands --------------------")
-# Stated rather than assumed: the redesign replaces app.css. At that moment
-# every name above has to exist in the new sheet or be renamed in the script.
-# This is the test that makes that a red line instead of a quiet one.
+print("\n-- what this catches when the stylesheet is rewritten --------------")
+# Stated rather than assumed: replace app.css and every name above has to exist
+# in the new sheet or be renamed in the script. This is the test that makes
+# that a red line instead of a quiet one - which is the whole reason a swap of
+# the interface can be undone in an afternoon.
 check("the two lists together cover both silent failures",
       len(state) > 0 and len(authored) > 0,
       f"{len(state)} state + {len(authored)} authored")
