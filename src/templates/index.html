@@ -5,91 +5,107 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Riplox</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+<!-- The design, verbatim, after the app's own stylesheet so it wins. Copied
+     unchanged from the spec: retyping its values is how a 43px input becomes
+     40 and a 320 rail becomes 300. -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+<!-- Undoes only the mockup chrome in the file above - the viewer's zoom, the
+     frame's fixed 1440x1024 size and its outer border. Nothing designed. -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/app-shell.css') }}">
 </head>
-<body>
+<!-- .frame is where the design hangs its tokens, and what its own verify.js
+     reads them from, so the app's root carries it. -->
+<body class="frame">
 
 <div class="grain" aria-hidden="true"></div>
 <div class="glow" aria-hidden="true"></div>
 
-<div class="app">
 
-<aside class="sidebar">
+<aside class="rail">
   <div class="brand">
-    <img class="mark" src="{{ url_for('static', filename='img/riplox.png') }}"
-         alt="Riplox" width="32" height="32">
-    <div class="wordmark">
-      <b>Riplox</b>
-      <span>desktop <i>v{{ version }}</i></span>
+    <div class="mark">
+      <img src="{{ url_for('static', filename='img/riplox.png') }}" alt="" width="38" height="38">
+    </div>
+    <div>
+      <div class="brand-name">Riplox</div>
+      <div class="brand-ver">desktop {{ version }}</div>
     </div>
   </div>
 
-  <nav class="tabs" role="tablist">
-    <button class="tab is-active" data-view="capture" role="tab" title="Capture">
+  <!-- The one thing the app is for, where the design puts it. -->
+  <button type="button" class="cta" id="newDownload">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    New download
+  </button>
+
+  <div class="rail-label">Workspace</div>
+
+  <nav class="nav" role="tablist">
+    <button class="nav-item on" data-view="capture" role="tab" title="Capture">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M12 3v10m0 0 4-4m-4 4-4-4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>
       </svg>
-      <span class="tab-label">Capture</span>
+      <span>Download</span>
     </button>
-    <button class="tab" data-view="queue" role="tab" title="Activity">
+    <button class="nav-item" data-view="queue" role="tab" title="Activity">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/>
       </svg>
-      <span class="tab-label">Activity</span>
-      <em class="badge" id="queueBadge" hidden>0</em>
+      <span>Activity</span>
+      <em class="pill" id="queueBadge" hidden>0</em>
     </button>
-    <button class="tab" data-view="library" role="tab" title="Library">
+    <button class="nav-item" data-view="library" role="tab" title="Library">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M3 7a2 2 0 0 1 2-2h3.5l2 2.5H19a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
       </svg>
-      <span class="tab-label">Library</span>
+      <span>Library</span>
     </button>
-    <button class="tab" data-view="watch" role="tab" title="Watch">
+    <button class="nav-item" data-view="watch" role="tab" title="Watch">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="12" cy="12" r="8.2"/><path d="M12 7.4V12l3 1.8"/>
       </svg>
-      <span class="tab-label">Watch</span>
-      <em class="badge" id="watchBadge" hidden>0</em>
+      <span>Watch</span>
+      <em class="pill" id="watchBadge" hidden>0</em>
     </button>
-    <button class="tab" data-view="sharing" role="tab" title="Sharing">
+    <button class="nav-item" data-view="sharing" role="tab" title="Sharing">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="18" cy="5.5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="18.5" r="2.6"/>
         <path d="M8.4 10.8 15.6 6.8M8.4 13.2l7.2 4"/>
       </svg>
-      <span class="tab-label">Sharing</span>
-      <em class="badge" id="shareBadge" hidden>0</em>
+      <span>Sharing</span>
+      <em class="pill" id="shareBadge" hidden>0</em>
     </button>
-    <button class="tab" data-view="settings" role="tab" title="Settings">
+    <button class="nav-item" data-view="settings" role="tab" title="Settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M6 4v5M6 13v7M12 4v9M12 17v3M18 4v3M18 11v9"/>
         <circle cx="6" cy="11" r="1.8"/><circle cx="12" cy="15" r="1.8"/><circle cx="18" cy="9" r="1.8"/>
       </svg>
-      <span class="tab-label">Settings</span>
+      <span>Settings</span>
     </button>
   </nav>
 
-  <!-- What is downloading, in the rail, so it is answerable from any room.
-       Nothing here is fetched for it: the queue poll already carries all four
-       values. Hidden entirely when nothing is running, because a panel that
-       says "nothing" is a panel you learn to ignore. -->
+  <!-- What is downloading, from any room. -->
   <div class="rail-live" id="railLive" hidden>
     <div class="live-head"><span>Downloading</span><em id="liveCount"></em></div>
     <div id="liveRows"></div>
   </div>
 
-  <div class="side-foot">
+  <div class="rail-foot">
+    <div class="status" id="engineStatus" title="Download engine">
+      <span class="dot"></span><span id="engineLabel">ready</span>
+    </div>
     <div class="theme-pick" id="themePick" role="group" aria-label="Appearance">
       <button type="button" data-theme="auto"><b>A</b><span>Auto</span></button>
       <button type="button" data-theme="light"><b>L</b><span>Light</span></button>
       <button type="button" data-theme="dark"><b>D</b><span>Dark</span></button>
-    </div>
-    <div class="status" id="engineStatus" title="Download engine">
-      <span class="dot"></span><span id="engineLabel">ready</span>
     </div>
   </div>
 </aside>
@@ -104,6 +120,52 @@
 </div>
 {% endif %}
 
+<div class="work">
+
+  <!-- One topbar, filled per room, which is what the design has. -->
+  <div class="topbar">
+    <div>
+      <div class="page-title" id="pageTitle">Download</div>
+      <div class="page-sub" id="pageSub"></div>
+    </div>
+    <div class="top-actions" id="topActions">
+      <div class="room-actions" data-room="queue" hidden>
+        <!-- Each of these shows only while it has something to act on. A row of
+             buttons that is always there but usually does nothing teaches
+             people to stop reading the row. -->
+        <button class="ghost small" id="pauseAll" hidden>Pause all</button>
+        <button class="ghost small" id="resumeAllTop" hidden>Resume all</button>
+        <button class="ghost small" id="retryAll" hidden>Retry all</button>
+        <button class="ghost small" id="clearFinished">Clear finished</button>
+        <button class="ghost small" id="failedRetryAll" hidden>Retry all failed</button>
+        <button class="ghost small danger" id="failedClear" hidden>Delete all failed</button>
+      </div>
+      <div class="room-actions" data-room="library" hidden>
+        <div class="row-gap">
+          <button class="ghost small" id="openInsights">Insights</button>
+          <button class="ghost small" id="openConvert">Convert to audio…</button>
+          <button class="ghost small" id="openFolder">Open folder</button>
+          <button class="ghost small danger" id="clearHistory">Clear history</button>
+        </div>
+      </div>
+      <div class="room-actions" data-room="watch" hidden>
+        <div class="row-gap">
+          <span class="share-state" id="watchState">off</span>
+          <button class="toggle" id="setWatch" role="switch"
+                  title="Check watched links for new videos"><i></i></button>
+        </div>
+      </div>
+      <div class="room-actions" data-room="sharing" hidden>
+        <div class="row-gap">
+          <span class="share-state" id="shareState">off</span>
+          <button class="toggle" id="setSharing" role="switch"
+                  title="Let paired devices send links here"><i></i></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="canvas">
 <main>
 
   <!-- ============================ CAPTURE ============================ -->
@@ -484,18 +546,6 @@
 
   <!-- ============================= QUEUE ============================= -->
   <section class="view" id="view-queue">
-    <div class="view-head">
-      <h2>Activity</h2>
-      <!-- Each of these shows only while it has something to act on. A row of
-           buttons that is always there but usually does nothing teaches
-           people to stop reading the row. -->
-      <button class="ghost small" id="pauseAll" hidden>Pause all</button>
-      <button class="ghost small" id="resumeAllTop" hidden>Resume all</button>
-      <button class="ghost small" id="retryAll" hidden>Retry all</button>
-      <button class="ghost small" id="clearFinished">Clear finished</button>
-      <button class="ghost small" id="failedRetryAll" hidden>Retry all failed</button>
-      <button class="ghost small danger" id="failedClear" hidden>Delete all failed</button>
-    </div>
 
     <!-- One list, four ways to look at it. The counts are on the chips because
          "what is happening and what did not work" is a question about numbers
@@ -571,15 +621,6 @@
 
   <!-- ============================ LIBRARY ============================ -->
   <section class="view" id="view-library">
-    <div class="view-head">
-      <h2>Library</h2>
-      <div class="row-gap">
-        <button class="ghost small" id="openInsights">Insights</button>
-        <button class="ghost small" id="openConvert">Convert to audio…</button>
-        <button class="ghost small" id="openFolder">Open folder</button>
-        <button class="ghost small danger" id="clearHistory">Clear history</button>
-      </div>
-    </div>
     <div class="lib-controls" id="libControls" hidden>
       <input type="search" id="libSearch" class="text-input lib-search"
              placeholder="Search your downloads" autocomplete="off">
@@ -625,14 +666,6 @@
 
   <!-- ============================= WATCH ============================= -->
   <section class="view" id="view-watch">
-    <div class="view-head">
-      <h2>Watch</h2>
-      <div class="row-gap">
-        <span class="share-state" id="watchState">off</span>
-        <button class="toggle" id="setWatch" role="switch"
-                title="Check watched links for new videos"><i></i></button>
-      </div>
-    </div>
 
     <p class="conv-note">Riplox checks the channels and playlists you add here
       and tells you what is new. It never downloads anything on its own.</p>
@@ -713,14 +746,6 @@
 
   <!-- =========================== SHARING ============================= -->
   <section class="view" id="view-sharing">
-    <div class="view-head">
-      <h2>Send to Riplox</h2>
-      <div class="row-gap">
-        <span class="share-state" id="shareState">off</span>
-        <button class="toggle" id="setSharing" role="switch"
-                title="Let paired devices send links here"><i></i></button>
-      </div>
-    </div>
 
     <p class="conv-note">Share a link from your phone — it downloads on this
       PC. Only the link travels, and nothing on the internet can reach this
@@ -820,7 +845,6 @@
 
   <!-- =========================== SETTINGS ============================ -->
   <section class="view" id="view-settings">
-    <div class="view-head"><h2>Settings</h2></div>
 
     <!-- This was an accordion - one shut row per group, opened one at a time.
          It worked at eight groups and stopped working at thirteen: every
@@ -1653,6 +1677,7 @@
   </section>
 
 </main>
+  </div>
 </div><!-- /stage -->
 </div><!-- /app -->
 

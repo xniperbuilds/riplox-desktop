@@ -1,0 +1,50 @@
+/* --------------------------------------------------------------------------
+   Where a window is not a 1440x1024 mockup
+
+   components.css is the design, copied verbatim, and it is written for the
+   browsing copy: .frame is a fixed canvas with a rounded border and a shadow,
+   and two media queries zoom the whole thing down so a 1440 mockup fits a
+   smaller browser window. In a real window that zoom shrinks the interface to
+   52% - every size in the design halves, and verify.js reports forty
+   mismatches that are not the build's fault.
+
+   So this file, loaded after it, undoes only the mockup chrome. Nothing here
+   changes a designed value; each rule says which mockup-ism it is cancelling.
+   -------------------------------------------------------------------------- */
+
+body.frame {
+  zoom: 1;                  /* the viewer's fit-to-window scaling */
+  width: 100%;
+  height: 100vh;
+  margin: 0;
+  border: 0;                /* a window has no outer border ... */
+  border-radius: 0;         /* ... and no rounded outer corner */
+  box-shadow: none;
+  overflow: hidden;
+}
+
+/* The design's canvas is overflow:hidden because a mockup never has more
+   content than fits. A real library has four hundred rows. */
+.canvas { overflow-y: auto; overflow-x: hidden; }
+.canvas > main {
+  width: 100%;
+  max-width: 1056px;        /* the design's canvas width at 1440 */
+  margin: 0 auto;
+  padding: 0;
+}
+
+/* The rail gives up its labels at 1152 - measured on the running app with a
+   full library, not on the deck. See the breakpoint note in app.css. */
+@media (max-width: 1152px) {
+  .rail { width: 72px; padding: 20px 8px 16px; align-items: center; }
+  .rail .brand > div:last-child,
+  .rail .rail-label,
+  .rail .nav-item span,
+  .rail .nav-item .pill,
+  .rail-live,
+  .rail-foot .status span:not(.dot),
+  .rail-foot .theme-pick button span { display: none; }
+  .rail .brand, .rail-foot { justify-content: center; }
+  .rail .nav-item { justify-content: center; padding: 0; }
+  .cta { font-size: 0; gap: 0; }
+}

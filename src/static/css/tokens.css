@@ -1,0 +1,74 @@
+/* Riplox 1.5 redesign — design tokens.
+   Every value measured; see ../../raw/agreement.json for how many files agreed.
+   Drop this in as-is: the light block keeps the same contrast distances,
+   it is not an inversion. Contrast verified — 32 pairs, all >= 4.5:1. */
+
+.frame{
+  /* ---- DARK (default) ---------------------------------- */
+  --ground:    #0F1116;
+  --ground-2:  #0B0D11;
+  --surface:   #171A21;
+  --surface-2: #1D2129;
+  --raise:     #232830;
+
+  --text:      #FFFFFF;
+  --muted:     #A8B0BD;   /* 8.6:1 on ground — the measured muted distance */
+  --faint:     #7C8593;   /* 5.1:1 on ground, 4.7:1 on a card — passes at 12px */
+
+  --line:      rgba(255,255,255,.07);
+  --line-mid:  rgba(255,255,255,.13);
+  --inner:     rgba(255,255,255,.04);
+
+  --accent:    #2BE9E0;
+  --accent-2:  #17C3D6;
+  --on-accent: #04222B;
+  --accent-dim: rgba(43,233,224,.12);
+  --accent-line: rgba(43,233,224,.35);
+
+  --good:  #3DDC84;  --good-dim: rgba(61,220,132,.12);
+  --warn:  #FFC14D;  --warn-dim: rgba(255,193,77,.12);
+  --bad:   #FF4D6A;  --bad-dim:  rgba(255,77,106,.12);
+
+  --shadow: 0 0 34px rgba(0,0,0,.45);
+  --shadow-soft: 0 0 34px rgba(0,0,0,.28);
+}
+
+/* ---- LIGHT — same contrast distances, not the same hexes ---- */
+.frame.light{
+  --ground:    #F7F7F8;
+  --ground-2:  #EDEEF1;
+  --surface:   #FFFFFF;
+  --surface-2: #F4F5F7;
+  --raise:     #E9EBEF;
+
+  --text:      #14161A;
+  --muted:     #5C6472;   /* 6.0:1 on the ground */
+  --faint:     #666E7B;   /* 4.8:1 — 12px meta must still be readable */
+
+  --line:      rgba(16,24,40,.09);
+  --line-mid:  rgba(16,24,40,.16);
+  --inner:     rgba(16,24,40,.02);
+
+  /* Riplox cyan cannot carry white text — #2BE9E0 is 1.4:1 and even a
+     mid-teal only reaches 2.6:1. This is the lightest teal that still
+     passes 4.5:1 with white on it, so the brand survives the light theme. */
+  --accent:    #0C7F79;
+  --accent-2:  #0A6E75;
+  --on-accent: #FFFFFF;
+  --accent-dim: rgba(12,127,121,.10);
+  --accent-line: rgba(12,127,121,.32);
+
+  --good:  #0E7A42;  --good-dim: rgba(14,122,66,.10);
+  --warn:  #8A5A00;  --warn-dim: rgba(138,90,0,.10);
+  --bad:   #C41F3C;  --bad-dim:  rgba(196,31,60,.10);
+
+  --shadow: 0 0 34px rgba(16,24,40,.16);
+  --shadow-soft: 0 0 34px rgba(16,24,40,.08);
+}
+
+:root{
+  --r:   12px;   /* panel — the larger of the two radii each file keeps */
+  --r-s: 10px;   /* control — card radius 2/3, input radius 3/3 */
+  --font: "Poppins", "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  --mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+}

@@ -408,6 +408,9 @@
     var pick = settings.theme || "auto";
     var mode = pick === "auto" ? (media && media.matches ? "light" : "dark") : pick;
     document.documentElement.setAttribute("data-theme", mode);
+    // The design's tokens live on .frame / .frame.light, so the class is the
+    // real switch now; the attribute stays for the app's own older rules.
+    document.body.classList.toggle("light", mode === "light");
     document.querySelectorAll("#themePick button").forEach(function (b) {
       b.classList.toggle("is-on", b.dataset.theme === pick);
     });
@@ -434,12 +437,31 @@
   var views = ["capture", "queue", "library", "watch",
                "sharing", "settings"];
 
+  /* What each room is called and what it is for. The design gives every screen
+     a topbar carrying both, so this is where they live rather than inside the
+     content where they used to scroll away. */
+  var ROOM = {
+    capture:  ["Download",       "Paste a link, or copy one anywhere and Riplox catches it"],
+    queue:    ["Activity",       "What is running, what is waiting, and what did not work"],
+    library:  ["Library",        "Everything Riplox has finished, and who it came from"],
+    watch:    ["Watch",          "Channels and playlists Riplox checks - it never downloads on its own"],
+    sharing:  ["Send to Riplox", "Share a link from your phone and it downloads on this PC"],
+    settings: ["Settings",       "Everything Riplox can be told to do, grouped"]
+  };
+
   function show(view) {
     views.forEach(function (v) {
       $("view-" + v).classList.toggle("is-active", v === view);
     });
-    document.querySelectorAll(".tab").forEach(function (b) {
-      b.classList.toggle("is-active", b.dataset.view === view);
+    document.querySelectorAll(".nav-item").forEach(function (b) {
+      b.classList.toggle("on", b.dataset.view === view);
+    });
+
+    var room = ROOM[view] || ["", ""];
+    $("pageTitle").textContent = room[0];
+    $("pageSub").textContent = room[1];
+    document.querySelectorAll(".room-actions").forEach(function (g) {
+      g.hidden = g.dataset.room !== view;
     });
 
     // One room, so both lists are fetched when it opens.
@@ -454,9 +476,21 @@
     }
   }
 
-  document.querySelectorAll(".tab").forEach(function (b) {
+  document.querySelectorAll(".nav-item").forEach(function (b) {
     b.addEventListener("click", function () { show(b.dataset.view); });
   });
+
+  // The rail's one action: back to Download, ready for a new link.
+  $("newDownload").addEventListener("click", function () {
+    show("capture");
+    var box = $("urlInput");
+    if (box) { box.value = ""; box.focus(); }
+  });
+
+  // The topbar is filled by show(), and the page opens on Download - so it is
+  // told once here, or the room's name and subtitle stay blank until the first
+  // click on the rail.
+  show("capture");
 
   /* ------------------------------------------------------------- analyze */
 

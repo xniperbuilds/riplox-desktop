@@ -984,7 +984,7 @@ button { font-family: var(--font); }
   background: var(--overlay);
   backdrop-filter: blur(6px);
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 10px;
   letter-spacing: .16em;
   color: var(--accent-ink);
 }
@@ -1037,12 +1037,9 @@ button { font-family: var(--font); }
 /* The design's card, its head, and the pieces the side column is built from.
    Values are the design's own: 16 padding on a card, a 24px badge, a 104px
    curve, a dashed summary on --ground-2. */
-.pv-side .card {
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-s);
-  background: var(--surface);
-}
+/* The design's own .card now does this, from components.css - a card is 12
+   and 24, not 10 and 16. This was my hand-built version of it, and it was
+   winning on specificity and getting the radius wrong. */
 .card-head {
   display: flex;
   align-items: center;
@@ -1300,7 +1297,7 @@ button { font-family: var(--font); }
   font-weight: 400;
   letter-spacing: .1em;
   text-transform: uppercase;
-  font-size: 9.5px;
+  font-size: 10px;
   color: var(--faint);
   background: var(--sunk);
   border-bottom: 1px solid var(--line-soft);
@@ -2118,7 +2115,7 @@ button { font-family: var(--font); }
   padding: 1px 6px;
   border-radius: 999px;
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 10px;
   letter-spacing: .06em;
   text-transform: uppercase;
   font-weight: 500;
@@ -2320,7 +2317,7 @@ button { font-family: var(--font); }
 
 .tag {
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 10px;
   font-style: normal;
   letter-spacing: .1em;
   text-transform: uppercase;

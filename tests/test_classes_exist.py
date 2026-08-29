@@ -27,7 +27,15 @@ from pathlib import Path
 
 SRC = Path(__file__).resolve().parent.parent / "src"
 JS = (SRC / "static" / "js" / "app.js").read_text(encoding="utf-8")
-CSS = (SRC / "static" / "css" / "app.css").read_text(encoding="utf-8")
+# Every stylesheet the page loads, not just the app's own. The design ships as
+# tokens.css and components.css and they are linked after app.css, so a class
+# defined only there is still defined - reading one file reported `light` as
+# unstyled the moment the theme switch started using the design's own class.
+CSS = "\n".join(
+    (SRC / "static" / "css" / name).read_text(encoding="utf-8")
+    for name in ("app.css", "tokens.css", "components.css", "app-shell.css")
+    if (SRC / "static" / "css" / name).exists()
+)
 
 PASS, FAIL = [], []
 
@@ -110,34 +118,58 @@ check("...and the script really does author markup", len(authored) >= 20,
       str(len(authored)))
 
 
-print("\n-- one class, one block ---------------------------------------------")
-# This stylesheet keeps each class in one place, in the section it belongs to,
-# and 236 of them follow that. A second bare `.name {` block somewhere else is
-# how a rule gets written twice and the later one silently wins - which is
-# exactly what happened when I added a .summary that the file already had.
+print("\n-- one class, one block, within a file -------------------------------")
+# A class written twice in the *same* stylesheet is a defect: the later block
+# silently wins and the earlier one is dead. That is what happened when I added
+# a .summary the file already had.
+#
+# The same class in app.css *and* in the design's components.css is a different
+# thing - it is the migration, mid-way. The design is linked last and wins, and
+# the app's copy is dead weight to be deleted as each screen moves across. So
+# that is counted and listed rather than failed: it is the work remaining, and
+# it should only ever go down.
 from collections import Counter
 
-blocks, buf, depth = [], [], 0
-for ch in re.sub(r"/\*.*?\*/", " ", CSS, flags=re.S):
-    if ch == "{":
-        if depth == 0:
-            prelude = "".join(buf).strip()
-            if not prelude.startswith("@"):
-                blocks.append(" ".join(prelude.split()))
-        buf = []
-        depth += 1
-    elif ch == "}":
-        depth -= 1
-        buf = []
-    else:
-        buf.append(ch)
 
-bare = Counter(s for s in blocks if re.fullmatch(r"\.[a-z][\w-]*", s))
-split = sorted(name for name, n in bare.items() if n > 1)
-check("no class is defined in two separate blocks",
-      not split, ", ".join(split) if split else "")
+def bare_blocks(css):
+    blocks, buf, depth = [], [], 0
+    for ch in re.sub(r"/\*.*?\*/", " ", css, flags=re.S):
+        if ch == "{":
+            if depth == 0:
+                prelude = "".join(buf).strip()
+                if not prelude.startswith("@"):
+                    blocks.append(" ".join(prelude.split()))
+            buf = []
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            buf = []
+        else:
+            buf.append(ch)
+    return Counter(s for s in blocks if re.fullmatch(r"\.[a-z][\w-]*", s))
+
+
+per_file = {}
+for name in ("app.css", "tokens.css", "components.css", "app-shell.css"):
+    f = SRC / "static" / "css" / name
+    if f.exists():
+        per_file[name] = bare_blocks(f.read_text(encoding="utf-8"))
+
+twice = sorted(n for c in per_file.values() for n, k in c.items() if k > 1)
+check("no class is defined twice inside one stylesheet",
+      not twice, ", ".join(twice) if twice else "")
 check("...and there are enough of them for that to mean something",
-      len(bare) >= 100, str(len(bare)))
+      sum(len(c) for c in per_file.values()) >= 100,
+      str(sum(len(c) for c in per_file.values())))
+
+app_own = set(per_file.get("app.css", {}))
+design = set(per_file.get("components.css", {}))
+overlap = sorted(app_own & design)
+print(f"      still defined in both app.css and the design: {len(overlap)}")
+if overlap:
+    print("        " + " ".join(overlap))
+    print("      (the design wins - these are the app rules to delete as each")
+    print("       screen moves across, and the number should only go down)")
 
 
 print("\n-- the reading is of selectors, not of comments --------------------")
