@@ -16,8 +16,12 @@
    CJK script falls through to the system stack, which is correct for those
    and is why the fallback list is still spelled out below.
 
-   font-display is block, not swap: the file is on disk and loads in a few
-   milliseconds, so there is nothing to swap to and no flash worth having.
+   font-display is swap, not block. The file is on disk and loads in a few
+   milliseconds - but `block` means the text is INVISIBLE until it arrives,
+   and "a few milliseconds" is not "none". Every reload came up with the
+   labels missing for a beat, which reads as broken rather than as loading.
+   swap shows the fallback immediately and upgrades in place: the text is
+   never gone, which matters more here than one frame of Segoe UI.
 
    Poppins is under the SIL Open Font License 1.1 - see fonts/OFL.txt, which
    ships with it.
@@ -26,7 +30,7 @@
   font-family: "Poppins";
   font-style: normal;
   font-weight: 400;
-  font-display: block;
+  font-display: swap;
   src: url("../fonts/Poppins-400-latin.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
@@ -34,7 +38,7 @@
   font-family: "Poppins";
   font-style: normal;
   font-weight: 400;
-  font-display: block;
+  font-display: swap;
   src: url("../fonts/Poppins-400-latin-ext.woff2") format("woff2");
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
@@ -42,7 +46,7 @@
   font-family: "Poppins";
   font-style: normal;
   font-weight: 500;
-  font-display: block;
+  font-display: swap;
   src: url("../fonts/Poppins-500-latin.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
@@ -50,7 +54,7 @@
   font-family: "Poppins";
   font-style: normal;
   font-weight: 500;
-  font-display: block;
+  font-display: swap;
   src: url("../fonts/Poppins-500-latin-ext.woff2") format("woff2");
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
@@ -351,8 +355,8 @@ body::before {                       /* faint technical grid */
 }
 
 .stage { flex: 1; min-width: 0; overflow-y: auto; }
+/* moved to components.css: .brand */
 
-.brand { display: flex; align-items: center; gap: 12px; padding: 0 8px 4px; }
 
 /* The brand tile is navy on a navy page - a hairline ring keeps its edge. */
 .mark {
@@ -444,36 +448,18 @@ body::before {                       /* faint technical grid */
   padding-top: 16px;
   border-top: 1px solid var(--line);
 }
-.live-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 8px 12px;
-}
-.live-head span {
-  font-size: 10px;
-  letter-spacing: .13em;
-  text-transform: uppercase;
-  color: var(--faint);
-  font-weight: 500;
-}
-.live-head em { font-style: normal; font-size: 11px; color: var(--muted); }
-.live-row { padding: 8px; border-radius: var(--r-s); }
-.live-title {
-  font-size: 12px;
-  color: var(--muted);
-  margin-bottom: 8px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.live-meta {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 7px;
-  font-size: 10px;
-  color: var(--faint);
-}
+/* moved to components.css: .live-head */
+
+/* moved to components.css: .live-head span */
+
+/* moved to components.css: .live-head em */
+
+/* moved to components.css: .live-row */
+
+/* moved to components.css: .live-title */
+
+/* moved to components.css: .live-meta */
+
 
 /* --- layout -------------------------------------------------------------- */
 
@@ -758,17 +744,8 @@ button { font-family: var(--font); }
   color: var(--bad);
   font-size: 13px;
 }
+/* moved to components.css: .alert */
 
-.alert {
-  position: relative;
-  z-index: 2;
-  max-width: 1000px;
-  margin: 16px auto -6px;
-  border-color: var(--warn-dim);
-  background: var(--warn-dim);
-  color: var(--warn);
-  color: var(--warn-soft);
-}
 .alert strong { color: var(--warn-ink); }
 
 /* Once a video is on the screen the invitation to paste one has done its job,
@@ -832,31 +809,13 @@ button { font-family: var(--font); }
   margin-bottom: 16px;
   border-bottom: 1px solid var(--line);
 }
-.tab {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 40px;
-  padding: 0 12px;
-  border: 0;
-  background: none;
-  color: var(--faint);
-  font: 500 13px var(--font);
-  cursor: pointer;
-  white-space: nowrap;
-  transition: color .18s;
-}
+/* moved to components.css: .tab */
+
 .tab:hover { color: var(--muted); }
-.tab.is-on { color: var(--text); }
-.tab.is-on::after {
-  content: "";
-  position: absolute;
-  left: 10px; right: 10px; bottom: -1px;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--accent);
-}
+/* moved to components.css: .tab.is-on */
+
+/* moved to components.css: .tab.is-on::after */
+
 /* What is set, said on the bar. This is the whole reason a tab can replace a
    panel that used to throw its settings away when it closed. */
 .tab .n {
@@ -982,8 +941,8 @@ button { font-family: var(--font); }
   text-transform: uppercase;
   color: var(--faint);
 }
+/* moved to components.css: .chips */
 
-.chips { display: flex; flex-wrap: wrap; gap: 8px; }
 
 /* The design's card, its head, and the pieces the side column is built from.
    Values are the design's own: 16 padding on a card, a 24px badge, a 104px
@@ -997,27 +956,11 @@ button { font-family: var(--font); }
   gap: 12px;
   margin-bottom: 12px;
 }
-.card-head h3 {
-  margin: 0;
-  margin-right: auto;
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--text);
-}
-.card-note { font-size: 12px; color: var(--faint); }
+/* moved to components.css: .card-head h3 */
 
-.badge {
-  height: 24px;
-  padding: 0 8px;
-  display: inline-grid;
-  place-items: center;
-  border-radius: 6px;
-  background: var(--accent-dim);
-  color: var(--accent-ink);
-  font-size: 11px;
-  font-style: normal;
-  font-weight: 500;
-}
+.card-note { font-size: 12px; color: var(--faint); }
+/* moved to components.css: .badge */
+
 
 /* The heat curve, given the room the design gives it. */
 .curve {
@@ -1027,7 +970,8 @@ button { font-family: var(--font); }
   border-radius: var(--r-s);
   background: var(--ground-2);
 }
-.curve svg { width: 100%; height: 100%; display: block; }
+/* moved to components.css: .curve svg */
+
 
 /* A row you can tick. Dashed nothing, no native box - the tick is drawn, so it
    can carry the accent when it is on. */
@@ -1055,7 +999,8 @@ button { font-family: var(--font); }
   color: var(--muted);
   line-height: 1.75;
 }
-.summary b { color: var(--text); font-weight: 500; }
+/* moved to components.css: .summary b */
+
 .summary:empty { display: none; }
 
 /* The quality tiles. Two columns and a 64px tile are the design's; the number
@@ -1070,23 +1015,18 @@ button { font-family: var(--font); }
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-.qbox {
-  height: 64px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-s);
-  background: var(--surface-2);
-  color: var(--muted);
-  text-align: left;
-  cursor: pointer;
-  transition: border-color .18s, background .18s, color .18s;
-}
-.qbox b { display: block; font-size: 15px; font-weight: 500; color: var(--text); }
-.qbox span { font-size: 11px; color: var(--faint); }
+/* moved to components.css: .qbox */
+
+/* moved to components.css: .qbox b */
+
+/* moved to components.css: .qbox span */
+
 .qbox:hover { border-color: var(--line-mid); }
-.qbox.is-on { border-color: var(--accent); background: var(--accent-dim); }
+/* moved to components.css: .qbox.is-on */
+
 .qbox.is-on b { color: var(--accent-ink); }
-.qbox.is-on span { color: var(--accent-ink); opacity: .8; }
+/* moved to components.css: .qbox.is-on span */
+
 .qbox.upscaled span { color: var(--warn); }
 
 /* Not a pill. A pill should mean something - a tag, a count - and these are a
@@ -1260,23 +1200,8 @@ button { font-family: var(--font); }
 .fmt tbody tr.is-on td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
 .fmt .sr { color: var(--warn-ink); }
 .fmt .kind { color: var(--faint); }
+/* moved to components.css: .cmd */
 
-.cmd {
-  margin: 0;
-  padding: 12px;
-  max-height: 130px;
-  overflow: auto;
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-s);
-  background: var(--sunk);
-  font-family: var(--mono);
-  font-size: 11px;
-  line-height: 1.6;
-  color: var(--muted);
-  white-space: pre-wrap;
-  word-break: break-all;
-  user-select: text;
-}
 
 /* --- playlist ------------------------------------------------------------ */
 
@@ -1477,7 +1402,8 @@ button { font-family: var(--font); }
   font-size: 10px;
   font-style: normal;
 }
-.chip.is-on .k { background: var(--accent-dim); color: var(--accent-ink); }
+/* moved to components.css: .chip.is-on .k */
+
 .chip .k[hidden] { display: none; }
 
 /* Filtering is an attribute and nothing else - the script already writes each
@@ -1581,21 +1507,10 @@ button { font-family: var(--font); }
 .job.error .meter i { background: var(--bad); box-shadow: none; }
 
 .job-actions { display: flex; gap: 8px; }
+/* moved to components.css: .icon-btn */
 
-.icon-btn {
-  width: 36px; height: 36px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--line);
-  border-radius: var(--r-s);
-  background: var(--surface-2);
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 14px;
-  flex: none;
-  transition: color .18s, border-color .18s, background .18s;
-}
-.icon-btn svg { width: 16px; height: 16px; display: block; }
+/* moved to components.css: .icon-btn svg */
+
 .icon-btn:hover { color: var(--text); border-color: var(--line-mid); background: var(--surface); }
 .icon-btn.go:hover { color: var(--accent-ink); border-color: rgba(var(--accent-rgb), .45); }
 .icon-btn.stop:hover { color: var(--bad-ink); border-color: rgba(var(--bad-rgb), .45); }
@@ -1698,7 +1613,8 @@ button { font-family: var(--font); }
 /* The chevron points down at a closed row and up at an open one, so the
    button says which way it is about to go without a second icon. */
 .icon-btn.is-open svg { transform: rotate(180deg); }
-.icon-btn svg { transition: transform .18s; }
+/* moved to components.css: .icon-btn svg */
+
 
 /* A row that eventually downloaded is kept, not removed - so it has to look
    settled rather than shouting for attention. */
@@ -1729,12 +1645,10 @@ button { font-family: var(--font); }
   border: 1px dashed var(--line);
   border-radius: var(--r);
 }
-.empty p {
-  margin: 0 0 5px;
-  font-size: 17px;
-  color: var(--muted);
-}
-.empty span { font-size: 13px; color: var(--faint); }
+/* moved to components.css: .empty p */
+
+/* moved to components.css: .empty span */
+
 
 /* --- settings ------------------------------------------------------------ */
 
@@ -1773,26 +1687,16 @@ button { font-family: var(--font); }
   padding: 24px;
   box-shadow: var(--shadow-soft);
 }
+/* moved to components.css: .field */
 
-.field {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--line-soft);
-  min-height: 68px;
-}
-.field:last-child { border-bottom: 0; }
+/* moved to components.css: .field:last-child */
+
 
 .field-text { min-width: 0; }
-.field-text label {
-  display: block;
-  font-size: 13.5px;
-  font-weight: 500;
-  margin-bottom: 2px;
-}
-.field-text span { font-size: 12.5px; color: var(--faint); display: block; max-width: 62ch; }
+/* moved to components.css: .field-text label */
+
+/* moved to components.css: .field-text span */
+
 .field-text .warn { color: var(--warn-ink); font-weight: 500; }
 
 /* --- trim, resume and the settings text input ---------------------------- */
@@ -2003,7 +1907,8 @@ button { font-family: var(--font); }
   background: #FFFFFF;
   line-height: 0;
 }
-.qr svg { display: block; width: 148px; height: 148px; }
+/* moved to components.css: .qr svg */
+
 .qr-side { min-width: 0; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .qr-side code {
   font-family: var(--mono);
@@ -3228,28 +3133,14 @@ select {
   outline: none;
 }
 select:focus { border-color: var(--accent); }
+/* moved to components.css: .toggle */
 
-.toggle {
-  width: 44px; height: 26px;
-  flex: none;
-  border: 1px solid var(--line-mid);
-  border-radius: 13px;
-  background: var(--track);
-  cursor: pointer;
-  padding: 0;
-  position: relative;
-  transition: background .22s var(--ease), border-color .22s;
-}
-.toggle i {
-  position: absolute;
-  top: 3px; left: 3px;
-  width: 18px; height: 18px;
-  border-radius: 50%;
-  background: var(--faint);
-  transition: transform .24s var(--ease), background .22s;
-}
-.toggle.on { background: var(--accent-dim); border-color: var(--accent-line); }
-.toggle.on i { transform: translateX(18px); background: var(--accent); }
+/* moved to components.css: .toggle i */
+
+/* moved to components.css: .toggle.on */
+
+/* moved to components.css: .toggle.on i */
+
 
 .footnote {
   margin: 0;
@@ -3320,35 +3211,13 @@ select:focus { border-color: var(--accent); }
 /* Near the top rather than centred: the list grows downwards, and a box that
    grows in both directions moves the thing you are reading. */
 .scrim-top { align-items: flex-start; padding-top: 12vh; }
-.sheet {
-  width: min(660px, 100%);
-  max-height: 66vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid var(--line-mid);
-  border-radius: var(--r);
-  background: var(--ground-2);
-  box-shadow: 0 40px 90px -30px var(--shadow-ink);
-}
-.omni {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--line);
-}
+/* moved to components.css: .sheet */
+
+/* moved to components.css: .omni */
+
 .omni svg { width: 18px; height: 18px; flex: none; color: var(--faint); }
-.omni input {
-  flex: 1;
-  min-width: 0;
-  height: 56px;
-  border: 0;
-  background: transparent;
-  color: var(--text);
-  font-family: var(--font);
-  font-size: 16px;
-}
+/* moved to components.css: .omni input */
+
 .omni input:focus { outline: none; }
 .sheet-body { flex: 1; min-height: 0; overflow-y: auto; padding: 10px; }
 .sheet-body .lrow { height: 52px; cursor: pointer; }
@@ -3365,20 +3234,8 @@ select:focus { border-color: var(--accent); }
   font-size: 12px;
   color: var(--faint);
 }
-kbd {
-  display: inline-grid;
-  place-items: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 5px;
-  margin-right: 2px;
-  border: 1px solid var(--line-mid);
-  border-radius: 5px;
-  background: var(--surface);
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--muted);
-}
+/* moved to components.css: kbd */
+
 
 /* --- toast --------------------------------------------------------------- */
 
