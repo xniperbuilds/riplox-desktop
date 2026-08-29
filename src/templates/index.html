@@ -156,6 +156,9 @@
           <button class="btn sm danger" id="clearHistory">Clear history</button>
         </div>
       </div>
+      <div class="room-actions" id="watchFixActions" hidden>
+        <button type="button" class="btn sm" id="fixBack">Back to Watch</button>
+      </div>
       <div class="room-actions" data-room="watch" hidden>
         <button type="button" class="btn sm" id="watchCheckAll">Check now</button>
         <button type="button" class="btn pri sm" id="watchAddBtn">Add</button>
@@ -730,6 +733,103 @@
     </div>
 
     <div class="rows" id="watchList"></div>
+
+    <!-- The ladder, behind the row that is being challenged. Five steps, the
+         cheapest first, each with the control that does it. -->
+    <div class="watch-fix" id="watchFix" hidden>
+      <div class="alert a-warn" style="margin-bottom:20px">
+        <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.7"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3.5 19 6v6c0 4.2-2.9 7.4-7 8.5-4.1-1.1-7-4.3-7-8.5V6z"/>
+          <path d="m9 12 2 2 4-4"/></svg>
+        <div>
+          <h4>YouTube asked whether this is a bot</h4>
+          <p>This is usually temporary and it breaks nothing &mdash; ordinary
+            downloads keep working. Riplox already slowed this item down on its
+            own. Work down the list; most people never get past step two.</p>
+        </div>
+      </div>
+
+      <div class="rows">
+        <div class="drow step">
+          <div class="wnum">1</div>
+          <div class="grow" style="min-width:0">
+            <div class="f15 w500 step-head">Slow it down
+              <span class="badge b-run" id="fixSlowBadge" hidden>Doing this now</span></div>
+            <div class="f12 faint">Every watched item is another request. 24 hours or
+              2 days is plenty for a channel that posts weekly.</div>
+          </div>
+          <div class="step-act">
+            <label class="sr-only" for="fixHours">Check every</label>
+            <select id="fixHours" class="input">
+              <option value="6">Every 6 hours</option>
+              <option value="12">Every 12 hours</option>
+              <option value="24">Every 24 hours</option>
+              <option value="48">Every 2 days</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="drow step">
+          <div class="wnum">2</div>
+          <div class="grow" style="min-width:0">
+            <div class="f15 w500 step-head">Wait it out
+              <span class="badge b-run" id="fixOffBadge" hidden>Watching is off</span></div>
+            <div class="f12 faint">Turn watching off for a day. These blocks lift on
+              their own far more often than not.</div>
+          </div>
+          <div class="step-act">
+            <button class="toggle" id="fixWatchOn" role="switch"
+                    title="Watching, on or off"><i></i></button>
+          </div>
+        </div>
+
+        <div class="drow step">
+          <div class="wnum">3</div>
+          <div class="grow" style="min-width:0">
+            <div class="f15 w500 step-head">Sign in</div>
+            <div class="f12 faint">A signed-in request is rarely challenged. Use an
+              account you would not mind losing &mdash; heavy automated use can get
+              the account itself limited, and that is a real risk, not a formality.</div>
+          </div>
+          <div class="step-act">
+            <button type="button" class="btn sm" id="fixSignIn">Sign in to YouTube</button>
+          </div>
+        </div>
+
+        <div class="drow step">
+          <div class="wnum">4</div>
+          <div class="grow" style="min-width:0">
+            <div class="f15 w500 step-head">Turn on the helper
+              <span class="badge b-ok" id="fixPotBadge" hidden>Already on</span></div>
+            <div class="f12 faint">It answers exactly the check being made here.</div>
+          </div>
+          <div class="step-act">
+            <button type="button" class="btn sm" id="fixPot">Turn it on</button>
+            <span class="badge b-ok" id="fixPotDone" hidden>Installed</span>
+          </div>
+        </div>
+
+        <div class="drow step">
+          <div class="wnum">5</div>
+          <div class="grow" style="min-width:0">
+            <div class="f15 w500 step-head">Update the engine</div>
+            <div class="f12 faint">When YouTube changes something, the fix usually
+              arrives here first.</div>
+          </div>
+          <div class="step-act">
+            <button type="button" class="btn sm" id="fixEngine">Check for an update</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="summary" id="fixSummary">
+        <span class="grow">Riplox will not un-pause this on its own. When you
+          think it has passed, press <b>Check it now</b> &mdash; one request, and
+          it either works or it does not.</span>
+        <button type="button" class="btn sm" id="fixCheckNow">Check it now</button>
+      </div>
+    </div>
 
     <!-- Every new video from every watched item, in one place. They used to be
          nested inside each row, which meant the answer to "what is new" was

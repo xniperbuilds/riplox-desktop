@@ -16,10 +16,11 @@
    Two things verify.js reports that are not defects
 
    1. `.drow` height. The verifier measures the base component at 68. The
-      design's own screens override it inline where a row carries two lines:
+      design's own screens override it inline wherever a row is not one line:
       84 on Watch and on Send's approvals, 64 for a paired device, 60 for an
-      incoming link. Running the verifier on the design's own files prints
-      the same lines. Those heights are classes here rather than inline
+      incoming link, and height:auto for the five bot-check steps, which are
+      as tall as what they say. Running the verifier on the design's own files
+      prints the same lines. Those heights are classes here rather than inline
       styles, so the two screens that share a number share it.
 
    2. `FIT canvas overflows`. The design's canvas is overflow:hidden and its
@@ -315,3 +316,18 @@ img.rthumb { object-fit: cover; }
    falls back to whatever it inherits. Added here rather than edited into
    components.css, which is the spec's file and stays verbatim. */
 .f14 { font-size: 14px; }
+
+/* --------------------------------------------------------- watch, the fix */
+
+/* A step is as tall as what it says, not 68 - the design writes height:auto
+   on these and lets the text decide. */
+.drow.step {
+  height: auto; padding: 18px 16px; align-items: flex-start; gap: 14px;
+}
+.drow.step .wnum { margin-top: 2px; }
+.drow.step .f12 { line-height: 1.75; }
+.step-head { margin-bottom: 5px; display: flex; align-items: center; gap: 8px; }
+.step-act { flex: none; margin-top: 2px; display: flex; align-items: center; gap: 8px; }
+.step-act .input { min-width: 168px; height: 36px; }
+#fixSummary { margin-top: 18px; display: flex; align-items: center; gap: 12px; }
+#fixSummary .btn { flex: none; margin-left: auto; }

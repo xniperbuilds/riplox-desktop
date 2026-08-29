@@ -460,6 +460,9 @@
   };
 
   function show(view) {
+    // A sub-screen that took over the topbar does not survive going to another
+    // room - or coming back to this one.
+    closeWatchFix();
     views.forEach(function (v) {
       $("view-" + v).classList.toggle("is-active", v === view);
     });
@@ -822,6 +825,128 @@
 
   $("grabAgain").addEventListener("click", function () {
     grabPage($("grabUrl").textContent || $("urlInput").value.trim());
+  });
+
+  /* ------------------------------------------------ watch: the bot check */
+
+  var watchFixId = "";
+
+  function openWatchFix(id) {
+    var it = (watchState ? watchState.items : []).find(function (one) {
+      return one.id === id;
+    });
+    if (!it) { toast("That one is no longer being watched.", "bad"); return; }
+    watchFixId = id;
+
+    $("pageTitle").textContent = it.title;
+    $("pageTitle").classList.add("sm");
+    $("pageSub").textContent = "Paused by YouTube \u00b7 watching stopped by itself";
+    document.querySelectorAll(".room-actions").forEach(function (g) { g.hidden = true; });
+    $("watchFixActions").hidden = false;
+
+    $("watchFix").hidden = false;
+    $("watchList").hidden = true;
+    $("watchNew").hidden = true;
+    $("watchEmpty").hidden = true;
+    document.querySelector("#view-watch .filters").hidden = true;
+
+    paintWatchFix();
+  }
+
+  /* Each step says whether it is already done, from the same state the rest
+     of the app reads. Nothing here is a claim - the interval is the setting,
+     the switch is the setting, and the helper is installed or it is not. */
+  function paintWatchFix() {
+    var s = watchState || { hours: 12, on: true };
+    $("fixHours").value = String(s.hours);
+    $("fixSlowBadge").hidden = s.hours < 24;
+    $("fixWatchOn").classList.toggle("on", !!s.on);
+    $("fixOffBadge").hidden = !!s.on;
+    $("fixPotBadge").hidden = !S.hasPotoken;
+    $("fixPotDone").hidden = !S.hasPotoken;
+    $("fixPot").hidden = !!S.hasPotoken;
+  }
+
+  function closeWatchFix() {
+    if (!watchFixId) return;
+    watchFixId = "";
+    $("watchFix").hidden = true;
+    $("watchList").hidden = false;
+    $("watchFixActions").hidden = true;
+    document.querySelector("#view-watch .filters").hidden = false;
+    $("pageTitle").classList.remove("sm");
+    if (watchState) renderWatch(watchState);
+  }
+
+  $("fixBack").addEventListener("click", function () {
+    closeWatchFix();
+    show("watch");
+  });
+
+  $("fixHours").addEventListener("change", function (e) {
+    saveSetting({ watch_hours: parseInt(e.target.value, 10) }).then(function () {
+      loadWatch();
+      toast("Checking every " + e.target.selectedOptions[0].textContent.toLowerCase()
+              .replace("every ", ""), "good");
+    });
+  });
+
+  $("fixWatchOn").addEventListener("click", function () {
+    var on = !$("fixWatchOn").classList.contains("on");
+    saveSetting({ watch: on }).then(function () { loadWatch(); paintWatchFix(); });
+    $("fixWatchOn").classList.toggle("on", on);
+    $("fixOffBadge").hidden = on;
+  });
+
+  $("fixSignIn").addEventListener("click", function () {
+    signIn("youtube", "YouTube");
+  });
+
+  $("fixPot").addEventListener("click", function () {
+    var btn = $("fixPot");
+    btn.disabled = true;
+    btn.textContent = "Setting it up\u2026";
+    api("/api/fix-botcheck", {}).then(function (r) {
+      btn.disabled = false;
+      btn.textContent = "Turn it on";
+      if (!r.ok) { toast(r.error || "Could not set that up.", "bad"); return; }
+      S.hasPotoken = true;
+      paintWatchFix();
+      toast("The helper is on.", "good");
+    });
+  });
+
+  $("fixEngine").addEventListener("click", function () {
+    var btn = $("fixEngine");
+    btn.disabled = true;
+    api("/api/check-engine", { force: true }).then(function (r) {
+      btn.disabled = false;
+      if (!r) { toast("Could not check.", "bad"); return; }
+      toast(r.newer
+        ? "A newer engine is published (" + r.latest + ") - update it in Settings."
+        : "The engine is already the latest.", r.newer ? "good" : "");
+    });
+  });
+
+  $("fixCheckNow").addEventListener("click", function () {
+    var btn = $("fixCheckNow");
+    btn.disabled = true;
+    btn.textContent = "Checking\u2026";
+    api("/api/watch/check", { id: watchFixId }).then(function (r) {
+      btn.disabled = false;
+      btn.textContent = "Check it now";
+      if (!r.ok) { toast(r.error || "That check failed.", "bad"); return; }
+      if (r.state) renderWatch(r.state);
+      var still = (r.state ? r.state.items : []).find(function (one) {
+        return one.id === watchFixId;
+      });
+      if (still && !still.botcheck) {
+        toast("It went through. Watching again.", "good");
+        closeWatchFix();
+      } else {
+        toast("Still being challenged. Try the next step.", "");
+      }
+    });
   });
 
   /* A playlist is not a read page, so none of the above belongs to it. */
@@ -3797,10 +3922,8 @@
             ? "The helper is already on, so signing in is the next thing to try."
             : "The proof-of-origin helper answers the exact check it is making.") +
           "</div>";
-        fix = S.hasPotoken
-          ? '<button type="button" class="btn sm" data-wsignin="1">Sign in to YouTube</button>'
-          : '<button type="button" class="btn pri sm" data-wfix="' + esc(it.id) +
-            '">Turn on the helper</button>';
+        fix = '<button type="button" class="btn pri sm" data-wfixopen="' +
+          esc(it.id) + '">What to do</button>';
       } else if (it.error) {
         line = '<div class="f12" style="color:var(--warn)">' + esc(it.error) + "</div>";
       } else {
@@ -3863,7 +3986,10 @@
         ]) + "</div>";
     }).join("");
 
-    if ($("view-watch").classList.contains("is-active") && s.items.length) {
+    /* Not while the ladder is up: the topbar belongs to the item being
+       fixed, and the four-second poll would take it back. */
+    if ($("view-watch").classList.contains("is-active") && s.items.length
+        && !watchFixId) {
       var kinds = { channel: 0, playlist: 0 };
       var last = 0;
       s.items.forEach(function (it) {
@@ -3875,6 +4001,14 @@
       if (kinds.playlist) parts.push(kinds.playlist + " playlist" + (kinds.playlist === 1 ? "" : "s"));
       parts.push("checked " + ago(last));
       $("pageSub").textContent = parts.join(" \u00b7 ");
+    }
+
+    if (watchFixId) {
+      paintWatchFix();
+      // The list stays put behind the ladder rather than reappearing under it.
+      $("watchList").hidden = true;
+      $("watchNew").hidden = true;
+      $("watchEmpty").hidden = true;
     }
 
     $("watchBadge").textContent = s.new;
@@ -4073,34 +4207,9 @@
       return;
     }
 
-    var si = e.target.closest("[data-wsignin]");
-    if (si) {
-      si.disabled = true;
-      api("/api/cookies/signin", {}).then(function (r) {
-        si.disabled = false;
-        if (!r.ok) toast(r.error || "Could not open the sign-in window.", "bad");
-        else toast("Sign in, then close that window.");
-      });
-      return;
-    }
+    var fix = e.target.closest("[data-wfixopen]");
+    if (fix) { openWatchFix(fix.dataset.wfixopen); return; }
 
-    var fix = e.target.closest("[data-wfix]");
-    if (fix) {
-      fix.disabled = true;
-      fix.textContent = "Setting it up\u2026";
-      api("/api/fix-botcheck", {}).then(function (r) {
-        if (!r.ok) {
-          fix.disabled = false;
-          fix.textContent = "Turn on the helper";
-          toast(r.error || "Could not set that up.", "bad");
-          return;
-        }
-        S.hasPotoken = true;
-        toast("The helper is on. Checking again\u2026");
-        api("/api/watch/check", { id: fix.dataset.wfix }).then(loadWatch);
-      });
-      return;
-    }
     var get = e.target.closest("[data-get]");
     if (get) {
       api("/api/add", { items: [{ url: get.dataset.get }], quality: quality })
