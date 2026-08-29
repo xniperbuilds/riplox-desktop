@@ -460,9 +460,15 @@
     var room = ROOM[view] || ["", ""];
     $("pageTitle").textContent = room[0];
     $("pageSub").textContent = room[1];
+    $("pageTitle").classList.remove("sm");
     document.querySelectorAll(".room-actions").forEach(function (g) {
       g.hidden = g.dataset.room !== view;
     });
+
+    /* If a video is still open, the Download room's topbar belongs to it, not
+       to the room - so coming back from another room finds it where it was
+       left rather than reset to the room's own name. */
+    if (view === "capture" && current && !$("preview").hidden) topbarForVideo(current);
 
     // One room, so both lists are fetched when it opens.
     if (view === "queue") { pollJobs(); loadFailed(); }
@@ -542,9 +548,38 @@
     if (more) more.textContent = "+" + (n - SITE_ROW.length).toLocaleString() + " more";
   }).catch(function () {});
 
+  /* Leaving the video behind. The topbar goes back to being the room's, which
+     is the one thing that has to happen however you leave - so both buttons
+     and the rail's own action go through here. */
+  function clearVideo() {
+    current = null;
+    heroVisible(true);
+    $("preview").hidden = true;
+    $("playlistWrap").hidden = true;
+    $("channelWrap").hidden = true;
+    $("analyzeError").hidden = true;
+    $("videoActions").hidden = true;
+    $("pageTitle").classList.remove("sm");
+    show("capture");
+  }
+
+  // A chip that says a video has fourteen subtitle tracks should be the way to
+  // the fourteen subtitle tracks.
+  $("pvHas").addEventListener("click", function (e) {
+    var chip = e.target.closest("[data-goto]");
+    if (chip) $(chip.dataset.goto).click();
+  });
+
+  $("videoBack").addEventListener("click", clearVideo);
+  $("videoClear").addEventListener("click", function () {
+    clearVideo();
+    $("urlInput").value = "";
+    $("urlInput").focus();
+  });
+
   // The rail's one action: back to Download, ready for a new link.
   $("newDownload").addEventListener("click", function () {
-    show("capture");
+    clearVideo();
     var box = $("urlInput");
     if (box) { box.value = ""; box.focus(); }
   });
@@ -653,6 +688,34 @@
       + ". Any of them may still work if you paste the link on its own.";
   }
 
+  /* The design gives the topbar over to what you are looking at once there is
+     something to look at: the video's own name at 24 rather than the room's at
+     31, and the source, the length and the best quality where the room's
+     description was. Back and Clear appear with it, because a screen that has
+     taken over the topbar needs a way out of it. */
+  /* The design has no hero on the Video screen - the URL bar's job is done the
+     moment there is something to look at, and Back is how you get it again.
+     Leaving them both on screen is what squeezed the video into half a canvas. */
+  function heroVisible(on) {
+    $("captureHero").hidden = !on;
+    $("view-capture").classList.toggle("has-video", !on);
+  }
+
+  function topbarForVideo(info) {
+    heroVisible(false);
+    var isList = info.kind === "playlist";
+    var bits = [];
+    if (info.extractor) bits.push(esc(info.extractor));
+    if (!isList && info.duration) bits.push(fmtDuration(info.duration));
+    var best = (info.options || [])[0];
+    if (best && best !== "mp3") bits.push(esc(labels[best] || best) + " available");
+    if (isList && info.count) bits.push(info.count + " videos");
+    $("pageTitle").textContent = info.title || "Untitled";
+    $("pageTitle").classList.add("sm");
+    $("pageSub").textContent = bits.join(" · ");
+    $("videoActions").hidden = false;
+  }
+
   function renderPreview(info) {
     // A channel is not a video and not a playlist - it is a set of sections.
     // Show those, and let opening one become an ordinary playlist.
@@ -668,6 +731,32 @@
     $("pvKind").textContent = info.grabbed ? "ON THIS PAGE"
       : (isList ? "PLAYLIST" : "VIDEO");
     $("pvTitle").textContent = info.title || "Untitled";
+
+    topbarForVideo(info);
+
+    /* What else is there to be had. All three numbers were already in the
+       analyse result and only ever surfaced inside More options, where you
+       had to open a panel to find out whether a video even had subtitles.
+       Pressing one opens the tab that owns it. */
+    var has = [];
+    var subs = (info.sub_langs || []).length;
+    var thumbs = (info.thumbs || []).length;
+    if (subs) has.push(["Subtitles", subs, "tabExtras"]);
+    if (thumbs) has.push(["Thumbnails", thumbs, "tabExtras"]);
+    if (info.description) has.push(["Description", "", "tabExtras"]);
+    $("pvHas").innerHTML = has.map(function (h) {
+      return '<button type="button" class="chip" data-goto="' + h[2] + '">' +
+        h[0] + (h[1] ? '<em class="k">' + h[1] + "</em>" : "") + "</button>";
+    }).join("");
+    $("pvHas").hidden = !has.length;
+
+    var len = $("pvLen");
+    if (!isList && info.duration) {
+      len.textContent = fmtDuration(info.duration);
+      len.hidden = false;
+    } else {
+      len.hidden = true;
+    }
     var thumb = $("pvThumb");
     // An empty src makes the browser re-request the page itself, so only set
     // it when there is a real image.

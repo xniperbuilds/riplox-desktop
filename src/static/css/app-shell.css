@@ -75,6 +75,13 @@ body.frame {
   align-items: center;
   justify-content: center;
 }
+/* Once a video is open the room is not an empty state any more: the content
+   starts at the top and fills the width, as the design's Video screen does. */
+#view-capture.has-video {
+  align-items: stretch;
+  justify-content: flex-start;
+  flex-direction: column;
+}
 
 /* The app's own bits that live inside the hero and the design has no class
    for: the clipboard notice, and the spinner inside the primary button. */
@@ -147,3 +154,29 @@ button.scell.is-on b { color: var(--accent-ink); }
    the window - the design's sheet never has more rows than fit. */
 #sitePicker .sheet { max-height: 84vh; display: flex; flex-direction: column; }
 #sitePicker .sgrid, #sitePicker .site-all { overflow-y: auto; }
+
+/* --------------------------------------------------------------------------
+   Screen 03 - the video card
+
+   The design's is a 296px thumbnail beside the text inside a tight card. The
+   app's was a 330px block with decorative corner brackets drawn 5px outside
+   it - the flourish the earlier sweep kept flagging as an overflow. The design
+   has no such thing, so it goes with the block.
+   -------------------------------------------------------------------------- */
+/* The app's head was a two-column grid, so the design's flex row landed inside
+   a 330px cell and the text column collapsed to eighteen pixels. The design's
+   card is a plain block with one row in it. */
+.preview-head { display: block; }
+.preview-head > .row { display: flex; gap: 16px; align-items: flex-start; }
+.preview-media { width: 296px; flex: none; position: static; }
+.preview-media::before, .preview-media::after { content: none; }
+.preview-media .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.preview-body h2 { font-size: 17px; font-weight: 500; margin: 0 0 6px; letter-spacing: 0; }
+.preview-body .meta {
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--faint);
+  margin-bottom: 12px;
+}

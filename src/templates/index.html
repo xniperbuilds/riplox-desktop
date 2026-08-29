@@ -129,6 +129,11 @@
       <div class="page-sub" id="pageSub"></div>
     </div>
     <div class="top-actions" id="topActions">
+      <!-- Shown once the topbar is describing a video rather than a room. -->
+      <div class="room-actions" id="videoActions" hidden>
+        <button type="button" class="btn sm" id="videoBack">Back</button>
+        <button type="button" class="btn sm" id="videoClear">Clear</button>
+      </div>
       <div class="room-actions" data-room="queue" hidden>
         <!-- Each of these shows only while it has something to act on. A row of
              buttons that is always there but usually does nothing teaches
@@ -210,15 +215,26 @@
     <div class="error-box" id="analyzeError" hidden></div>
 
     <div class="preview" id="preview" hidden>
-      <div class="preview-head">
+      <!-- The design's compact card: a 296px thumbnail beside the text, not a
+           330px block above it. -->
+      <div class="card tight preview-head">
+      <div class="row gap16">
       <div class="preview-media">
-        <img id="pvThumb" alt="" style="visibility:hidden">
-        <span class="preview-kind" id="pvKind">VIDEO</span>
+        <div class="thumb">
+          <img id="pvThumb" alt="" style="visibility:hidden">
+          <span class="kind" id="pvKind">VIDEO</span>
+          <span class="len" id="pvLen" hidden></span>
+        </div>
       </div>
-        <div class="preview-body">
+        <div class="preview-body grow">
         <h2 id="pvTitle">—</h2>
         <div class="meta" id="pvMeta"></div>
+        <!-- What is there to be had besides the video itself. The app knew all
+             three and only ever mentioned them inside More options; the design
+             puts the counts where the decision is made. -->
+        <div class="chips" id="pvHas"></div>
         </div>
+      </div>
       </div>
 
       <div class="preview-work">
