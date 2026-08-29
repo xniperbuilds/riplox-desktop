@@ -391,8 +391,12 @@ kbd{ font:500 11px var(--mono); background:var(--surface-2); border:1px solid va
 /* ---------------- settings ---------------- */
 .set{ display:grid; grid-template-columns:280px 1fr; gap:20px; flex:1; min-height:0 }
 .set-list{ display:flex; flex-direction:column; gap:2px; overflow:hidden }
+/* background and border are stated because this is a <button>: left to the
+   element it takes buttonface (#F0F0F0) and a 2px border, which turned
+   thirteen tiles white on a dark screen. */
 .set-item{ height:44px; display:flex; align-items:center; gap:11px; padding:0 14px; flex:none;
-  border-radius:var(--r-s); color:var(--muted); font-size:14px; font-weight:500; cursor:pointer }
+  border-radius:var(--r-s); color:var(--muted); font-size:14px; font-weight:500; cursor:pointer;
+  background:transparent; border:1px solid transparent; width:100% }
 .set-item.on, .set-item.is-on, .set-item.is-active{ background:var(--surface-2); color:var(--text) }
 .set-item i{ width:6px; height:6px; border-radius:50%; background:var(--faint); font-style:normal; flex:none }
 .set-item.on i, .set-item.is-on i, .set-item.is-active i{ background:var(--accent) }
@@ -537,10 +541,6 @@ button.set-item, button.nav-item, button.tab, button.toggle, button.icon-btn,
 button.btn, button.cta, button.chip, button.pbtn, button.qbox, button.lrow{
   appearance:none; -webkit-appearance:none;
   font-family:inherit; font-size:inherit; text-align:left;
-}
-.set-item{
-  background:transparent; border:1px solid transparent;
-  width:100%; cursor:pointer;
 }
 .set-item:hover{ background:var(--surface); color:var(--text) }
 

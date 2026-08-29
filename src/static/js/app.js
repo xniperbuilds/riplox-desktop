@@ -600,16 +600,11 @@
     $("urlInput").focus();
   });
 
-  // The rail's "New download" button is gone — the Download room is that
-  // screen and it is the first item in the list. The handler is kept behind a
-  // guard rather than deleted: the button may come back, and an unguarded
-  // getElementById on a removed id stops the whole file at load.
-  var newDl = $("newDownload");
-  if (newDl) newDl.addEventListener("click", function () {
-    clearVideo();
-    var box = $("urlInput");
-    if (box) { box.value = ""; box.focus(); }
-  });
+  // The rail's "New download" button is gone - the Download room is that
+  // screen and it is the first item in the list directly below it. Its handler
+  // went with it rather than being left behind a guard: a guard would have made
+  // this a reference to an id that does not exist, which is the thing
+  // test_ids_exist.py is for.
 
   // The topbar is filled by show(), and the page opens on Download - so it is
   // told once here, or the room's name and subtitle stay blank until the first
