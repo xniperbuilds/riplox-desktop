@@ -46,7 +46,12 @@ asked = set(re.findall(r'\$\(\s*"([A-Za-z][\w-]*)"\s*\)', JS))
 # Some are created by the script itself rather than written in the page - they
 # are looked up after being built, which is fine. Named here so the check stays
 # a real check rather than a list of exceptions that quietly grows.
-BUILT_AT_RUNTIME = set()
+BUILT_AT_RUNTIME = {
+    # The last chip in the Download screen's site row - "+1,744 more". The row
+    # is drawn from this PC's own health results, so every chip in it including
+    # this one is built when that arrives.
+    "siteMore",
+}
 
 print("\n-- the page holds every id the script looks up ---------------------")
 print(f"      page defines {len(defined)} · script asks for {len(asked)}")

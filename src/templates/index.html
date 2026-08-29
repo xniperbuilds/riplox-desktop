@@ -79,7 +79,7 @@
         <circle cx="18" cy="5.5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="18.5" r="2.6"/>
         <path d="M8.4 10.8 15.6 6.8M8.4 13.2l7.2 4"/>
       </svg>
-      <span>Sharing</span>
+      <span>Send</span>
       <em class="pill" id="shareBadge" hidden>0</em>
     </button>
     <button class="nav-item" data-view="settings" role="tab" title="Settings">
@@ -171,44 +171,40 @@
   <!-- ============================ CAPTURE ============================ -->
   <section class="view is-active" id="view-capture">
 
-    <div class="capture-head reveal" style="--d:0ms">
-      <h1>Paste a link.<br><span>Keep the video.</span></h1>
-      <!-- The claim and the proof in one place: the app says "a thousand
-           more", so the phrase itself opens the list and shows them. -->
-      <p class="sub">YouTube · TikTok · Instagram · Facebook · X · Reddit —
-        <button type="button" class="link-quiet" id="browseSites">and a thousand more</button>.</p>
-    </div>
+    <!-- The design's empty state: one job, centred, and everything else a
+         caption on the input. -->
+    <div class="hero" id="captureHero">
+      <h1>Paste a link. <span>Keep the video.</span></h1>
+      <p>Works on <b id="siteCount">1,750</b> sites &mdash;
+        <button type="button" class="link-quiet" id="browseSites">browse them</button></p>
 
-    <form class="urlbar reveal" id="urlForm" style="--d:60ms" autocomplete="off">
-      <span class="urlbar-tag">URL</span>
-      <input type="text" id="urlInput" spellcheck="false"
-             placeholder="https://…">
-      <button type="button" class="ghost" id="pasteBtn" title="Paste from clipboard">Paste</button>
-      <button type="submit" class="primary" id="analyzeBtn">
-        <span class="label">Analyze</span>
-        <span class="spinner" hidden></span>
-      </button>
-    </form>
+      <form class="omni" id="urlForm" autocomplete="off">
+        <span class="tag">URL</span>
+        <input type="text" id="urlInput" spellcheck="false" placeholder="https://...">
+        <button type="button" class="btn sm" id="pasteBtn" title="Paste from clipboard">Paste</button>
+        <button type="submit" class="btn pri" id="analyzeBtn">
+          <span class="label">Analyze</span>
+          <span class="spinner" hidden></span>
+        </button>
+      </form>
 
-    <div class="hint reveal" id="clipHint" style="--d:100ms" hidden>
-      <span>Link copied — </span><button type="button" id="clipUse">use it</button>
-      <em id="clipText"></em>
-    </div>
+      <div class="hint-row">
+        <span id="hotkeyTip" hidden>Copy a link anywhere and press
+          <code id="hotkeyTipKeys"></code></span>
+        <span class="muted">or drop a page here to find every video on it</span>
+        <button type="button" class="btn sm" id="grabBtn"
+                title="Reads the page in the box above and lists every video on it. Nothing downloads until you pick.">Find everything on a page</button>
+      </div>
 
-    <!-- One row, not two paragraphs. Both of these used to be prose blocks
-         stacked under the URL bar, which is a lot of explaining for a screen
-         whose whole job is one input. The action is a real button now, and
-         the shortcut is a keycap rather than a sentence about a keycap.
+      <!-- Live status, not a claim. Each site carries the dot the app already
+           measures for it, so this row answers "is it me or is it them"
+           before anything is even pasted. -->
+      <div class="sites" id="siteRow"></div>
 
-         The button is for pages no extractor knows: a blog post with videos
-         in it, a links page, a thread. Read once, listed, and nothing is
-         fetched until something is picked. -->
-    <div class="capture-actions reveal" style="--d:130ms">
-      <button type="button" class="ghost small" id="grabBtn"
-              title="Reads the page in the box above and lists every video on it. Nothing downloads until you pick.">Find everything on a page</button>
-      <span class="capture-shortcut" id="hotkeyTip" hidden>
-        Copy a link anywhere, press <code id="hotkeyTipKeys"></code>
-      </span>
+      <div class="hint" id="clipHint" hidden>
+        <span>Link copied &mdash; </span><button type="button" id="clipUse">use it</button>
+        <em id="clipText"></em>
+      </div>
     </div>
 
     <div class="error-box" id="analyzeError" hidden></div>

@@ -25,12 +25,20 @@ body.frame {
 
 /* The design's canvas is overflow:hidden because a mockup never has more
    content than fits. A real library has four hundred rows. */
-.canvas { overflow-y: auto; overflow-x: hidden; }
+.canvas {
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+}
 .canvas > main {
   width: 100%;
   max-width: 1056px;        /* the design's canvas width at 1440 */
   margin: 0 auto;
   padding: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 /* The rail gives up its labels at 1152 - measured on the running app with a
@@ -48,3 +56,68 @@ body.frame {
   .rail .nav-item { justify-content: center; padding: 0; }
   .cta { font-size: 0; gap: 0; }
 }
+
+/* --------------------------------------------------------------------------
+   Screen 01 - the Download hero
+
+   The design centres the whole thing in the canvas. The app's canvas scrolls
+   and holds every other room too, so the centring is on the hero rather than
+   on .canvas itself - .canvas.center would centre the library's four hundred
+   rows as well.
+   -------------------------------------------------------------------------- */
+/* The canvas fills the work column, main fills the canvas, and the Download
+   room centres its hero inside that. Percentage heights were the wrong tool -
+   min-height:100% on a flex child stopped .work stretching at all and left it
+   404 tall in a 900 window. */
+#view-capture.is-active {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The app's own bits that live inside the hero and the design has no class
+   for: the clipboard notice, and the spinner inside the primary button. */
+.hero .hint { margin-top: 16px; }
+.omni .spinner { margin-left: 8px; }
+
+/* A site chip that is also a button. */
+button.site {
+  border: 1px solid var(--line);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* .stage is the app's own wrapper - it holds the limited-mode alert above the
+   work column. It was not a flex container, so .work's flex:1 did nothing and
+   the column sized to its content: 404 tall in a 900 window, with the hero
+   centred inside the wrong box. The scrolling belongs to the canvas, which
+   already does it. */
+.stage {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* --------------------------------------------------------------------------
+   Find everything on a page
+
+   The design has no control for this - it says "or drop a page here to find
+   every video on it" and leaves it at that. Riplox has the feature and an
+   endpoint behind it, so it needs a real control, and the measured app-desktop
+   values decide what kind: one accent, on the primary action only. Analyze is
+   the primary here, so this is a secondary at the small size - 36 tall, 13/500,
+   radius 10 - sitting with the sentence that describes it rather than in a row
+   of its own below.
+   -------------------------------------------------------------------------- */
+.hint-row { flex-wrap: wrap; gap: 8px 10px; }
+.hint-row .btn.sm { margin-left: 4px; }
+
+/* The design draws its nav items as divs, so it never needed to say what their
+   background is. The app's are real buttons - keyboard reachable, which is
+   worth keeping - and a button carries the platform's own grey unless it is
+   told otherwise. Left alone every inactive item was a light grey pill on a
+   dark rail. */
+.nav-item, .cta { background: none; font-family: inherit; }
+.nav-item.on { background: var(--surface-2); }
+.cta { background: var(--accent); }

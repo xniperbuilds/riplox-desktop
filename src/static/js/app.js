@@ -480,6 +480,64 @@
     b.addEventListener("click", function () { show(b.dataset.view); });
   });
 
+  /* The site row on the Download screen. The design's point about it: "the
+     site row is live status, not a sentence claiming a number." The app has
+     measured how each site behaved on this machine for a while and only ever
+     showed it inside Settings, so this is the same data where the question is
+     actually asked - before anything has even been pasted.
+
+     Six sites, then the count. The six are the ones people paste, and the
+     dot is this PC's own last result: green when the engine handled it,
+     amber when only Riplox's own route did, red when neither. A site with no
+     recent result gets no claim made about it. */
+  var SITE_ROW = ["YouTube", "TikTok", "Instagram", "X", "Reddit", "Facebook"];
+
+  function paintSiteRow(health) {
+    var row = $("siteRow");
+    if (!row) return;
+    var state = {};
+    (health || []).forEach(function (h) { state[(h.site || "").toLowerCase()] = h; });
+
+    row.innerHTML = SITE_ROW.map(function (name) {
+      var h = state[name.toLowerCase()];
+      var colour = !h ? "" : h.state === "ok" ? "var(--good)"
+                 : h.state === "door" ? "var(--warn)" : "var(--bad)";
+      var why = !h ? name + " - nothing tried here recently"
+              : h.state === "ok" ? name + " worked " + h.ago
+              : h.state === "door" ? name + " needed Riplox's own route " + h.ago
+              : name + " did not work " + h.ago + (h.why ? " - " + h.why : "");
+      return '<span class="site" title="' + esc(why) + '">' +
+        "<i" + (colour ? ' style="background:' + colour + '"' : "") + "></i>" +
+        esc(name) + "</span>";
+    }).join("") +
+      '<button type="button" class="site faint" id="siteMore">+' +
+      ((S.sites || []).length > SITE_ROW.length
+        ? ((S.sites || []).length - SITE_ROW.length).toLocaleString() : "1,744") +
+      " more</button>";
+
+    $("siteMore").addEventListener("click", function () { $("browseSites").click(); });
+    var count = $("siteCount");
+    if (count && (S.sites || []).length) count.textContent = S.sites.length.toLocaleString();
+  }
+
+  api("/api/health").then(function (res) {
+    paintSiteRow(res && res.ok ? res.sites : []);
+  }).catch(function () { paintSiteRow([]); });
+
+  /* How many sites, from the endpoint that actually knows. S.sites is the
+     short pickable list - thirteen names a rule can be written against - and
+     saying "works on 13 sites" would be the screen understating the app by two
+     orders of magnitude. `all` is every extractor the installed engine
+     carries, which is the honest answer to the question being asked. */
+  api("/api/sites").then(function (res) {
+    if (!res || !res.ok) return;
+    var n = (res.all || []).length || res.count || 0;
+    if (!n) return;
+    $("siteCount").textContent = n.toLocaleString();
+    var more = $("siteMore");
+    if (more) more.textContent = "+" + (n - SITE_ROW.length).toLocaleString() + " more";
+  }).catch(function () {});
+
   // The rail's one action: back to Download, ready for a new link.
   $("newDownload").addEventListener("click", function () {
     show("capture");
