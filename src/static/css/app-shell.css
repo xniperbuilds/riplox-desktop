@@ -185,3 +185,43 @@ button.scell.is-on b { color: var(--accent-ink); }
    the window - same reason the site picker's does. */
 #convDlg .sheet { width: min(760px, 92vw); max-height: 84vh; display: flex; flex-direction: column; }
 #convDlg .conv-list { overflow-y: auto; }
+
+/* ---------------------------------------------------------------- watch */
+
+/* A row carrying two lines and sometimes a warning is taller than the 68 a
+   plain data row gets. The design draws it at 84 - it writes that as an inline
+   style on Watch and on Send's approvals, so verify.js, which measures the
+   base component, reports those rows as 84-expected-68 on the design's own
+   files too. Named here so both screens share one number. */
+.drow.tall { height: 84px; }
+.wrow.has-trouble { border-color: var(--warn-dim); }
+.wrow.is-paused .avatar { opacity: .55; }
+.avatar img, img.avatar { width: 100%; height: 100%; object-fit: cover; display: block; }
+img.rthumb { object-fit: cover; }
+.avatar:empty, .rthumb:empty { background: var(--surface-2); }
+
+/* Check, Pause and Stop watching live behind the row's own menu. <details>
+   does the opening and the keyboard; this is only its shape. `.rows` clips
+   its children, so the two lists that hold a menu let it out. */
+#watchList, #watchNewList { overflow: visible; }
+.rmenu { position: relative; flex: none; }
+.rmenu > summary { list-style: none; }
+.rmenu > summary::-webkit-details-marker { display: none; }
+.rmenu[open] > summary { border-color: var(--line-mid); color: var(--text); }
+.rmenu-body {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 40;
+  min-width: 176px; padding: 6px; display: flex; flex-direction: column; gap: 2px;
+  background: var(--surface); border: 1px solid var(--line-mid);
+  border-radius: var(--r-s); box-shadow: 0 18px 40px rgba(0, 0, 0, .45);
+}
+.rmenu-body button {
+  height: 36px; padding: 0 10px; border: 0; border-radius: 8px; background: none;
+  color: var(--text); font: 500 13px/1 inherit; font-family: inherit;
+  text-align: left; cursor: pointer;
+}
+.rmenu-body button:hover { background: var(--surface-2); }
+.rmenu-body button.danger { color: var(--bad); }
+.rmenu-body button.danger:hover { background: var(--bad-dim); }
+
+#watchNew { margin-top: 18px; }
+#view-watch .filters .input { min-width: 120px; height: 36px; }

@@ -3432,6 +3432,36 @@
     return ago(seconds);
   }
 
+  /* Which watched item the "new" card is showing. "" is all of them; Review
+     sets it to one id. Nothing is marked seen by looking at it - that would
+     throw away the list you just asked for. Seen is what Download and Skip
+     mean. */
+  var watchOnly = "";
+
+  /* The app knows when it last checked and how long the gap is, so it knows
+     when the next check falls. It does not guess: a paused item is not
+     checked at all, and one that has never been checked says so. */
+  function nextCheck(it, hours) {
+    if (it.paused) return "Paused - not being checked";
+    if (!it.checked) return "Checks on the next sweep";
+    var due = it.checked + hours * 3600 - Date.now() / 1000;
+    return due <= 0 ? "Due now" : "Next check in " + fmtLong(due);
+  }
+
+  var MORE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+    'stroke-width="2.2" stroke-linecap="round" aria-hidden="true">' +
+    '<path d="M6 12h.01M12 12h.01M18 12h.01"/></svg>';
+
+  /* Check, Pause and Remove were three buttons on every row. They are done
+     once in a while, and Review is done every time, so they go behind the
+     row's own menu. <details> already opens, closes and answers the keyboard,
+     so this is markup rather than a component. */
+  function rowMenu(items) {
+    return '<details class="rmenu"><summary class="icon-btn" title="More" ' +
+      'aria-label="More">' + MORE_SVG + '</summary><div class="rmenu-body">' +
+      items.join("") + "</div></details>";
+  }
+
   function renderWatch(s) {
     watchState = s;
     $("setWatch").classList.toggle("on", s.on);
@@ -3440,70 +3470,111 @@
       : s.busy ? "checking " + s.busy
       : "on";
     $("watchState").classList.toggle("on", s.on);
-
     $("watchHours").value = String(s.hours);
-    $("watchCount").textContent = s.items.length
-      ? s.items.length + " of " + s.max : "";
     $("watchCheckAll").disabled = !s.items.length || s.sweeping;
-
     $("watchEmpty").hidden = s.items.length > 0;
+
+    $("watchCount").textContent = s.items.length;
+    $("watchNewCount").textContent = s.new;
+    $("watchFilterNew").hidden = !s.new;
+    if (!s.new) watchOnly = "";
+    $("watchFilterAll").classList.toggle("on", !watchOnly);
+    $("watchFilterNew").classList.toggle("on", !!watchOnly);
+
     $("watchList").innerHTML = s.items.map(function (it) {
       var fresh = it.new || [];
 
-      var videos = fresh.map(function (v) {
-        return '<div class="new-row">' +
-          (v.thumbnail ? '<img src="' + esc(v.thumbnail) + '" alt="" loading="lazy">'
-                       : '<div class="new-thumb"></div>') +
-          '<div class="new-what"><b>' + esc(v.title) + "</b>" +
-            "<span>" + esc(fmtDuration(v.duration) || "") + "</span></div>" +
-          '<button class="btn pri sm" data-get="' + esc(v.url) + '" data-item="' +
-            esc(it.id) + '" data-video="' + esc(v.id) + '">Download</button>' +
-          '<button class="btn sm" data-skip="' + esc(it.id) + '" data-video="' +
-            esc(v.id) + '">Skip</button>' +
-          "</div>";
-      }).join("");
-
-      /* The fix sits on the row being challenged, not in a list at the foot
-         of the page. The helper is offered rather than sign-in because it
-         answers the exact check that produced this, and only when it is not
-         already on - the same condition the download rows use. */
-      var trouble = "";
-      if (it.error && it.botcheck) {
-        trouble = '<div class="watch-err">' +
-          "<p>YouTube asked whether this is a bot. Checking less often helps, " +
-          "and the proof-of-origin helper answers the exact check it is making.</p>" +
+      /* The advice sits on the row being challenged rather than in a list at
+         the foot of the page, and only the first fix is offered - the helper
+         when it is off, because it answers the exact check that produced
+         this, and signing in when it is already on. */
+      var line, fix = "";
+      if (it.botcheck) {
+        line = '<div class="f12" style="color:var(--warn)">YouTube asked whether ' +
+          "this is a bot" + (it.paused ? " - paused" : "") + ". " +
           (S.hasPotoken
-            ? "<p>The helper is already on, so the next thing to try is " +
-              "checking less often, or pausing this one for a day.</p>"
-            : '<button class="btn pri sm" data-wfix="' + esc(it.id) +
-              '">Turn on the helper</button>') +
+            ? "The helper is already on, so signing in is the next thing to try."
+            : "The proof-of-origin helper answers the exact check it is making.") +
           "</div>";
+        fix = S.hasPotoken
+          ? '<button type="button" class="btn sm" data-wsignin="1">Sign in to YouTube</button>'
+          : '<button type="button" class="btn pri sm" data-wfix="' + esc(it.id) +
+            '">Turn on the helper</button>';
       } else if (it.error) {
-        trouble = '<p class="warn watch-err">' + esc(it.error) + "</p>";
+        line = '<div class="f12" style="color:var(--warn)">' + esc(it.error) + "</div>";
+      } else {
+        line = '<div class="f12 faint">' + esc(nextCheck(it, s.hours)) +
+          " &middot; " + it.watching + " video" + (it.watching === 1 ? "" : "s") +
+          " seen</div>";
       }
 
-      return '<div class="watch-item' + (it.paused ? " is-paused" : "") +
+      return '<div class="drow tall wrow' + (it.paused ? " is-paused" : "") +
         (it.botcheck ? " has-trouble" : "") + '">' +
-        '<div class="watch-head">' +
-          (it.thumbnail ? '<img class="watch-thumb" src="' + esc(it.thumbnail) +
-                          '" alt="" loading="lazy">' : '<div class="watch-thumb"></div>') +
-          '<div class="who"><b>' + esc(it.title) +
-            (it.paused ? ' <em class="tag">paused</em>' : "") + "</b>" +
-            '<span>' + esc(it.kind) + " · checked " + when(it.checked) +
-            (fresh.length ? " · " + fresh.length + " new" : "") + "</span></div>" +
-          '<button class="btn sm" data-check="' + esc(it.id) + '">Check</button>' +
-          '<button class="btn sm" data-wpause="' + esc(it.id) + '" data-to="' +
-            (it.paused ? "0" : "1") + '">' + (it.paused ? "Resume" : "Pause") + "</button>" +
-          '<button class="btn sm danger" data-drop="' + esc(it.id) +
-            '">Remove</button>' +
-        "</div>" + trouble +
+        (it.thumbnail
+          ? '<img class="avatar" src="' + esc(it.thumbnail) + '" alt="" loading="lazy">'
+          : '<div class="avatar"></div>') +
+        '<div class="grow"><div class="f15 w500 trunc">' + esc(it.title) + "</div>" +
+        line + "</div>" +
+        (fresh.length ? '<span class="badge b-run">' + fresh.length + " new</span>" : "") +
+        (it.paused ? '<span class="badge b-warn">Paused</span>' : "") +
+        fix +
         (fresh.length
-          ? '<div class="new-list">' + videos +
-            '<button class="btn sm" data-skip="' + esc(it.id) +
-            '">Clear all</button></div>'
+          ? '<button type="button" class="btn sm" data-review="' + esc(it.id) +
+            '">Review</button>'
           : "") +
-        "</div>";
+        rowMenu([
+          '<button type="button" data-check="' + esc(it.id) + '">Check now</button>',
+          '<button type="button" data-wpause="' + esc(it.id) + '" data-to="' +
+            (it.paused ? "0" : "1") + '">' + (it.paused ? "Resume" : "Pause") + "</button>",
+          '<button type="button" class="danger" data-drop="' + esc(it.id) +
+            '">Stop watching</button>',
+        ]) + "</div>";
     }).join("");
+
+    /* Every new video from every watched item, in one list. Riplox knows the
+       title, who posted it and how long it runs; it does not know the file
+       size until the video is analysed, so the card counts videos and says
+       nothing about gigabytes. */
+    var rows = [];
+    s.items.forEach(function (it) {
+      if (watchOnly && it.id !== watchOnly) return;
+      (it.new || []).forEach(function (v) { rows.push([it, v]); });
+    });
+
+    $("watchNew").hidden = !rows.length;
+    $("watchNewSub").textContent = rows.length + " video" +
+      (rows.length === 1 ? "" : "s") +
+      (watchOnly && s.new > rows.length ? " of " + s.new : "");
+    $("watchNewList").innerHTML = rows.map(function (pair) {
+      var it = pair[0], v = pair[1];
+      var meta = [it.title, fmtDuration(v.duration)].filter(Boolean).join(" \u00b7 ");
+      return '<div class="drow flat">' +
+        (v.thumbnail
+          ? '<img class="rthumb" src="' + esc(v.thumbnail) + '" alt="" loading="lazy">'
+          : '<div class="rthumb"></div>') +
+        '<div class="grow"><div class="f15 w500 trunc">' + esc(v.title) + "</div>" +
+        '<div class="f12 faint trunc">' + esc(meta) + "</div></div>" +
+        '<button type="button" class="btn sm" data-get="' + esc(v.url) +
+          '" data-item="' + esc(it.id) + '" data-video="' + esc(v.id) + '">Download</button>' +
+        rowMenu([
+          '<button type="button" data-skip="' + esc(it.id) + '" data-video="' +
+            esc(v.id) + '">Not interested</button>',
+        ]) + "</div>";
+    }).join("");
+
+    if ($("view-watch").classList.contains("is-active") && s.items.length) {
+      var kinds = { channel: 0, playlist: 0 };
+      var last = 0;
+      s.items.forEach(function (it) {
+        kinds[it.kind === "playlist" ? "playlist" : "channel"]++;
+        if (it.checked > last) last = it.checked;
+      });
+      var parts = [];
+      if (kinds.channel) parts.push(kinds.channel + " channel" + (kinds.channel === 1 ? "" : "s"));
+      if (kinds.playlist) parts.push(kinds.playlist + " playlist" + (kinds.playlist === 1 ? "" : "s"));
+      parts.push("checked " + ago(last));
+      $("pageSub").textContent = parts.join(" \u00b7 ");
+    }
 
     $("watchBadge").textContent = s.new;
     $("watchBadge").hidden = !s.new;
@@ -3599,6 +3670,7 @@
         return;
       }
       $("watchUrl").value = "";
+      watchAddOpen(false);
       toast("Watching. New videos will show up here.", "good");
       renderWatch(res.state);
     });
@@ -3610,6 +3682,71 @@
 
   $("addPlaylist").addEventListener("click", function () {
     askFirst(function () { watchAdd($("watchUrl").value.trim(), "playlist"); });
+  });
+
+  /* Adding is behind a button now. The sheet closes on its own once the add
+     lands, because that is the whole job. */
+  function watchAddOpen(on) {
+    $("watchAddDlg").hidden = !on;
+    $("watchError").hidden = true;
+    $("watchPick").hidden = true;
+    if (on) $("watchUrl").focus();
+  }
+  $("watchAddBtn").addEventListener("click", function () { watchAddOpen(true); });
+  $("watchAddClose").addEventListener("click", function () { watchAddOpen(false); });
+  $("watchAddDlg").addEventListener("click", function (e) {
+    if (e.target === $("watchAddDlg")) watchAddOpen(false);
+  });
+  $("watchUrl").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); $("addChannel").click(); }
+  });
+
+  $("watchFilterAll").addEventListener("click", function () {
+    watchOnly = ""; renderWatch(watchState);
+  });
+  $("watchFilterNew").addEventListener("click", function () {
+    /* One item at a time is what Review does. This chip is the other
+       direction: everything new, from everything watched. */
+    watchOnly = ""; renderWatch(watchState);
+    $("watchNew").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  });
+
+  $("watchGetAll").addEventListener("click", function () {
+    var items = [], seen = [];
+    (watchState ? watchState.items : []).forEach(function (it) {
+      if (watchOnly && it.id !== watchOnly) return;
+      (it.new || []).forEach(function (v) {
+        items.push({ url: v.url });
+        seen.push([it.id, v.id]);
+      });
+    });
+    if (!items.length) return;
+    api("/api/add", { items: items, quality: quality }).then(function (res) {
+      if (!res.ok) { toast(res.error || "Could not queue those.", "bad"); return; }
+      toast(items.length + " queued", "good");
+      pollJobs();
+      Promise.all(seen.map(function (p) {
+        return api("/api/watch/seen", { id: p[0], video: p[1] });
+      })).then(loadWatch);
+    });
+  });
+
+  $("watchSkipAll").addEventListener("click", function () {
+    var ids = (watchState ? watchState.items : [])
+      .filter(function (it) { return (!watchOnly || it.id === watchOnly) && (it.new || []).length; })
+      .map(function (it) { return it.id; });
+    if (!ids.length) return;
+    Promise.all(ids.map(function (id) {
+      return api("/api/watch/seen", { id: id, video: "" });
+    })).then(loadWatch);
+  });
+
+  /* One open menu at a time, and a click anywhere else shuts it. */
+  document.addEventListener("click", function (e) {
+    var here = e.target.closest(".rmenu");
+    document.querySelectorAll(".rmenu[open]").forEach(function (d) {
+      if (d !== here) d.open = false;
+    });
   });
 
   $("watchTabs").addEventListener("click", function (e) {
@@ -3624,7 +3761,28 @@
     });
   });
 
-  $("watchList").addEventListener("click", function (e) {
+  /* Bound to the room rather than the list: the new videos moved out of the
+     rows into their own card, and both carry the same buttons. */
+  $("view-watch").addEventListener("click", function (e) {
+    var rev = e.target.closest("[data-review]");
+    if (rev) {
+      watchOnly = rev.dataset.review;
+      renderWatch(watchState);
+      $("watchNew").scrollIntoView({ behavior: "smooth", block: "nearest" });
+      return;
+    }
+
+    var si = e.target.closest("[data-wsignin]");
+    if (si) {
+      si.disabled = true;
+      api("/api/cookies/signin", {}).then(function (r) {
+        si.disabled = false;
+        if (!r.ok) toast(r.error || "Could not open the sign-in window.", "bad");
+        else toast("Sign in, then close that window.");
+      });
+      return;
+    }
+
     var fix = e.target.closest("[data-wfix]");
     if (fix) {
       fix.disabled = true;

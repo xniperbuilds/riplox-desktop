@@ -157,11 +157,8 @@
         </div>
       </div>
       <div class="room-actions" data-room="watch" hidden>
-        <div class="row-gap">
-          <span class="share-state" id="watchState">off</span>
-          <button class="toggle" id="setWatch" role="switch"
-                  title="Check watched links for new videos"><i></i></button>
-        </div>
+        <button type="button" class="btn sm" id="watchCheckAll">Check now</button>
+        <button type="button" class="btn pri sm" id="watchAddBtn">Add</button>
       </div>
       <div class="room-actions" data-room="sharing" hidden>
         <div class="row-gap">
@@ -689,81 +686,45 @@
   <!-- ============================= WATCH ============================= -->
   <section class="view" id="view-watch">
 
-    <p class="conv-note">Riplox checks the channels and playlists you add here
-      and tells you what is new. It never downloads anything on its own.</p>
-
-    <div class="watch-add">
-      <input type="url" id="watchUrl" class="text-input"
-             placeholder="Paste a channel or playlist link" autocomplete="off">
-      <button class="btn sm" id="addChannel">Add channel</button>
-      <button class="btn sm" id="addPlaylist">Add playlist</button>
-    </div>
-    <p class="warn" id="watchError" hidden></p>
-
-    <div class="watch-pick" id="watchPick" hidden>
-      <p class="more-note">That is a whole channel. Pick the section to watch —
-        a channel's front page never changes when a video is posted.</p>
-      <div class="chips" id="watchTabs"></div>
-    </div>
-
-    <div class="view-head sub-head">
-      <h3>Watching <span class="lib-count" id="watchCount"></span></h3>
-      <div class="row-gap">
-        <label class="watch-every">Check every
-          <select id="watchHours">
-            <option value="6">6 hours</option>
-            <option value="12">12 hours</option>
-            <option value="24">24 hours</option>
-            <option value="48">2 days</option>
-          </select>
-        </label>
-        <button class="btn sm" id="watchCheckAll">Check now</button>
-      </div>
+    <div class="filters">
+      <button type="button" class="chip on" id="watchFilterAll" data-wfilter="all">
+        Watching <span class="k" id="watchCount">0</span></button>
+      <button type="button" class="chip" id="watchFilterNew" data-wfilter="new"
+              hidden>New <span class="k" id="watchNewCount">0</span></button>
+      <span class="grow"></span>
+      <span class="f12 faint">Riplox never downloads on its own &mdash; it only tells you.</span>
+      <label class="f12 faint" for="watchHours">Check every</label>
+      <select id="watchHours" class="input">
+        <option value="6">6 hours</option>
+        <option value="12">12 hours</option>
+        <option value="24">24 hours</option>
+        <option value="48">2 days</option>
+      </select>
+      <span class="share-state" id="watchState">off</span>
+      <button class="toggle" id="setWatch" role="switch"
+              title="Check watched links for new videos"><i></i></button>
     </div>
 
     <div class="empty" id="watchEmpty">
       <p>Nothing being watched.</p>
-      <span>Paste a channel or playlist link above.</span>
+      <span>Add a channel or a playlist and Riplox will tell you when
+        something new is posted.</span>
     </div>
-    <div id="watchList"></div>
 
-    <details class="more" id="watchHelp">
-      <summary>If YouTube starts asking whether you are a bot</summary>
-      <div class="more-body">
-        <p class="more-note">This is the one thing watching can cause. It is
-          usually temporary and it does not break anything — ordinary downloads
-          keep working. In order:</p>
-        <div class="more-sec">
-          <label>1 · Slow it down</label>
-          <p class="more-note">Set <b>Check every</b> to 24 hours or 2 days, and
-            remove any channel you do not really follow. Every watched item is
-            another request.</p>
-        </div>
-        <div class="more-sec">
-          <label>2 · Wait it out</label>
-          <p class="more-note">Turn Watch off for a day. These blocks lift on
-            their own far more often than not.</p>
-        </div>
-        <div class="more-sec">
-          <label>3 · Sign in</label>
-          <p class="more-note"><b>Settings → Sign-in → Sign in to YouTube</b>.
-            A signed-in request is rarely challenged. Use an account you do not
-            mind losing — heavy automated use can get the account itself
-            limited, and that is a real risk, not a formality.</p>
-        </div>
-        <div class="more-sec">
-          <label>4 · Turn on the helper</label>
-          <p class="more-note"><b>Settings → YouTube → proof-of-origin
-            helper</b>. It answers the check YouTube is making, which is exactly
-            what this failure is.</p>
-        </div>
-        <div class="more-sec">
-          <label>5 · Update the engine</label>
-          <p class="more-note"><b>Settings → Advanced → Update engine</b>. When
-            YouTube changes something, the fix usually arrives there first.</p>
-        </div>
+    <div class="rows" id="watchList"></div>
+
+    <!-- Every new video from every watched item, in one place. They used to be
+         nested inside each row, which meant the answer to "what is new" was
+         spread across however many rows were open. -->
+    <div class="card" id="watchNew" hidden>
+      <div class="card-head">
+        <h3>New since you last looked</h3>
+        <span class="f12 faint" id="watchNewSub"></span>
+        <button type="button" class="btn sm more" id="watchGetAll">Download all</button>
+        <button type="button" class="btn sm" id="watchSkipAll">Clear</button>
       </div>
-    </details>
+      <div class="rows" id="watchNewList"></div>
+    </div>
   </section>
 
   <!-- =========================== SHARING ============================= -->
@@ -1713,6 +1674,39 @@
      for a while, so all the room really held was the decisions: which format,
      which quality, where the new file goes, and files from outside. That is a
      dialog, not a destination. -->
+  <!-- Adding moves behind the Add button: it is done once and then never
+       again, so it does not need to sit at the top of the screen forever. -->
+<div class="scrim" id="watchAddDlg" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="watchAddTitle">
+      <div class="card-head">
+        <h3 id="watchAddTitle">Watch a channel or playlist</h3>
+        <button type="button" class="icon-btn more" id="watchAddClose" title="Close"
+                aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+      <p class="dlg-msg">Riplox checks it every few hours and tells you what is
+        new. It never downloads anything on its own.</p>
+
+      <label class="sr-only" for="watchUrl">Channel or playlist link</label>
+      <input type="url" id="watchUrl" class="input"
+             placeholder="Paste a channel or playlist link" autocomplete="off">
+      <p class="warn" id="watchError" hidden></p>
+
+      <div class="watch-pick" id="watchPick" hidden>
+        <p class="more-note">That is a whole channel. Pick the section to watch &mdash;
+          a channel's front page never changes when a video is posted.</p>
+        <div class="chips" id="watchTabs"></div>
+      </div>
+
+      <div class="dlg-row">
+        <button type="button" class="btn sm" id="addPlaylist">Add as playlist</button>
+        <button type="button" class="btn pri sm" id="addChannel">Add channel</button>
+      </div>
+    </div>
+  </div>
+
 <div class="scrim" id="convDlg" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="convDlgTitle">
     <div class="dlg-head">
