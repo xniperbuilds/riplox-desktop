@@ -657,16 +657,10 @@
     <!-- The two things that are about the list rather than in it, kept at the
          foot. They used to sit between the running rows and the failed ones,
          which put a settings row in the middle of a list of downloads. -->
+    <!-- The tidy-up switch used to sit here. It is a setting, not a thing about
+         this list, and a settings row in the middle of a page of downloads is
+         a row nobody reads twice. It lives in Settings now. -->
     <div class="act-foot">
-      <div class="field">
-        <div class="field-text">
-          <label>Remove a row once it downloads</label>
-          <span>Off, a link that works on a later try stays here marked
-                <b>downloaded later</b>. On, it is taken off this page.</span>
-        </div>
-        <button class="toggle {% if settings.failed_clear_on_success %}on{% endif %}"
-                id="setFailedTidy" role="switch"><i></i></button>
-      </div>
       <p class="conv-note">Failed rows are kept until you delete them, so a link
         that would not download is still here tomorrow. Retry puts it back in
         the queue.</p>
@@ -1300,6 +1294,18 @@
         </div>
         <button class="toggle {% if settings.skip_existing %}on{% endif %}"
                 id="setSkipExisting" role="switch"><i></i></button>
+      </div>
+
+      <!-- Moved here from Activity. It was standing in the middle of a list of
+           downloads, which is a settings row where nobody is looking for one. -->
+      <div class="field">
+        <div class="field-text">
+          <label>Take a failed row off the list once it downloads</label>
+          <span>Off, a link that works on a later try stays on Activity marked
+                <b>downloaded later</b>. On, it is removed.</span>
+        </div>
+        <button class="toggle {% if settings.failed_clear_on_success %}on{% endif %}"
+                id="setFailedTidy" role="switch"><i></i></button>
       </div>
     </div>
 

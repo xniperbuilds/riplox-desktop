@@ -110,7 +110,13 @@ check("max has a label", "max" in engine.QUALITY_LABELS)
 label = engine.QUALITY_LABELS.get("max", "")
 check("⭐ the label does not call it 'best' - it is not better for watching",
       "best" not in label.lower(), label)
-check("...it says what it is for", "re-upload" in label.lower(), label)
+# The label was "Max - for re-uploading" and is now "Max". What it is for has
+# not stopped being said - it moved to the line under it on the quality card,
+# where every rung already carries its size and codec, so the purpose arrives
+# beside the number rather than inside the name. The rule above still stands:
+# this must never be called "best" anything, which is the mistake the rung
+# exists to prevent.
+check("...and it fits on a card", len(label) <= 12, label)
 
 rungs = engine._available_qualities(
     {"formats": [{"height": 1080}, {"height": 2160}]}, {})["rungs"]

@@ -19,6 +19,60 @@
 
   var $ = function (id) { return document.getElementById(id); };
 
+  /* ---------------------------------------------------------------- scale
+
+     Every size in this interface is measured for a 1440px-wide screen: the
+     320 rail, the 68 rows, the two-column panels, the type scale. None of
+     that shrinks on its own.
+
+     A 1080p laptop at Windows' default 150% hands the page 1280 CSS pixels,
+     not 1920. So the 1440 layout was being squeezed into 1280 and everything
+     came out looking oversized - the rail wider than it should be, the titles
+     too large, less room for the thing you came for.
+
+     Scaling the page instead gives the layout the width it was drawn for and
+     makes everything land at the size it was designed at. The floor is there
+     because past a point small stops being faithful and starts being unusable.
+  */
+  function fitToDesign() {
+    var DESIGN = 1440, TALL = 1024, FLOOR = 0.5;
+    var b = document.body;
+    // On <body>, not on <html>. Zooming the root scales what is drawn but the
+    // layout still only gets the window's width, so everything shrinks and the
+    // right side goes empty. On body it does what is wanted: the interface is
+    // laid out at 1440 and then drawn smaller - measured here, the stage went
+    // from 960 to 1024 while the rail went from 320 to 256.
+    //
+    // getBoundingClientRect stays in real pixels whatever the zoom, so this
+    // reads the same number every pass and cannot oscillate.
+    // The viewport, not the body. A body's height is whatever its content
+    // happens to be, so measuring it and then scaling by the result chases its
+    // own tail - it settled on the floor here. documentElement's clientWidth
+    // and clientHeight stay in real pixels whatever the zoom, which is exactly
+    // what this needs.
+    var d = document.documentElement;
+    var box = { width: d.clientWidth, height: d.clientHeight };
+    var cur = parseFloat(b.style.zoom) || 1;
+    // Both directions. Fitting the width alone gave the layout 1440 across but
+    // only ~790 down, so the video screen - which is drawn for 1024 - had to
+    // scroll. Taking the smaller of the two means the whole screen fits, which
+    // is the thing the design was checked for.
+    var k = Math.min(box.width / DESIGN, box.height / TALL);
+    k = Math.min(1, Math.max(FLOOR, k));
+    if (Math.abs(k - cur) > 0.002) b.style.zoom = k === 1 ? "" : k.toFixed(4);
+
+    // Inside a zoomed element, 100% still resolves against the parent's real
+    // pixels, so `height:100%` handed the shell 700 where it needed 1024 and
+    // left a black band under it. The size is set in the zoomed space instead.
+    b.style.width = Math.min(DESIGN, Math.round(box.width / k)) + "px";
+    b.style.height = Math.round(box.height / k) + "px";
+  }
+  fitToDesign();
+  addEventListener("resize", fitToDesign);
+  // A window can also be resized while nobody is looking - moved to another
+  // monitor, or the display scale changed - and resize does not always fire.
+  setInterval(fitToDesign, 500);
+
   /* The Rip button is two lines: RIP on top, what it will take underneath.
      Writing textContent on the button itself would delete both of them, so
      only the second line is ever touched. */
@@ -1080,7 +1134,10 @@
     var thumbs = (info.thumbs || []).length;
     if (subs) has.push(["Subtitles", subs, "tabExtras"]);
     if (thumbs) has.push(["Thumbnails", thumbs, "tabExtras"]);
-    if (info.description) has.push(["Description", "", "tabExtras"]);
+    // has_description, not description: the analyse result carries whether
+    // there is one, not its text. Checking `info.description` meant this chip
+    // was never once shown.
+    if (info.has_description) has.push(["Description", "", "tabExtras"]);
     $("pvHas").innerHTML = has.map(function (h) {
       return '<button type="button" class="chip" data-goto="' + h[2] + '">' +
         h[0] + (h[1] ? '<em class="k">' + h[1] + "</em>" : "") + "</button>";
@@ -1136,8 +1193,14 @@
        answers "how big is this going to be" without being asked. */
     $("qualityChips").innerHTML = options.map(function (q) {
       var from = upscaled[q];
-      var what = (q === "mp3" ? "audio" : "MP4")
-               + (sizes[q] ? " · " + esc(sizes[q]) : "");
+      // The two rungs whose name is not self-explanatory say what they are for
+      // here, on the line that already exists, instead of carrying it inside
+      // the label. "Max" alone would be picked by somebody who just wanted the
+      // best-looking file; "re-upload" is the word that stops that.
+      var kind = q === "max" ? "re-upload"
+               : q === "best" ? "plays anywhere"
+               : q === "mp3" ? "audio" : "MP4";
+      var what = kind + (sizes[q] ? " · " + esc(sizes[q]) : "");
       return '<button type="button" class="qbox' +
         (q === "mp3" ? " audio" : "") +
         (from ? " upscaled" : "") +
@@ -5014,8 +5077,10 @@
   }
   bindToggle("setAutoPaste", "auto_paste");
   bindToggle("setPace", "pace_sites");
-  // On the Failed page rather than in Settings - it is about that page, and
-  // this is where someone is standing when they decide they want it.
+  // In Settings, under Saved alongside. It was on the Activity page, on the
+  // theory that this is where somebody stands when they decide they want it -
+  // but it read as a settings row dropped into the middle of a list of
+  // downloads, and a list is not the place to be offered a preference.
   bindToggle("setFailedTidy", "failed_clear_on_success");
   bindToggle("setThumb", "write_thumbnail");
   bindToggle("setPolite", "polite_mode");

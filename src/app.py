@@ -2222,14 +2222,16 @@ def main() -> None:
     _window = webview.create_window(
         APP_TITLE,
         f"http://127.0.0.1:{port}",
-        # The design is drawn at 1440 x 1024 and every size in it - the 320
-        # rail, the 68 rows, the two-column panels - is measured for that
-        # width. Opening at 1180 does not shrink those, it just leaves them
-        # less room, which is why the rail read as too wide and everything
-        # else as too big. 1440 x 940 fits a 1080p screen with the taskbar.
-        width=1440,
-        height=940,
-        min_size=(1100, 680),
+        # Asking for 1440 was wrong. On a 150% display - which is the default
+        # on most 1080p laptops - a 1920px screen only hands out 1280 CSS
+        # pixels, so a 1440 window cannot exist and Windows clamps it. The
+        # design then had to squeeze into 1280 and everything read as too big.
+        #
+        # The window asks for what fits everywhere, and the page scales itself
+        # to the 1440 the design is drawn for. See fitToDesign() in app.js.
+        width=1180,
+        height=700,
+        min_size=(980, 620),
         background_color="#0A101B",
         text_select=False,
         hidden=quiet,

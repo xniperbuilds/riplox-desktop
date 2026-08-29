@@ -1,3 +1,11 @@
+/* Riplox components. Comes from the design file, minus the design file.
+
+   The mockup wraps every screen in a .frame box and surrounds it with a review
+   harness - a tab bar, captions, a page background. Copied here whole, those
+   rules landed on the app itself, because `frame` is the class on <body>: the
+   window was being given a fixed 1440x1024 box and, under 1500px, a zoom of
+   0.72. That is now stripped; what is left is the components.
+*/
 /* Riplox 1.5 redesign — components. Depends on tokens.css.
 
    Sizes that are NOT arbitrary (agreement across the measured files in brackets):
@@ -25,56 +33,6 @@
    ============================================================ */
 
 *, *::before, *::after { box-sizing: border-box; }
-
-body{
-  margin:0; background:#07080B; color:#fff;
-  font-family:var(--font); font-weight:400; font-size:14px;
-  -webkit-font-smoothing:antialiased;
-}
-
-/* ---------------- review shell (not part of the product) ---------------- */
-.review{
-  position:sticky; top:0; z-index:50;
-  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
-  padding:14px 24px; background:rgba(7,8,11,.93);
-  backdrop-filter:blur(14px); border-bottom:1px solid rgba(255,255,255,.08);
-}
-.review b{ font-weight:500; font-size:15px; }
-.review .dim{ color:#6B7382; font-size:12px; }
-.rtabs{ display:flex; gap:6px; flex-wrap:wrap; margin-left:auto; }
-.rtab{
-  height:32px; padding:0 12px; border-radius:9px; text-decoration:none;
-  background:#171A21; color:#A8B0BD; border:1px solid rgba(255,255,255,.08);
-  font:500 12px var(--font); display:inline-flex; align-items:center;
-}
-.rtab:hover{ color:#fff; }
-
-.stagewrap{ padding:8px 24px 64px; display:flex; flex-direction:column; align-items:center; }
-.screen-label{
-  width:1440px; max-width:100%; display:flex; align-items:baseline; gap:14px;
-  margin:48px 0 6px; scroll-margin-top:76px;
-}
-.screen-label .num{
-  font:500 12px var(--mono); color:#2BE9E0; letter-spacing:.1em;
-  border:1px solid rgba(43,233,224,.3); border-radius:6px; padding:4px 8px;
-}
-.screen-label h2{ margin:0; font-size:20px; font-weight:500; letter-spacing:-.01em; color:#fff; }
-.screen-label .tagl{ font-size:12px; color:#6B7382; margin-left:auto; }
-.caption{ width:1440px; max-width:100%; color:#6B7382; font-size:12px; line-height:1.75; margin-bottom:12px; }
-.caption b{ color:#A8B0BD; font-weight:500; }
-.endnote{ margin:72px 0 0; text-align:center; color:#6B7382; font-size:12px; line-height:2; }
-.endnote b{ color:#A8B0BD; font-weight:500; }
-
-/* ---------------- the app frame ---------------- */
-.frame{
-  width:1440px; height:1024px; flex:none; display:flex;
-  background:var(--ground); color:var(--text);
-  border-radius:18px; overflow:hidden;
-  border:1px solid rgba(255,255,255,.14); box-shadow:0 0 90px rgba(0,0,0,.75);
-  margin-bottom:8px;
-}
-@media (max-width:1500px){ .frame{ zoom:.72 } .screen-label,.caption{ width:1040px } }
-@media (max-width:1100px){ .frame{ zoom:.52 } .screen-label,.caption{ width:760px } }
 
 /* =========================================================
    LEFT RAIL — 296. Navigation on top, live downloads below.
@@ -587,4 +545,29 @@ button.btn, button.cta, button.chip, button.pbtn, button.qbox, button.lrow{
 #themePick span{
   position:absolute; width:1px; height:1px; padding:0; margin:-1px;
   overflow:hidden; clip-path:inset(50%); white-space:nowrap;
+}
+
+/* .list sets overflow:hidden because in the design it lives inside panels that
+   are already the right height. The chapter list is inside a panel that scrolls
+   itself, and hiding its overflow simply cut the list off: 63 chapters, eight
+   of them reachable, no scrollbar to say the rest were there. */
+.chapter-list.list, .heat-peaks.list{ overflow-y:auto; max-height:none }
+
+/* ---------------------------------------------------------------------------
+   The design is 1440 x 1024. fitToDesign() in app.js scales <body> so all of it
+   fits the window, taking the smaller of the two ratios - so on a window wider
+   than 1.406:1 there is width left over. The interface is capped at the width
+   it was drawn for and centred in what is left, rather than stretched into a
+   shape nobody measured.
+
+   height is stated because the body needs a height for the shell to fill; left
+   to its content it collapses, and then fitToDesign measures the collapse.
+   --------------------------------------------------------------------------- */
+html{ height:100%; overflow:hidden }
+body{
+  margin:0 auto;
+  /* display:flex used to come from .frame - the mockup's per-screen box, which
+     in the app is the class on <body>. Stripping the mockup shell took the
+     rail and the stage out of a row with it. */
+  display:flex; overflow:hidden;
 }

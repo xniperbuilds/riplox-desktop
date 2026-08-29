@@ -1594,7 +1594,7 @@ QUALITY_LABELS = {
     # Deliberately not called "best" anything. It is not better for watching -
     # it is a bigger, less playable file that survives being uploaded again,
     # and the name has to carry that or it will be picked by mistake.
-    "max": "Max - for re-uploading",
+    "max": "Max",
     "2160": "4K · 2160p",
     "1440": "2K · 1440p",
     "1080": "Full HD · 1080p",
@@ -2341,6 +2341,10 @@ def analyze(url: str, settings: dict) -> dict:
         "audio_langs": _audio_langs(info),
         "sub_langs": _sub_langs(info),
         "thumbs": _thumb_rows(info),
+        # Whether there is one, not what it says. The screen only needs to
+        # offer "save the description", and a description can run to thousands
+        # of characters that nothing on this side would ever read.
+        "has_description": bool((info.get("description") or "").strip()),
     }
 
 
