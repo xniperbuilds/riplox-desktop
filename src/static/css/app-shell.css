@@ -290,3 +290,28 @@ img.rthumb { object-fit: cover; }
   color: var(--faint); border: 1px solid var(--line); border-radius: 6px;
   padding: 1px 6px; margin-left: 8px; white-space: nowrap;
 }
+
+/* ------------------------------------------------------- download detail */
+
+.sheet-wide { width: min(900px, 94vw); max-height: 84vh; display: flex; flex-direction: column; }
+.jd-thumb { width: 76px; height: 44px; }
+.jd-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.jd-body { flex: 1; min-height: 0; overflow-y: auto; }
+.jd-body .cmd { margin: 0; white-space: pre-wrap; word-break: break-all; }
+/* The design writes `row gap12` here, but components.css has gap8 and gap16
+   and no gap12 - the class does nothing on its own page either. The gap goes
+   on this rule instead of adding a class the design's own stylesheet has
+   never defined. */
+.jd-row { height: 44px; gap: 12px; padding: 0 12px; border-radius: var(--r-s); }
+.jd-row.is-bad { background: var(--bad-dim); }
+.jd-row.is-bad .grow { color: var(--bad); }
+.jd-key { width: 148px; flex: none; }
+.jd-foot { padding-top: 16px; flex: none; }
+#jdAdvice { margin-top: 14px; flex: none; }
+
+/* The design's type scale ships f10 f12 f13 f15 f17 and no f14, yet six of
+   its screens ask for f14 - nineteen places, all of them body text that is
+   meant to be one step up from a caption. On the design's own pages that text
+   falls back to whatever it inherits. Added here rather than edited into
+   components.css, which is the spec's file and stays verbatim. */
+.f14 { font-size: 14px; }

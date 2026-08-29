@@ -2376,6 +2376,160 @@
   $("jobLogCopy").addEventListener("click", function () {
     copyText($("jobLogBox").textContent || "");
   });
+  /* One log, read three ways.
+
+     _diagnostic() in the engine writes a fixed head - job, url, quality,
+     engine, js, exit, command - then a blank line, then the last forty lines
+     of what the engine actually said. So the tabs are a reading of what is
+     already there. A log written by some other path (a conversion, or the
+     signed-in/signed-out pair) will not match, and then What happened says
+     what it has and the whole text goes under Engine output. */
+  var JD_LABEL = {
+    url: "Link", quality: "Quality asked for", engine: "Engine",
+    js: "Bundled JS", exit: "Exit code", attempt: "Attempt",
+  };
+
+  function readLog(text) {
+    var out = { head: [], command: "", body: text || "" };
+    var lines = String(text || "").split("\n");
+    var i = 0;
+    var first = (lines[0] || "");
+    if (first.indexOf("Riplox job ") === 0) {
+      var att = first.match(/attempt\s+(\d+)/);
+      if (att) out.head.push(["attempt", att[1]]);
+      i = 1;
+      for (; i < lines.length; i++) {
+        var line = lines[i];
+        if (!line.trim()) { i++; break; }
+        var m = line.match(/^([a-z]+)\s\s+(.*)$/);
+        if (!m) break;
+        if (m[1] === "command") out.command = m[2];
+        else out.head.push([m[1], m[2]]);
+      }
+      out.body = lines.slice(i).join("\n");
+    }
+    return out;
+  }
+
+  var jdJob = null;      // what the drawer is currently showing
+
+  function jdTab(which) {
+    $("jdWhat").hidden = which !== "what";
+    $("jdCmd").hidden = which !== "cmd";
+    $("jobLogBox").hidden = which !== "out";
+    $("jdTabs").querySelectorAll(".tab").forEach(function (t) {
+      t.classList.toggle("on", t.dataset.jdtab === which);
+    });
+    if (which === "out") $("jobLogBox").scrollTop = $("jobLogBox").scrollHeight;
+  }
+
+  /* job: { title, url, thumbnail, status, error, log, botcheck, failedId } */
+  function openJobDetail(job) {
+    jdJob = job;
+    var read = readLog(job.log);
+
+    $("jobDetailTitle").textContent = job.title || job.url || "This download";
+    $("jdUrl").textContent = job.url || "";
+    $("jdUrl").title = job.url || "";
+
+    var thumb = $("jdThumb");
+    thumb.innerHTML = job.thumbnail
+      ? '<img src="' + esc(job.thumbnail) + '" alt="">' : "";
+    thumb.hidden = !job.thumbnail;
+
+    var bad = job.status === "error" || !!job.failedId;
+    $("jdBadge").className = "badge " + (bad ? "b-bad"
+      : job.status === "done" ? "b-ok" : "b-run");
+    $("jdBadge").textContent = bad ? "Failed"
+      : STATE_TEXT[job.status] || job.status || "";
+
+    /* The facts the log carries, each on its own line. The design draws a
+       timeline with a clock time against every step; Riplox records no
+       per-step times, and putting a made-up one next to a real failure would
+       be the worst kind of helpful. */
+    var rows = [];
+    if (job.error) rows.push(["What the site said", job.error, true]);
+    read.head.forEach(function (pair) {
+      rows.push([JD_LABEL[pair[0]] || pair[0], pair[1], false]);
+    });
+    $("jdWhat").innerHTML = rows.length
+      ? rows.map(function (r) {
+          /* .row, not .drow. The design draws these at 44 and a data row is
+             68 - it uses its plain row here for exactly that reason, and
+             borrowing the taller component would put a size the verifier
+             rightly flags into a screen that has no need of it. */
+          return '<div class="row jd-row' + (r[2] ? " is-bad" : "") + '">' +
+            '<span class="f12 faint jd-key">' + esc(r[0]) + "</span>" +
+            '<span class="f14 grow' + (r[2] ? "" : " mono") + '">' +
+              esc(r[1]) + "</span></div>";
+        }).join("")
+      : '<p class="f12 faint">Riplox kept the engine\u2019s output for this one but ' +
+        "not a summary of it. The Engine output tab has everything there is.</p>";
+
+    $("jdCmd").textContent = read.command ||
+      "The command was not recorded for this one.";
+    $("jobLogBox").textContent = read.body || "Nothing was logged.";
+    $("jdOutN").textContent = read.body
+      ? read.body.split("\n").filter(function (l) { return l.trim(); }).length : 0;
+
+    /* Advice only where the app already knows the answer. Anything else would
+       be a guess dressed as instruction. */
+    var low = ((job.error || "") + " " + (job.log || "")).toLowerCase();
+    var advice = "";
+    if (job.botcheck) {
+      advice = S.hasPotoken
+        ? "<b>What to do:</b> the proof-of-origin helper is already on, so the " +
+          "next thing to try is signing in \u2014 Settings \u2192 Sign-in."
+        : "<b>What to do:</b> turn on the proof-of-origin helper in " +
+          "Settings \u2192 YouTube. It answers the exact check this site is making.";
+    } else if (low.indexOf("members only") >= 0 || low.indexOf("private video") >= 0 ||
+               low.indexOf("sign in") >= 0 || low.indexOf("login required") >= 0) {
+      advice = "<b>What to do:</b> this one needs an account. Sign in again in " +
+        "Settings \u2192 Sign-in. Downloads from this site that do not need an " +
+        "account are unaffected.";
+    }
+    $("jdAdvice").hidden = !advice;
+    $("jdAdvice").innerHTML = advice;
+
+    $("jdForget").hidden = !job.failedId;
+    $("jdRetry").hidden = !job.failedId;
+
+    jdTab("what");
+    $("jobDetail").hidden = false;
+  }
+
+  $("jdTabs").addEventListener("click", function (e) {
+    var t = e.target.closest("[data-jdtab]");
+    if (t) jdTab(t.dataset.jdtab);
+  });
+
+  $("jdOpenFolder").addEventListener("click", function () {
+    // No path: /api/open with nothing opens the download folder, which is
+    // where this one would have landed.
+    api("/api/open", {}).then(function (r) {
+      if (r && r.ok === false) toast(r.error || "Could not open that.", "bad");
+    });
+  });
+
+  $("jdForget").addEventListener("click", function () {
+    if (!jdJob || !jdJob.failedId) return;
+    api("/api/failed/forget", { id: jdJob.failedId }).then(function () {
+      $("jobDetail").hidden = true;
+      loadFailed();
+    });
+  });
+
+  $("jdRetry").addEventListener("click", function () {
+    if (!jdJob || !jdJob.failedId) return;
+    api("/api/failed/retry", { id: jdJob.failedId }).then(function (r) {
+      if (!r.ok) { toast(r.error || "Could not queue that again.", "bad"); return; }
+      $("jobDetail").hidden = true;
+      toast("Back in the queue", "good");
+      show("queue");
+      pollJobs();
+    });
+  });
+
   $("jobDetailClose").addEventListener("click", function () {
     $("jobDetail").hidden = true;
   });
@@ -2632,7 +2786,7 @@
     done: [["open", ICON.play, "Play file", "go"],
            ["reveal", ICON.folder, "Show in folder", ""]],
     error: [["retry", ICON.retry, "Try again", "go"],
-            ["log", ICON.copy, "Copy error details", ""]],
+            ["log", ICON.copy, "What happened", ""]],
     cancelled: [["retry", ICON.retry, "Try again", "go"]],
     paused: [["retry", ICON.play, "Resume", "go"]],
     busy: [["cancel", ICON.stop, "Stop", "stop"]]
@@ -2795,14 +2949,12 @@
     if (act === "log") {
       api("/api/job-log", { id: id }).then(function (r) {
         if (!r || !r.log) { toast("No details were kept for that one.", "bad"); return; }
-        var row = btn.closest(".job");
-        var title = row && row.querySelector(".job-title");
-        $("jobDetailWhat").textContent = title ? title.textContent : "";
-        /* Raw engine output. Text, never markup - it is whatever the site and
-           the engine put on the wire. */
-        $("jobLogBox").textContent = r.log;
-        $("jobLogBox").scrollTop = $("jobLogBox").scrollHeight;
-        $("jobDetail").hidden = false;
+        var job = (window._jobs || []).find(function (j) { return j.id === id; }) || {};
+        openJobDetail({
+          title: job.title, url: job.url, thumbnail: job.thumbnail,
+          status: job.status, error: job.error, botcheck: job.botcheck,
+          log: r.log,
+        });
       });
       return;
     }
@@ -3140,7 +3292,6 @@
      stays until it is deleted. */
 
   var failedItems = [];
-  var failedOpen = "";       // whose details are showing
 
   function setFailedBadge(count) {
     var badge = $("failedBadge");
@@ -3181,7 +3332,6 @@
       var facts = [labels[f.quality] || f.quality || "", f.site || "",
                    whenText(f.last || f.when)];
       if (f.tries > 1) facts.push(f.tries + " tries");
-      var open = failedOpen === f.id;
 
       return '<div class="hrow fail-row' + (f.fixed ? " is-fixed" : "") + '">' +
         (f.thumbnail
@@ -3191,15 +3341,12 @@
           (f.fixed ? ' <em class="tag">downloaded later</em>' : "") + "</div>" +
         '<div class="m">' + esc(facts.filter(Boolean).join(" · ")) + "</div>" +
         '<div class="m fail-why">' + esc(f.error || "No reason was recorded.") + "</div>" +
-        (open ? '<pre class="fail-log">' + esc(f.log || "Nothing was logged.") + "</pre>" : "") +
         "</div>" +
         // All four in one grid cell - see .hrow-acts. Four loose buttons in a
         // three-column grid put three of them on a row of their own.
         '<div class="hrow-acts">' +
-        '<button class="icon-btn' + (open ? " is-open" : "") +
-          '" data-details="' + esc(f.id) + '" title="' +
-          (open ? "Hide details" : "Show details") + '">' + ICON.expand +
-          "</button>" +
+        '<button class="icon-btn" data-details="' + esc(f.id) +
+          '" title="What happened">' + ICON.expand + "</button>" +
         '<button class="icon-btn" data-copyfail="' + esc(f.id) +
           '" title="Copy the link and the reason">' + ICON.copy + "</button>" +
         '<button class="icon-btn go" data-refail="' + esc(f.id) +
@@ -3213,8 +3360,13 @@
   $("failedList").addEventListener("click", function (e) {
     var details = e.target.closest("[data-details]");
     if (details) {
-      failedOpen = failedOpen === details.dataset.details ? "" : details.dataset.details;
-      renderFailed();
+      var one = failedItems.find(function (f) { return f.id === details.dataset.details; });
+      if (!one) { toast("That row is gone.", "bad"); return; }
+      openJobDetail({
+        title: one.title, url: one.url, thumbnail: one.thumbnail,
+        status: "error", error: one.error, botcheck: one.botcheck,
+        log: one.log, failedId: one.id,
+      });
       return;
     }
 
@@ -3284,7 +3436,6 @@
         + "this list.", { ok: "Delete all", danger: true }).then(function (yes) {
       if (!yes) return;
       api("/api/failed/clear", {}).then(function () {
-        failedOpen = "";
         loadFailed();
         toast("Failed list emptied", "good");
       });
@@ -4170,7 +4321,7 @@
       if (e.kind === "text") {
         return '<div class="drow flat in-row' + (waiting ? " waiting" : "") + '">' +
           '<div class="grow" style="min-width:0">' +
-          '<div class="f13 w500 trunc mono">' +
+          '<div class="f14 w500 trunc mono">' +
             "•".repeat(Math.min(e.chars || 8, 24)) + "</div>" +
           '<div class="f12 faint trunc">' + caption + " · " +
             (e.chars || 0) + " characters</div></div>" +
@@ -4184,7 +4335,7 @@
 
       return '<div class="drow flat in-row' + (waiting ? " waiting" : "") + '">' +
         '<div class="grow" style="min-width:0">' +
-        '<div class="f13 w500 trunc mono">' + esc(e.url) + "</div>" +
+        '<div class="f14 w500 trunc mono">' + esc(e.url) + "</div>" +
         '<div class="f12 faint trunc">' + caption + " · " +
           esc(e.quality || "default") + "</div></div>" +
         (waiting

@@ -1870,15 +1870,45 @@
 </div>
 
 <div class="scrim" id="jobDetail" hidden>
-  <div class="dlg dlg-wide" role="dialog" aria-modal="true" aria-labelledby="jobDetailTitle">
-    <div class="dlg-head">
-      <h3 id="jobDetailTitle">What happened</h3>
-      <button class="btn sm" id="jobLogCopy">Copy for a bug report</button>
+  <div class="sheet sheet-wide" role="dialog" aria-modal="true"
+       aria-labelledby="jobDetailTitle">
+    <div class="card-head">
+      <div class="rthumb jd-thumb" id="jdThumb"></div>
+      <div class="grow" style="min-width:0">
+        <h3 id="jobDetailTitle">What happened</h3>
+        <span class="f12 faint mono trunc" id="jdUrl"></span>
+      </div>
+      <span class="badge b-wait" id="jdBadge"></span>
+      <button type="button" class="icon-btn" id="jobDetailClose" title="Close"
+              aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
     </div>
-    <p class="dlg-msg" id="jobDetailWhat"></p>
-    <pre class="cmd job-log" id="jobLogBox"></pre>
-    <div class="dlg-foot">
-      <button class="btn" id="jobDetailClose">Close</button>
+
+    <!-- Three readings of one log. Nothing is fetched by pressing these; the
+         log arrived in one piece and is only being shown a part at a time. -->
+    <div class="tabs" id="jdTabs">
+      <button type="button" class="tab on" data-jdtab="what">What happened</button>
+      <button type="button" class="tab" data-jdtab="cmd">Command</button>
+      <button type="button" class="tab" data-jdtab="out">Engine output
+        <span class="n" id="jdOutN">0</span></button>
+    </div>
+
+    <div class="jd-body">
+      <div class="rows" id="jdWhat"></div>
+      <pre class="cmd" id="jdCmd" hidden></pre>
+      <pre class="cmd job-log" id="jobLogBox" hidden></pre>
+    </div>
+
+    <div class="summary" id="jdAdvice" hidden></div>
+
+    <div class="row gap8 jd-foot">
+      <button type="button" class="btn sm" id="jobLogCopy">Copy this report</button>
+      <button type="button" class="btn sm" id="jdOpenFolder">Open the folder it would have used</button>
+      <span class="grow"></span>
+      <button type="button" class="btn" id="jdForget" hidden>Forget it</button>
+      <button type="button" class="btn pri" id="jdRetry" hidden>Try again</button>
     </div>
   </div>
 </div>
