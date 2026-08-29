@@ -403,3 +403,9 @@ img.rthumb { object-fit: cover; }
 .sheet-ask { width: min(420px, 92vw); }
 .sheet h3 { margin: 0 0 10px; font-size: 17px; font-weight: 500; }
 .sheet .dlg-foot { margin-top: auto; padding-top: 18px; }
+
+/* The palette is 660 in the design, not the sheet's default 820 - a list of
+   short lines does not want the width of a panel. */
+#palette .sheet { width: min(660px, 92vw); max-height: 520px; padding: 0; overflow: hidden; }
+#palette .omni { border-bottom: 1px solid var(--line); border-radius: 0; }
+#palette .sheet-body { padding: 10px; overflow-y: auto; flex: 1; min-height: 0; }

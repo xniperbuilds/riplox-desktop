@@ -178,16 +178,18 @@
     }
     if (!q) return out;
 
-    // Go to - the rail, with whatever its badges say.
-    document.querySelectorAll(".tab").forEach(function (tab) {
-      var label = tab.querySelector(".tab-label");
+    // Go to - the rail, with whatever its badges say. Matched on [data-view]
+    // rather than on a class, so a restyle cannot quietly empty this list
+    // again: an item without a view is not a room, whatever it is called.
+    document.querySelectorAll(".nav-item[data-view]").forEach(function (item) {
+      var label = item.querySelector("span");
       var name = label ? label.textContent.trim() : "";
       if (!name || name.toLowerCase().indexOf(q) < 0) return;
-      var badge = tab.querySelector(".badge");
+      var badge = item.querySelector(".pill");
       out.push({
         group: "Go to", label: name,
         hint: badge && !badge.hidden ? badge.textContent + " waiting" : "",
-        run: function () { show(tab.dataset.view); }
+        run: function () { show(item.dataset.view); }
       });
     });
 

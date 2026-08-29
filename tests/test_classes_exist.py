@@ -136,6 +136,36 @@ check("...and the script really does author markup", len(authored) >= 20,
       str(len(authored)))
 
 
+print("\n-- and every class it looks the page up by is worn by something ------")
+# The third silence. The two checks above cover classes the script writes;
+# this covers the ones it reads. querySelectorAll(".tab-label") on a page with
+# no .tab-label returns an empty list, the loop runs zero times, and whatever
+# depended on it is gone with nothing thrown - which is how the palette lost
+# its Go-to group when the rail was renamed, and kept it lost for three
+# commits.
+#
+# Checked against the markup, not the stylesheet: a class can be styled and
+# worn by nothing at all, which is the state this is looking for.
+HTML_FILE = (SRC / "templates" / "index.html").read_text(encoding="utf-8")
+in_html = set()
+for chunk in re.findall(r'class="([^"{]*)"', HTML_FILE):
+    in_html.update(chunk.split())
+
+worn = in_html | authored
+
+looked_up = set()
+for sel in re.findall(r'querySelector(?:All)?\(\s*"([^"]+)"', JS):
+    # One selector can name several classes - ".drow.flat", ".chip.is-on".
+    looked_up.update(re.findall(r"\.([a-zA-Z][\w-]*)", sel))
+
+print(f"      {len(looked_up)} classes read by a selector \u00b7 {len(worn)} worn somewhere")
+stale = sorted(c for c in looked_up if c not in worn and c not in SCRIPT_ONLY)
+check("no selector reads a class that nothing on the page wears",
+      not stale, ", ".join(stale) if stale else "")
+check("...and there are enough selectors for that to mean something",
+      len(looked_up) >= 10, str(len(looked_up)))
+
+
 print("\n-- one class, one block, within a file -------------------------------")
 # A class written twice in the *same* stylesheet is a defect: the later block
 # silently wins and the earlier one is dead. That is what happened when I added
