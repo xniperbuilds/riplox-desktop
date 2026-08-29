@@ -57,15 +57,18 @@
     // only ~790 down, so the video screen - which is drawn for 1024 - had to
     // scroll. Taking the smaller of the two means the whole screen fits, which
     // is the thing the design was checked for.
-    var k = Math.min(box.width / DESIGN, box.height / TALL);
-    k = Math.min(1, Math.max(FLOOR, k));
+    // Width only. Fitting the height as well was worse than the problem it
+    // solved: a window is about 1.78 wide to tall and the design is 1.41, so
+    // scaling to the height left roughly 900px of the window empty and pushed
+    // the whole interface into its left half. A screen that has to scroll is a
+    // smaller fault than a screen using half the window it was given.
+    var k = Math.min(1, Math.max(FLOOR, box.width / DESIGN));
     if (Math.abs(k - cur) > 0.002) b.style.zoom = k === 1 ? "" : k.toFixed(4);
 
-    // Inside a zoomed element, 100% still resolves against the parent's real
-    // pixels, so `height:100%` handed the shell 700 where it needed 1024 and
-    // left a black band under it. The size is set in the zoomed space instead.
-    b.style.width = Math.min(DESIGN, Math.round(box.width / k)) + "px";
+    // The shell fills the window: `height:100%` inside a zoomed element still
+    // resolves against the parent's real pixels, which left a band underneath.
     b.style.height = Math.round(box.height / k) + "px";
+    b.style.width = "";
   }
   fitToDesign();
   addEventListener("resize", fitToDesign);
@@ -1093,12 +1096,15 @@
 
   function topbarForVideo(info) {
     heroVisible(false);
+    tabTouched = false;          // a new link picks its own tab again
     var isList = info.kind === "playlist";
     var bits = [];
     if (info.extractor) bits.push(esc(info.extractor));
     if (!isList && info.duration) bits.push(fmtDuration(info.duration));
-    var best = (info.options || [])[0];
-    if (best && best !== "mp3") bits.push(esc(labels[best] || best) + " available");
+    // The tallest numbered rung, not options[0]. options[0] is "best", whose
+    // label is "Best available" - so the line read "Best available available".
+    var tallest = (info.options || []).filter(function (o) { return /^\d+$/.test(o); })[0];
+    if (tallest) bits.push(tallest + "p available");
     if (isList && info.count) bits.push(info.count + " videos");
     $("pageTitle").textContent = info.title || "Untitled";
     $("pageTitle").classList.add("sm");
@@ -1328,10 +1334,17 @@
           + others.join(", ") + " - chapters are asked for by their title, so "
           + "these arrive together.") + '">&times;' + group.length + "</span>";
       }
-      return "<li><label>"
-        + (canCut ? '<input type="checkbox" class="ch-pick" data-i="' + i + '">' : "")
-        + '<span class="ch-at">' + esc(at) + "</span>"
-        + '<span class="ch-title">' + esc(c.title) + mark + "</span></label></li>";
+      // The design's row: tick, time, title, and how long it runs. The length
+      // is the number that decides whether a chapter is worth taking on its
+      // own, and it was the one thing the row did not say.
+      var runs = (c.end && c.start != null) ? fmtDuration(c.end - c.start) : "";
+      return '<li><label class="lrow">'
+        + (canCut ? '<input type="checkbox" class="ch-pick" data-i="' + i + '">'
+                  + '<span class="tick" aria-hidden="true"></span>' : "")
+        + '<span class="ch-at time">' + esc(at) + "</span>"
+        + '<span class="ch-title">' + esc(c.title) + mark + "</span>"
+        + (runs ? '<span class="ch-runs">' + esc(runs) + "</span>" : "")
+        + "</label></li>";
     }).join("");
     syncChapters();
   }
@@ -2286,10 +2299,14 @@
     panelTrim: "tabTrim", panelExtras: "tabExtras", panelNaming: "tabNaming"
   };
   var openPanel = "panelFormat";
+  // Cleared for every new link, so the next video opens on its own best tab
+  // rather than on whatever the last one was left on.
+  var tabTouched = false;
 
   function showPanel(name) {
     if (PANELS.indexOf(name) < 0) return;
     openPanel = name;
+    tabTouched = true;
     syncTabs();
   }
 
@@ -2322,6 +2339,15 @@
   function syncTabs() {
     var live = PANELS.filter(function (p) { return !$(p).hidden; });
     if (live.indexOf(openPanel) < 0) openPanel = live[0] || "";
+
+    /* Which tab a new video opens on. Format is the right answer only when
+       there is nothing more interesting: a video with chapters opens on its
+       chapters, because that is the thing somebody came to this screen to
+       pick. Once a tab has been pressed the choice is theirs and this stops. */
+    if (!tabTouched) {
+      if (live.indexOf("chapterBox") >= 0) openPanel = "chapterBox";
+      else if (live.indexOf("heatBox") >= 0) openPanel = "heatBox";
+    }
 
     PANELS.forEach(function (p) {
       var tab = $(panelTab[p]), on = p === openPanel;
