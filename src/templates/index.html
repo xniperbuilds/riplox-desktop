@@ -165,6 +165,7 @@
       </div>
       <div class="room-actions" data-room="sharing" hidden>
         <div class="row-gap">
+          <span class="badge b-run" id="shareWaiting" hidden>0 waiting</span>
           <span class="badge b-wait" id="shareState">off</span>
           <button class="toggle" id="setSharing" role="switch"
                   title="Let paired devices send links here"><i></i></button>
@@ -848,6 +849,18 @@
   <!-- =========================== SHARING ============================= -->
   <section class="view" id="view-sharing">
 
+    <!-- The one thing on this screen that needs a decision, above the things
+         that do not. Hidden entirely when nothing is held, so an empty card
+         never sits at the top of the room. -->
+    <div class="card" id="waitingCard" hidden>
+      <div class="card-head">
+        <h3>Waiting for you</h3>
+        <span class="f12 faint">Nothing downloads until you say so</span>
+        <button type="button" class="btn sm more" id="approveAll">Approve all</button>
+      </div>
+      <div class="rows" id="waitingList"></div>
+    </div>
+
     <div class="two">
       <div class="card">
         <div class="card-head">
@@ -892,17 +905,34 @@
         </div>
         <div class="rows" id="devicesList"></div>
 
-        <!-- What Riplox promises about this, and the one question the promise
-             raises - did anything I sent get lost - in the same block. They
-             were two strips at the top of the room, above the thing they were
-             about. Asked of the relay rather than of the phone: a PC cannot
-             reliably wake a phone, and the relay already keeps undelivered
-             links for a week. Counts only; the relay cannot read them. -->
-        <div class="summary" id="shareSummary">
-          Only the link travels, and nothing on the internet can reach this
-          computer. Links sent while the PC was off are kept for a week &mdash;
-          <span id="stuckNote">not checked yet</span>.
-          <button type="button" class="link-quiet" id="checkStuck">Check now</button>
+        <p class="f12 faint" id="devicesNote">Each device can be renamed, paused
+          or removed on its own. Removing one does not disturb the others, and a
+          removed device cannot pair again with the old code.</p>
+      </div>
+    </div>
+
+    <!-- Asked of the relay rather than of the phone: a PC cannot reliably wake
+         a phone, and the relay already keeps undelivered links for a week.
+         Counts only - the relay cannot read them and is not asked to hand them
+         over. -->
+    <div class="card" id="missedCard">
+      <div class="card-head">
+        <h3>Anything missed</h3>
+        <button type="button" class="btn sm more" id="checkStuck">Check now</button>
+      </div>
+      <div class="summary">
+        Only the link travels, and nothing on the internet can reach this
+        computer. Links sent while this PC was off are held for
+        <b>seven days</b> and arrive when it comes back. Riplox asks the relay
+        for a <b>count only</b>.
+      </div>
+      <div class="rows">
+        <div class="drow flat missed-row">
+          <span class="dot" id="stuckDot"></span>
+          <div class="grow" style="min-width:0">
+            <div class="f14 w500" id="stuckNote">Not checked yet</div>
+            <div class="f12 faint" id="stuckWhen">Checked when this room opens.</div>
+          </div>
         </div>
       </div>
     </div>

@@ -267,7 +267,7 @@ img.rthumb { object-fit: cover; }
 .in-row { height: 60px; }
 .in-row.waiting { border-color: var(--warn-dim); }
 .dev.is-paused .dev-row { opacity: .7; }
-#shareSummary { margin-top: 14px; }
+#devicesNote { margin: 14px 0 0; line-height: 1.75; }
 /* No code yet, no white square: the design draws the QR because its screen
    always has one, and this one only has one after Show code. */
 #qrImage:empty { display: none; }
@@ -331,3 +331,13 @@ img.rthumb { object-fit: cover; }
 .step-act .input { min-width: 168px; height: 36px; }
 #fixSummary { margin-top: 18px; display: flex; align-items: center; gap: 12px; }
 #fixSummary .btn { flex: none; margin-left: auto; }
+
+/* --------------------------------------------------------- send, waiting */
+
+#waitingCard { margin-bottom: 16px; }
+#waitingList { overflow: visible; }
+/* Accent-edged, because these are the rows that are asking something. */
+.waiting-row { border-color: var(--accent-line); }
+.missed-row { height: 60px; }
+#missedCard { margin-top: 20px; }
+#missedCard .summary { margin-bottom: 14px; }

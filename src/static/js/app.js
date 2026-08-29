@@ -4387,13 +4387,53 @@
     }).join("");
 
     var log = s.log || [];
+
+    /* Held items come out of the log and into their own card. They are the
+       only rows on this screen that are a question rather than a record. */
+    var waiting = log.filter(function (e) { return e.state === "waiting"; });
+    $("waitingCard").hidden = !waiting.length;
+    $("shareWaiting").hidden = !waiting.length;
+    $("shareWaiting").textContent = waiting.length + " waiting";
+    $("waitingList").innerHTML = waiting.map(function (e) {
+      var why = e.why ? " \u00b7 " + esc(WHY[e.why] || e.why) : "";
+      var from = "from <b class=\"muted\">" + esc(e.from || "a device") + "</b>, " +
+        esc(ago(e.at)) + why;
+
+      /* Text is shown as dots and a length, never as itself - what arrives
+         this way is usually a key or a password, and a window is a thing
+         other people can see over your shoulder. */
+      if (e.kind === "text") {
+        return '<div class="drow tall waiting-row">' +
+          '<div class="grow" style="min-width:0">' +
+          '<div class="f15 w500 trunc mono">' +
+            "\u2022".repeat(Math.min(e.chars || 8, 32)) + "</div>" +
+          '<div class="f12 faint trunc">Plain text \u00b7 ' + from + " \u00b7 " +
+            (e.chars || 0) + " characters, nothing to download</div></div>" +
+          '<button type="button" class="btn sm" data-no="' + esc(e.id) + '">Delete</button>' +
+          '<button type="button" class="btn pri sm" data-ok="' + esc(e.id) + '">Keep</button>' +
+          "</div>";
+      }
+
+      /* No title, no picture, no length: the link has not been analysed - that
+         is what it is waiting for - so the address is what Riplox has. */
+      return '<div class="drow tall waiting-row">' +
+        '<div class="grow" style="min-width:0">' +
+        '<div class="f15 w500 trunc mono">' + esc(e.url) + "</div>" +
+        '<div class="f12 faint trunc">' + from + "</div></div>" +
+        '<span class="chip">' + esc(labels[e.quality] || e.quality || "default") + "</span>" +
+        '<button type="button" class="btn sm" data-no="' + esc(e.id) + '">No</button>' +
+        '<button type="button" class="btn pri sm" data-ok="' + esc(e.id) + '">Download</button>' +
+        "</div>";
+    }).join("");
+
     $("incomingEmpty").hidden = log.length > 0;
-    $("incomingList").innerHTML = log.map(function (e) {
-      var waiting = e.state === "waiting";
-      // A link a rule stopped is waiting too, and it gets the same buttons -
-      // but "waiting" on its own would look like Riplox simply had not got to
-      // it. The reason is what turns the Approve button into a choice.
-      var why = waiting && e.why ? " · " + esc(WHY[e.why] || e.why) : "";
+    /* Everything that has already been answered. What is still waiting is in
+       its own card above - one row per item, in one place, so answering it
+       cannot leave a stale copy of itself somewhere else on the screen. */
+    $("incomingList").innerHTML = log.filter(function (e) {
+      return e.state !== "waiting";
+    }).map(function (e) {
+      var why = "";
 
       /* Which way it came in.
        *
@@ -4418,9 +4458,7 @@
       /* One word for where it got to. The state strings are the app's own
          (waiting, ready, queued, error) and each gets the badge that matches
          what the person can do about it. */
-      var badge = waiting
-        ? '<span class="badge b-warn">Needs you</span>'
-        : e.state === "error" ? '<span class="badge b-bad">Failed</span>'
+      var badge = e.state === "error" ? '<span class="badge b-bad">Failed</span>'
         : e.state === "queued" ? '<span class="badge b-run">Queued</span>'
         : '<span class="badge b-ok">Arrived</span>';
 
@@ -4428,35 +4466,28 @@
         why + (road ? " · " + road : "");
 
       if (e.kind === "text") {
-        return '<div class="drow flat in-row' + (waiting ? " waiting" : "") + '">' +
+        return '<div class="drow flat in-row">' +
           '<div class="grow" style="min-width:0">' +
           '<div class="f14 w500 trunc mono">' +
             "•".repeat(Math.min(e.chars || 8, 24)) + "</div>" +
           '<div class="f12 faint trunc">' + caption + " · " +
             (e.chars || 0) + " characters</div></div>" +
-          (waiting
-            ? '<button class="btn pri sm" data-ok="' + esc(e.id) + '">Approve</button>' +
-              '<button class="btn sm" data-no="' + esc(e.id) + '">No</button>'
-            : '<button class="btn sm" data-copytext="' + esc(e.id) + '">Copy</button>' +
-              badge) +
+          '<button class="btn sm" data-copytext="' + esc(e.id) + '">Copy</button>' +
+          badge +
           "</div>";
       }
 
-      return '<div class="drow flat in-row' + (waiting ? " waiting" : "") + '">' +
+      return '<div class="drow flat in-row">' +
         '<div class="grow" style="min-width:0">' +
         '<div class="f14 w500 trunc mono">' + esc(e.url) + "</div>" +
         '<div class="f12 faint trunc">' + caption + " · " +
           esc(e.quality || "default") + "</div></div>" +
-        (waiting
-          ? '<button class="btn pri sm" data-ok="' + esc(e.id) + '">Approve</button>' +
-            '<button class="btn sm" data-no="' + esc(e.id) + '">No</button>'
-          : badge) +
+        badge +
         "</div>";
     }).join("");
 
-    var waitingCount = log.filter(function (e) { return e.state === "waiting"; }).length;
-    $("shareBadge").textContent = waitingCount;
-    $("shareBadge").hidden = waitingCount === 0;
+    $("shareBadge").textContent = waiting.length;
+    $("shareBadge").hidden = !waiting.length;
 
     if (!s.crypto) {
       $("shareState").textContent = "unavailable in this build";
@@ -4661,6 +4692,24 @@
     }).then(function (res) {
       if (res.state) renderSharing(res.state);
       if (yes) { toast("Queued", "good"); pollJobs(); }
+    });
+  });
+
+  $("approveAll").addEventListener("click", function () {
+    var ids = ((shareState && shareState.log) || [])
+      .filter(function (e) { return e.state === "waiting"; })
+      .map(function (e) { return e.id; });
+    if (!ids.length) return;
+    var btn = $("approveAll");
+    btn.disabled = true;
+    Promise.all(ids.map(function (id) {
+      return api("/api/share/approve", { id: id, ok: true });
+    })).then(function (results) {
+      btn.disabled = false;
+      var last = results[results.length - 1];
+      if (last && last.state) renderSharing(last.state);
+      toast(ids.length + " approved", "good");
+      pollJobs();
     });
   });
 
@@ -5330,7 +5379,9 @@
         return;
       }
       if (!res.stuck) {
-        note.textContent = "nothing is waiting, checked " + ago(Date.now() / 1000);
+        note.textContent = "Nothing is waiting";
+        $("stuckWhen").textContent = "Last checked just now \u00b7 0 held";
+        $("stuckDot").style.background = "var(--good)";
         return;
       }
       // Two different things, and the difference is what to do next.
