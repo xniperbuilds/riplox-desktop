@@ -1126,7 +1126,23 @@
     $("trimBlock").hidden = picking || !current || current.kind === "playlist"
                             || !S.hasFfmpeg;
 
-    var line = $("chapterPicked");
+    /* The design puts a short chip beside the switch - "3 picked - 9:07" - and
+       the sentence that warns about the folder belongs under the list, not in
+       the chip. Both are still said; they are just said where each fits. */
+    var chip = $("chapterPicked");
+    chip.hidden = !picking;
+    if (picking) {
+      var secs = 0, known = true;
+      chapterPicks.forEach(function (i) {
+        var row = chapterRows[i];
+        if (!row || row.start === null || row.end === null) { known = false; return; }
+        secs += row.end - row.start;
+      });
+      chip.textContent = chapterPicks.length + " picked"
+        + (known && secs ? " · " + fmtDuration(secs) : "");
+    }
+
+    var line = $("chapterNote2");
     line.hidden = !picking;
     if (picking) {
       // Said before it is pressed, because a folder appearing where a file
@@ -1890,7 +1906,7 @@
   }
 
   $("pvTabs").addEventListener("click", function (e) {
-    var tab = e.target.closest(".pv-tab");
+    var tab = e.target.closest(".tab");
     if (tab && tab.dataset.panel) showPanel(tab.dataset.panel);
   });
 

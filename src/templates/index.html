@@ -250,18 +250,18 @@
                that nothing acts while it is hidden. A tab cannot throw
                anything away, so the tab carries the count instead: whatever is
                set stays readable from the bar without opening anything. -->
-          <div class="pv-tabs" id="pvTabs" role="tablist">
-            <button type="button" class="pv-tab" id="tabFormat"
+          <div class="tabs" id="pvTabs" role="tablist">
+            <button type="button" class="tab" id="tabFormat"
                     data-panel="panelFormat" role="tab">Format<em class="n" hidden></em></button>
-            <button type="button" class="pv-tab" id="tabChapters"
+            <button type="button" class="tab" id="tabChapters"
                     data-panel="chapterBox" role="tab">Chapters<em class="n" hidden></em></button>
-            <button type="button" class="pv-tab" id="tabHeat"
+            <button type="button" class="tab" id="tabHeat"
                     data-panel="heatBox" role="tab">Most replayed<em class="n" hidden></em></button>
-            <button type="button" class="pv-tab" id="tabTrim"
+            <button type="button" class="tab" id="tabTrim"
                     data-panel="panelTrim" role="tab">Trim<em class="n" hidden></em></button>
-            <button type="button" class="pv-tab" id="tabExtras"
+            <button type="button" class="tab" id="tabExtras"
                     data-panel="panelExtras" role="tab">Extras<em class="n" hidden></em></button>
-            <button type="button" class="pv-tab" id="tabNaming"
+            <button type="button" class="tab" id="tabNaming"
                     data-panel="panelNaming" role="tab">Naming<em class="n" hidden></em></button>
           </div>
 
@@ -276,14 +276,21 @@
                chapters: a control that is visible but never usable teaches
                people to ignore the whole area. The line below it is what
                stops that absence from reading as broken. -->
-          <div class="pv-panel" id="chapterBox" hidden>
-            <div class="pv-cap" id="chapterCount"></div>
-            <label class="chapter-all" id="chapterAllWrap">
-              <input type="checkbox" id="chapterAll">
-              <span>All chapters</span>
-            </label>
-            <ol class="chapter-list" id="chapterList"></ol>
-            <p class="hint" id="chapterPicked" hidden></p>
+          <div class="card pv-panel" id="chapterBox" hidden>
+            <!-- The design's row above the list: the take-all switch, what it
+                 means, and what is picked so far - on one line, so the count
+                 is beside the thing that changes it. -->
+            <div class="row">
+              <label class="check sm" id="chapterAllWrap">
+                <input type="checkbox" id="chapterAll">
+                <span>All chapters</span>
+              </label>
+              <span class="f12 faint" id="chapterCount"></span>
+              <span class="grow"></span>
+              <span class="chip on" id="chapterPicked" hidden></span>
+            </div>
+            <ol class="chapter-list list" id="chapterList"></ol>
+            <p class="f12 faint" id="chapterNote2" hidden></p>
           </div>
           <p class="hint" id="chapterNote" hidden>This video has no chapters.</p>
 
@@ -295,13 +302,13 @@
                so it can stop arriving with no notice and no error. The line
                below is not decoration: on the day it goes, the app has to say
                so rather than draw an empty box. -->
-          <div class="pv-panel" id="heatBox" hidden>
+          <div class="card pv-panel" id="heatBox" hidden>
             <div class="pv-cap" id="heatSummary">Most replayed</div>
             <ol class="heat-peaks" id="heatPeaks"></ol>
           </div>
           <p class="hint" id="clipNote" hidden></p>
 
-                  <div class="pv-panel" id="panelFormat">
+                  <div class="card pv-panel" id="panelFormat">
   <div class="more-sec" id="fmtSec">
             <div class="more-row between">
               <label>Exact format</label>
@@ -354,7 +361,7 @@
           </div>
           </div>
 
-          <div class="pv-panel" id="panelTrim">
+          <div class="card pv-panel" id="panelTrim">
   <div class="trim-block more-sec" id="trimBlock" hidden>
           <label class="trim-toggle">
             <input type="checkbox" id="trimOn">
@@ -406,7 +413,7 @@
         </div>
           </div>
 
-          <div class="pv-panel" id="panelExtras">
+          <div class="card pv-panel" id="panelExtras">
   <div class="more-sec">
             <label class="more-check">
               <input type="checkbox" id="optSubsOnly">
@@ -436,7 +443,7 @@
           </div>
           </div>
 
-          <div class="pv-panel" id="panelNaming">
+          <div class="card pv-panel" id="panelNaming">
   <div class="more-sec">
             <div class="more-row">
               <label class="more-field grow">

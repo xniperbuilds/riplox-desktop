@@ -378,59 +378,10 @@ body::before {                       /* faint technical grid */
 }
 .wordmark i { font-style: normal; color: var(--accent-ink); opacity: var(--soft-o-2); }
 
-.tabs { display: flex; flex-direction: column; gap: 4px; }
-
-.tab {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  height: 44px;
-  padding: 0 12px;
-  border: 1px solid transparent;
-  background: none;
-  color: var(--muted);
-  font-size: 13.5px;
-  text-align: left;
-  cursor: pointer;
-  border-radius: var(--r-s);
-  transition: color .18s, background .18s, border-color .18s;
-}
-.tab svg { flex: none; width: 16px; height: 16px; opacity: .8; }
-.tab:hover { color: var(--text); background: var(--surface-2); }
-.tab.is-active { color: var(--text); background: var(--surface-2); border-color: var(--line-mid); padding-left: 22px; }
-.tab.is-active svg { opacity: 1; color: var(--accent-ink); }
-
-/* The old underline was positioned by script on every resize. A pseudo
-   element on the active item needs no JavaScript at all. */
-/* A short centred mark rather than a rule running the whole height of the
-   item - at full height it reads as a table border, not as a marker. */
-.tab.is-active::before {
-  content: "";
-  position: absolute;
-  left: 11px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 20px;
-  border-radius: 2px;
-  background: var(--accent);
-}
-
-.tab .badge {
-  margin-left: auto;
-  min-width: 18px;
-  padding: 1px 6px;
-  border-radius: 20px;
-  background: var(--accent);
-  color: var(--on-accent);
-  font-family: var(--mono);
-  font-size: 10px;
-  font-style: normal;
-  font-weight: 500;
-  text-align: center;
-}
+/* The rail's own tab rules lived here. The rail is .nav-item now and the
+   design styles it, so they went - and they had to, because the panel tabs
+   are called .tab too and two .tab blocks in one file is one of them
+   silently winning. */
 
 .side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
 
@@ -873,7 +824,7 @@ button { font-family: var(--font); }
    Naming could not be reached at all. They wrap now, which is what every other
    row of controls in this app does. The design could not have shown this: it
    is thirty-five frames at a fixed 1440. */
-.pv-tabs {
+.tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
@@ -881,7 +832,7 @@ button { font-family: var(--font); }
   margin-bottom: 16px;
   border-bottom: 1px solid var(--line);
 }
-.pv-tab {
+.tab {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -896,9 +847,9 @@ button { font-family: var(--font); }
   white-space: nowrap;
   transition: color .18s;
 }
-.pv-tab:hover { color: var(--muted); }
-.pv-tab.is-on { color: var(--text); }
-.pv-tab.is-on::after {
+.tab:hover { color: var(--muted); }
+.tab.is-on { color: var(--text); }
+.tab.is-on::after {
   content: "";
   position: absolute;
   left: 10px; right: 10px; bottom: -1px;
@@ -908,7 +859,7 @@ button { font-family: var(--font); }
 }
 /* What is set, said on the bar. This is the whole reason a tab can replace a
    panel that used to throw its settings away when it closed. */
-.pv-tab .n {
+.tab .n {
   min-width: 20px;
   height: 18px;
   padding: 0 5px;
@@ -920,7 +871,7 @@ button { font-family: var(--font); }
   font-size: 10px;
   font-style: normal;
 }
-.pv-tab.is-on .n { background: var(--accent-dim); color: var(--accent-ink); }
+.tab.is-on .n { background: var(--accent-dim); color: var(--accent-ink); }
 
 .pv-panel { display: none; min-width: 0; }
 /* Bounded, and it scrolls inside itself. Without this the card is as tall as
