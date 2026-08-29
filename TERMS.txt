@@ -1,6 +1,6 @@
 RIPLOX DESKTOP - TERMS AND CONDITIONS
 XniperBuilds
-Terms version 1.2, for Riplox Desktop 1.4.1 - please read before installing.
+Terms version 1.3, for Riplox Desktop 1.5.0 - please read before installing.
 
 
 1. WHAT RIPLOX IS
@@ -74,7 +74,8 @@ your own computer. XniperBuilds receives nothing from your use of the program.
 
 Riplox makes network connections only for these purposes:
 
-  a) the website you asked it to download from;
+  a) the website you asked it to download from, or a page you asked it
+     to read so that it can list the videos on it;
   b) once a day, a check with GitHub for a newer version - this can be turned
      off in Settings, and it never installs anything on its own;
   c) when you press Update in Settings, downloading a new copy of the download
