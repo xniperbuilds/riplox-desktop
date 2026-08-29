@@ -162,7 +162,7 @@
       </div>
       <div class="room-actions" data-room="sharing" hidden>
         <div class="row-gap">
-          <span class="share-state" id="shareState">off</span>
+          <span class="badge b-wait" id="shareState">off</span>
           <button class="toggle" id="setSharing" role="switch"
                   title="Let paired devices send links here"><i></i></button>
         </div>
@@ -730,100 +730,103 @@
   <!-- =========================== SHARING ============================= -->
   <section class="view" id="view-sharing">
 
-    <p class="conv-note">Share a link from your phone — it downloads on this
-      PC. Only the link travels, and nothing on the internet can reach this
-      computer.</p>
-
-    <!-- Asked the practical way round. A PC cannot reliably wake a phone to
-         ask it anything, but the relay already holds undelivered links for
-         seven days - so the PC asks the relay instead. Counts only; the relay
-         cannot read the links and is not asked to hand them over. -->
-    <div class="share-check">
-      <button type="button" class="link-quiet" id="checkStuck">Check again</button>
-      <span class="share-check-note" id="stuckNote">Links sent while this PC
-        was off are kept for a week and arrive when it comes back.</span>
-    </div>
-
-    <div class="share-grid">
-      <div class="panel share-pair">
-        <div class="field">
-          <div class="field-text">
-            <label>Pair a device</label>
-            <span>One device, two minutes.</span>
-          </div>
-          <div class="row-gap">
-            <input type="text" id="shareName" class="text-input pair-name"
-                   maxlength="24" autocomplete="off" placeholder="Whose phone?">
-            <button class="btn sm" id="shareInvite">Show code</button>
-          </div>
+    <div class="two">
+      <div class="card">
+        <div class="card-head">
+          <h3>Pair a device</h3>
+          <span class="f12 faint more">One device, two minutes</span>
         </div>
-        <div class="qr-box" id="qrBox" hidden>
+        <div class="row" style="gap:20px;align-items:flex-start">
           <div class="qr" id="qrImage"></div>
-          <div class="qr-side">
-            <p class="qr-note" id="qrExpiry"></p>
-            <code id="qrCode"></code>
-            <p class="qr-note dim">Can't scan? Open
-              <code class="inline">relay.xniperbuilds.com/p/</code> on the phone
-              and paste this code.</p>
-            <div class="btn-row">
-              <button class="btn sm" id="qrCopy">Copy code</button>
-              <button class="btn sm" id="qrCopyLink">Copy link</button>
+          <div class="grow">
+            <label class="sr-only" for="shareName">Whose phone?</label>
+            <div class="row gap8">
+              <input type="text" id="shareName" class="input"
+                     maxlength="24" autocomplete="off" placeholder="Whose phone?">
+              <button class="btn sm" id="shareInvite">Show code</button>
             </div>
-            <code id="qrLink" hidden></code>
+            <div id="qrBox" hidden>
+              <div class="f12 faint" style="margin:12px 0 8px">Scan it, or type the code:</div>
+              <div class="code" id="qrCode"></div>
+              <p class="f12 faint" style="margin-top:12px;line-height:1.8">
+                <span id="qrExpiry"></span><br>
+                Can't scan? Open
+                <span class="mono muted">relay.xniperbuilds.com/p/</span> on the phone.</p>
+              <div class="row gap8" style="margin-top:14px">
+                <button class="btn sm" id="qrCopy">Copy code</button>
+                <button class="btn sm" id="qrCopyLink">Copy link</button>
+              </div>
+              <code id="qrLink" hidden></code>
+            </div>
           </div>
         </div>
       </div>
 
-      <div class="panel">
-        <div class="view-head sub-head panel-head">
+      <div class="card">
+        <div class="card-head">
           <h3>Paired devices</h3>
-          <button class="btn sm danger" id="revokeAll" hidden>Remove all</button>
+          <span class="f12 faint" id="devCount"></span>
+          <button class="btn sm danger more" id="revokeAll" hidden>Remove all</button>
         </div>
         <div class="empty small" id="devicesEmpty">
           <p>No devices yet.</p>
-          <span>Pair one above and it appears here.</span>
+          <span>Pair one and it appears here.</span>
         </div>
-        <div id="devicesList"></div>
+        <div class="rows" id="devicesList"></div>
+
+        <!-- What Riplox promises about this, and the one question the promise
+             raises - did anything I sent get lost - in the same block. They
+             were two strips at the top of the room, above the thing they were
+             about. Asked of the relay rather than of the phone: a PC cannot
+             reliably wake a phone, and the relay already keeps undelivered
+             links for a week. Counts only; the relay cannot read them. -->
+        <div class="summary" id="shareSummary">
+          Only the link travels, and nothing on the internet can reach this
+          computer. Links sent while the PC was off are kept for a week &mdash;
+          <span id="stuckNote">not checked yet</span>.
+          <button type="button" class="link-quiet" id="checkStuck">Check now</button>
+        </div>
       </div>
     </div>
 
     <!-- Three ways, three cards. They were three paragraphs behind a summary,
          which is the wrong shape for a set of alternatives: you cannot compare
          three things you have to open one at a time. -->
-    <h3 class="group-head">One tap from the phone's share sheet</h3>
-    <div class="phone-ways">
-      <div class="panel tight">
-        <b>Android &mdash; the app</b>
-        <p>Open the paired link on the phone and tap <b>Download Riplox
-          Send</b> (77&nbsp;KB). Pair it with the code above, and from then on
-          <b>Share &rarr; Riplox Send</b> sends the link with <b>nothing opening
-          at all</b> &mdash; just a tick.</p>
+    <div class="card-head" style="margin:20px 0 10px">
+      <h3>One tap from the phone's share sheet</h3></div>
+    <div class="three">
+      <div class="card tight">
+        <div class="f15 w500" style="margin-bottom:8px">Android &mdash; the app</div>
+        <p class="f12 faint" style="line-height:1.8;margin:0">Open the paired link
+          on the phone and tap <b>Download Riplox Send</b> (77&nbsp;KB). After
+          that, <b>Share &rarr; Riplox Send</b> sends the link with nothing
+          opening at all &mdash; just a tick.</p>
       </div>
-      <div class="panel tight">
-        <b>Android &mdash; without installing</b>
-        <p>Open the paired link in Chrome &rarr; <b>menu &rarr; Install app</b>.
-          Riplox appears in the share sheet the same way, but sharing opens the
-          page for a moment.</p>
+      <div class="card tight">
+        <div class="f15 w500" style="margin-bottom:8px">Android &mdash; no install</div>
+        <p class="f12 faint" style="line-height:1.8;margin:0">Open the paired link
+          in Chrome &rarr; <b>menu &rarr; Install app</b>. It appears in the share
+          sheet the same way, but sharing opens the page for a moment.</p>
       </div>
-      <div class="panel tight">
-        <b>iPhone</b>
-        <p>iOS has no share target for web pages. In Shortcuts: <b>new Shortcut
-          &rarr; Open URLs</b>, tick <b>Show in Share Sheet</b>, accept
-          <b>URLs</b>, and set the URL to your paired link with
-          <code class="inline">?text=</code> and the <b>Shortcut Input</b> on
-          the end.</p>
+      <div class="card tight">
+        <div class="f15 w500" style="margin-bottom:8px">iPhone</div>
+        <p class="f12 faint" style="line-height:1.8;margin:0">iOS has no share
+          target for web pages. In Shortcuts: <b>new Shortcut &rarr; Open
+          URLs</b>, tick <b>Show in Share Sheet</b>, accept <b>URLs</b>, and put
+          the <b>Shortcut Input</b> on the end of your paired link after
+          <code class="inline">?text=</code>.</p>
       </div>
     </div>
 
-    <div class="view-head sub-head">
+    <div class="card-head" style="margin:20px 0 10px">
       <h3>Incoming</h3>
-      <button class="btn sm" id="shareClearLog">Clear</button>
+      <button class="btn sm more" id="shareClearLog">Clear</button>
     </div>
     <div class="empty small" id="incomingEmpty">
       <p>Nothing has been sent yet.</p>
       <span>Links sent from a paired device show up here.</span>
     </div>
-    <div id="incomingList"></div>
+    <div class="rows" id="incomingList"></div>
   </section>
 
   <!-- =========================== SETTINGS ============================ -->

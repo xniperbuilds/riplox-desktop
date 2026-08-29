@@ -3942,27 +3942,36 @@
       : s.relay === "connected" ? "ready"
       : s.relay;
     $("shareState").textContent = where;
-    $("shareState").classList.toggle("on", s.on && (s.relay === "connected" || s.lan_only));
+    var live = s.on && (s.relay === "connected" || s.lan_only);
+    $("shareState").className = "badge " + (!s.on ? "b-wait" : live ? "b-ok" : "b-warn");
 
     $("shareInvite").disabled = !s.on;
 
     $("devicesEmpty").hidden = s.devices.length > 0;
     $("revokeAll").hidden = s.devices.length < 2;
+    $("devCount").textContent = s.devices.length || "";
     $("devicesList").innerHTML = s.devices.map(function (d) {
       var used = d.used || {};
       var facts = [d.count + " sent", "last " + ago(d.last)];
       if (used.today) facts.push(used.today + " today");
       if (used.bytes) facts.push(gb(used.bytes));
 
+      /* Pause, Rules and Remove were three buttons on every device. Rules is
+         the one that is opened while thinking about it, so it stays a row of
+         its own when open; the other two go behind the menu. */
       return '<div class="dev' + (d.paused ? " is-paused" : "") + '">' +
-        '<div class="dev-row"><div class="who"><b>' + esc(d.name) +
-          (d.paused ? ' <em class="tag">paused</em>' : "") + "</b>" +
-          "<span>" + esc(facts.join(" · ")) + "</span></div>" +
-          '<button class="btn sm" data-pause="' + esc(d.id) + '" data-to="' +
-            (d.paused ? "0" : "1") + '">' + (d.paused ? "Resume" : "Pause") + "</button>" +
-          '<button class="btn sm" data-rules="' + esc(d.id) + '">Rules</button>' +
-          '<button class="btn sm danger" data-revoke="' + esc(d.id) +
-          '">Remove</button></div>' +
+        '<div class="drow flat dev-row">' +
+          '<div class="grow"><div class="f15 w500 trunc">' + esc(d.name) + "</div>" +
+          '<div class="f12 faint trunc">' + esc(facts.join(" · ")) + "</div></div>" +
+          (d.paused ? '<span class="badge b-warn">Paused</span>' : "") +
+          '<button type="button" class="btn sm" data-rules="' + esc(d.id) + '">Rules</button>' +
+          rowMenu([
+            '<button type="button" data-pause="' + esc(d.id) + '" data-to="' +
+              (d.paused ? "0" : "1") + '">' + (d.paused ? "Resume" : "Pause") + "</button>",
+            '<button type="button" class="danger" data-revoke="' + esc(d.id) +
+              '">Remove device</button>',
+          ]) +
+        "</div>" +
         (rulesOpen === d.id ? deviceRules(d, s) : "") +
         "</div>";
     }).join("");
@@ -3996,26 +4005,42 @@
       // arrives this way is usually a key or a password, and a window is a
       // thing other people can see over your shoulder, screen-share, or
       // screenshot. Copy is the only way it comes out, and it is gone after.
+      /* One word for where it got to. The state strings are the app's own
+         (waiting, ready, queued, error) and each gets the badge that matches
+         what the person can do about it. */
+      var badge = waiting
+        ? '<span class="badge b-warn">Needs you</span>'
+        : e.state === "error" ? '<span class="badge b-bad">Failed</span>'
+        : e.state === "queued" ? '<span class="badge b-run">Queued</span>'
+        : '<span class="badge b-ok">Arrived</span>';
+
+      var caption = [esc(e.from || "A device"), ago(e.at)].join(" · ") +
+        why + (road ? " · " + road : "");
+
       if (e.kind === "text") {
-        return '<div class="in-row' + (waiting ? " waiting" : "") + '">' +
-          '<div class="what"><b>' + esc(e.from || "A device") + " · text" +
-          why + road + "</b><span>" + "•".repeat(Math.min(e.chars || 8, 24)) +
-          " · " + (e.chars || 0) + " characters</span></div>" +
+        return '<div class="drow flat in-row' + (waiting ? " waiting" : "") + '">' +
+          '<div class="grow" style="min-width:0">' +
+          '<div class="f13 w500 trunc mono">' +
+            "•".repeat(Math.min(e.chars || 8, 24)) + "</div>" +
+          '<div class="f12 faint trunc">' + caption + " · " +
+            (e.chars || 0) + " characters</div></div>" +
           (waiting
             ? '<button class="btn pri sm" data-ok="' + esc(e.id) + '">Approve</button>' +
               '<button class="btn sm" data-no="' + esc(e.id) + '">No</button>'
-            : '<button class="btn pri sm" data-copytext="' + esc(e.id) + '">Copy</button>' +
-              '<span class="in-state">' + ago(e.at) + "</span>") +
+            : '<button class="btn sm" data-copytext="' + esc(e.id) + '">Copy</button>' +
+              badge) +
           "</div>";
       }
 
-      return '<div class="in-row' + (waiting ? " waiting" : "") + '">' +
-        '<div class="what"><b>' + esc(e.from || "A device") + " · " +
-        esc(e.quality || "default") + why + road + "</b><span>" + esc(e.url) + "</span></div>" +
+      return '<div class="drow flat in-row' + (waiting ? " waiting" : "") + '">' +
+        '<div class="grow" style="min-width:0">' +
+        '<div class="f13 w500 trunc mono">' + esc(e.url) + "</div>" +
+        '<div class="f12 faint trunc">' + caption + " · " +
+          esc(e.quality || "default") + "</div></div>" +
         (waiting
           ? '<button class="btn pri sm" data-ok="' + esc(e.id) + '">Approve</button>' +
             '<button class="btn sm" data-no="' + esc(e.id) + '">No</button>'
-          : '<span class="in-state">' + esc(e.state) + " · " + ago(e.at) + "</span>") +
+          : badge) +
         "</div>";
     }).join("");
 
@@ -4895,7 +4920,7 @@
         return;
       }
       if (!res.stuck) {
-        note.textContent = "Nothing waiting — everything sent has arrived.";
+        note.textContent = "nothing is waiting, checked " + ago(Date.now() / 1000);
         return;
       }
       // Two different things, and the difference is what to do next.
