@@ -121,3 +121,29 @@ button.site {
 .nav-item, .cta { background: none; font-family: inherit; }
 .nav-item.on { background: var(--surface-2); }
 .cta { background: var(--accent); }
+
+/* --------------------------------------------------------------------------
+   Screen 02 - the site picker
+
+   A .scell in the design is a div; here it is a button, because picking one is
+   an action. Same reason the nav items needed it: a button brings the
+   platform's own background and font with it.
+   -------------------------------------------------------------------------- */
+button.scell {
+  background: var(--surface-2);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+}
+button.scell.is-on { border-color: var(--accent); background: var(--accent-dim); }
+button.scell.is-on b { color: var(--accent-ink); }
+
+/* The design's cell puts what the site does on its own line - its markup says
+   display:block inline. Said here once instead. */
+.scell span:not(.dot) { display: block; }
+
+/* The sheet holds a searchable list, so it scrolls rather than growing past
+   the window - the design's sheet never has more rows than fit. */
+#sitePicker .sheet { max-height: 84vh; display: flex; flex-direction: column; }
+#sitePicker .sgrid, #sitePicker .site-all { overflow-y: auto; }

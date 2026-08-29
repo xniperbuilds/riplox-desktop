@@ -492,15 +492,19 @@
      recent result gets no claim made about it. */
   var SITE_ROW = ["YouTube", "TikTok", "Instagram", "X", "Reddit", "Facebook"];
 
+  // Kept where both the site row and the picker's cells can read it, so one
+  // request answers both and they cannot disagree.
+  var siteHealth = {};
+
   function paintSiteRow(health) {
     var row = $("siteRow");
     if (!row) return;
-    var state = {};
+    var state = siteHealth;
     (health || []).forEach(function (h) { state[(h.site || "").toLowerCase()] = h; });
 
     row.innerHTML = SITE_ROW.map(function (name) {
       var h = state[name.toLowerCase()];
-      var colour = !h ? "" : h.state === "ok" ? "var(--good)"
+      var colour = !h ? "var(--line-mid)" : h.state === "ok" ? "var(--good)"
                  : h.state === "door" ? "var(--warn)" : "var(--bad)";
       var why = !h ? name + " - nothing tried here recently"
               : h.state === "ok" ? name + " worked " + h.ago
@@ -5073,22 +5077,48 @@
   function renderPickable() {
     var box = $("sitePickList");
     box.innerHTML = "";
-    if (pickerState.mode !== "pick") return;
+    // Browse mode used to skip this entirely - the sheet only ever wanted the
+    // long list. The chips now offer both, so the cells are drawn either way
+    // and only picking is switched off.
+    var picking = pickerState.mode === "pick";
 
     var term = $("siteSearch").value.trim().toLowerCase();
     (siteData.pickable || []).forEach(function (name) {
       if (term && name.toLowerCase().indexOf(term) < 0) return;
-      var chip = document.createElement("button");
-      chip.type = "button";
-      chip.className = "chip" + (pickerState.picked.indexOf(name) >= 0 ? " is-on" : "");
-      chip.textContent = name;
+      /* A cell is a button when it can be picked and a div when it is only
+         being read. Using a disabled button for the second was wrong twice
+         over: the platform greys a disabled button's text, so the site's name
+         nearly vanished, and it is not disabled - there is simply nothing to
+         press. */
+      var picking2 = pickerState.mode === "pick";
+      var chip = document.createElement(picking2 ? "button" : "div");
+      if (picking2) chip.type = "button";
+      chip.className = "scell" + (pickerState.picked.indexOf(name) >= 0 ? " is-on" : "");
+      /* The design puts what a site can do on the second line - "videos -
+         playlists - channels". Riplox does not know that for 1,750 sites and
+         inventing it would be the screen claiming knowledge it has not got.
+         It does know what happened here last time, which is the thing this
+         screen is open to answer. A site with no recent result says so
+         instead of being given a colour. */
+      var h = siteHealth[name.toLowerCase()];
+      var dot = !h ? "var(--line-mid)" : h.state === "ok" ? "var(--good)"
+              : h.state === "door" ? "var(--warn)" : "var(--bad)";
+      var line = !h ? "not tried here yet"
+               : h.state === "ok" ? "worked " + h.ago
+               : h.state === "door" ? "needed the fallback " + h.ago
+               : "did not work " + h.ago;
+      chip.innerHTML =
+        '<span class="dot"' + (dot ? ' style="background:' + dot + '"' : "") + "></span>" +
+        "<div><b>" + esc(name) + "</b><span>" + esc(line) + "</span></div>";
       chip.setAttribute("aria-pressed", pickerState.picked.indexOf(name) >= 0);
-      chip.addEventListener("click", function () {
-        var at = pickerState.picked.indexOf(name);
-        if (at >= 0) pickerState.picked.splice(at, 1);
-        else pickerState.picked.push(name);
-        renderPickable();
-      });
+      if (picking) {
+        chip.addEventListener("click", function () {
+          var at = pickerState.picked.indexOf(name);
+          if (at >= 0) pickerState.picked.splice(at, 1);
+          else pickerState.picked.push(name);
+          renderPickable();
+        });
+      }
       box.appendChild(chip);
     });
   }
@@ -5165,7 +5195,7 @@
         onSave: opts.onSave || null
       };
 
-      $("sitePickerTitle").textContent = opts.title || "Sites";
+      $("sitePickerTitle").textContent = opts.title || "Supported sites";
       $("sitePickerMsg").textContent = opts.message ||
         (pickerState.mode === "pick"
           ? "Nothing picked means every site."
@@ -5191,6 +5221,10 @@
 
   $("siteSearch").addEventListener("input", function () {
     if (pickerState.open) renderPicker();
+  });
+
+  $("sitePickerClose").addEventListener("click", function () {
+    $("sitePicker").hidden = true;
   });
 
   $("sitePickerCancel").addEventListener("click", closeSitePicker);
