@@ -272,3 +272,21 @@ img.rthumb { object-fit: cover; }
 #qrImage:empty { display: none; }
 #view-sharing .qr { background: #fff; }
 #view-sharing .qr svg, #view-sharing .qr img { width: 100%; height: 100%; display: block; }
+
+/* -------------------------------------------------------- find on a page */
+
+.grab-src { margin-bottom: 12px; }
+#grabLeftOut { overflow: visible; }
+/* Dimmed, because these are the ones you cannot press Download on. Not
+   hidden: the whole point of the screen is that they were seen. */
+.drow.is-aside { opacity: .72; }
+.drow.is-aside:hover { opacity: 1; }
+#grabFoot { margin: -8px 0 12px; line-height: 1.6; }
+
+.playlist li.is-had { opacity: .72; }
+.playlist li.is-had:hover { opacity: 1; }
+.playlist .had {
+  font-size: 11px; font-weight: 500; font-style: normal;
+  color: var(--faint); border: 1px solid var(--line); border-radius: 6px;
+  padding: 1px 6px; margin-left: 8px; white-space: nowrap;
+}

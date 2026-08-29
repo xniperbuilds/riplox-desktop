@@ -2421,6 +2421,7 @@ def grab(url: str, settings: dict) -> dict:
                        "Chrome/124.0 Safari/537.36"),
         "Accept": "text/html,application/xhtml+xml",
     })
+    started = time.time()
     try:
         with urllib.request.urlopen(request, timeout=25) as response:
             kind = (response.headers.get_content_type() or "").lower()
@@ -2445,8 +2446,18 @@ def grab(url: str, settings: dict) -> dict:
     # comes back with twelve owes the reader an account of the other
     # forty-eight, and the three reasons are genuinely different: a repeat, a
     # site we have no extractor for, and simply too many.
+    read_ms = int((time.time() - started) * 1000)
+
     entries, seen = [], {page.rstrip("/")}
     skipped = {"duplicates": 0, "unsupported": 0, "capped": 0}
+    # The links themselves, not only how many. A count can be printed; a list
+    # can be looked at, which is the difference between "48 left out" and
+    # being able to see that the one you wanted is among them. Capped
+    # separately from the entries - a page of navigation must not send back
+    # four hundred rows nobody asked for - and the counts above stay true
+    # whatever this cap does.
+    LEFT_CAP = 40
+    left_out = {"duplicates": [], "unsupported": []}
     for raw, title in parser.found:
         raw = (raw or "").strip()
         if not raw or raw.lower().startswith(_SKIP_SCHEME):
@@ -2458,6 +2469,9 @@ def grab(url: str, settings: dict) -> dict:
         bare = full.split("#")[0].rstrip("/")
         if bare in seen:
             skipped["duplicates"] += 1
+            if len(left_out["duplicates"]) < LEFT_CAP:
+                left_out["duplicates"].append(
+                    {"url": full, "title": title[:120], "site": site_of(full)})
             continue
 
         path = urlsplit(full).path.lower()
@@ -2472,6 +2486,9 @@ def grab(url: str, settings: dict) -> dict:
             # line worth ignoring. Only links that leave the site count.
             if site != site_of(page):
                 skipped["unsupported"] += 1
+                if len(left_out["unsupported"]) < LEFT_CAP:
+                    left_out["unsupported"].append(
+                        {"url": full, "title": title[:120], "site": site})
             continue
 
         seen.add(bare)
@@ -2503,6 +2520,11 @@ def grab(url: str, settings: dict) -> dict:
         "thumbnail": "",
         "entries": entries,
         "skipped": skipped,
+        "left_out": left_out,
+        # The address that was actually read, after any redirect - which is
+        # not always the one that was pasted.
+        "page": page,
+        "read_ms": read_ms,
     }
 
 

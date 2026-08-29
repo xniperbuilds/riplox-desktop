@@ -680,22 +680,160 @@
     });
   }
 
-  /* What did not make it onto the list, and why. Three different reasons,
-     said as three different things - "48 left out" would be true and useless. */
+  /* Which group of the read page is on screen. "" is the pickable list, which
+     is the one you came for. */
+  var grabShowing = "";
+
+  /* A link that is already downloaded. The library is already in the page, so
+     this is free - no request, no guess - and it is the one thing this screen
+     can catch that nothing else will: downloading the same video twice. */
+  /* Only the parts that are not about where the link came from. The query
+     cannot be dropped wholesale - YouTube keeps the video's id in it - so the
+     ones that are known to be tracking come off and the rest stays.
+     lazy: a fixed list. A link carrying some other site's tracking parameter
+     will not match, and the cost of that is one video downloaded twice, which
+     is what happens today. Matching harder risks the opposite - hiding a
+     video from the pickable list because it looked like one already saved -
+     and that is the worse mistake here. */
+  var TRACKING = /^(utm_[a-z]+|igsh?i?|si|fbclid|gclid|feature|ref|ref_src|source|share_id)$/i;
+
+  function bareUrl(url) {
+    var s = String(url || "").split("#")[0];
+    var cut = s.indexOf("?");
+    if (cut < 0) return s.replace(/\/+$/, "");
+    var kept = s.slice(cut + 1).split("&").filter(function (pair) {
+      return pair && !TRACKING.test(pair.split("=")[0]);
+    });
+    return (s.slice(0, cut).replace(/\/+$/, "") +
+            (kept.length ? "?" + kept.join("&") : "")).toLowerCase();
+  }
+
+  function inLibrary(url) {
+    var bare = bareUrl(url);
+    for (var i = 0; i < libraryItems.length; i++) {
+      if (bare && bareUrl(libraryItems[i].url) === bare) return libraryItems[i];
+    }
+    return null;
+  }
+
+  /* What did not make it onto the list, and why. Four different reasons, said
+     as four different things - "48 left out" would be true and useless. */
   function grabNote(info) {
     var s = info.skipped || {};
-    var bits = [];
-    if (s.duplicates) bits.push(s.duplicates + " already listed");
-    if (s.unsupported) {
-      bits.push(s.unsupported + " from sites Riplox has no reader for");
-    }
-    if (s.capped) bits.push("and it stopped at " + info.count);
+    var left = info.left_out || {};
 
+    $("grabSource").hidden = false;
+    $("grabUrl").textContent = info.page || "";
+    $("grabUrl").title = info.page || "";
+    $("grabTime").textContent = info.read_ms
+      ? "Read in " + (info.read_ms / 1000).toFixed(1) + "s" : "Read";
+    $("grabFoot").hidden = false;
+
+    /* Already downloaded is worked out here rather than asked for, and it is
+       taken off the pickable count: a chip that says 6 while the list holds 8
+       is worse than no chip. */
+    var known = [];
+    (info.entries || []).forEach(function (e, i) {
+      var hit = inLibrary(e.url);
+      if (hit) known.push({ url: e.url, title: e.title, site: e.site, hit: hit, index: i });
+    });
+
+    var groups = [
+      ["", "To download", (info.entries || []).length - known.length],
+      ["known", "In your library", known.length],
+      ["duplicates", "Repeated on the page", s.duplicates || 0],
+      ["unsupported", "No reader for the site", s.unsupported || 0],
+    ];
+    $("grabChips").hidden = false;
+    $("grabChips").innerHTML = groups
+      .filter(function (g) { return g[2] > 0 || g[0] === ""; })
+      .map(function (g) {
+        return '<button type="button" class="chip' +
+          (grabShowing === g[0] ? " on" : "") + '" data-grabgroup="' + g[0] +
+          '">' + g[1] + '<span class="k">' + g[2] + "</span></button>";
+      }).join("");
+
+    grabGroups = { known: known, duplicates: left.duplicates || [],
+                   unsupported: left.unsupported || [] };
+    paintGrabGroup();
+
+    // The one thing that is still a sentence: a cap is about the read, not
+    // about any particular link, so there is nothing to list.
     var note = $("plNote");
-    if (!bits.length) { note.hidden = true; return; }
-    note.hidden = false;
-    note.textContent = "Left out: " + bits.join(", ")
-      + ". Any of them may still work if you paste the link on its own.";
+    note.hidden = !s.capped;
+    if (s.capped) {
+      note.textContent = "The page had more than " + info.count +
+        " and the read stopped there. Paste a later part of the page to see the rest.";
+    }
+  }
+
+  var grabGroups = { known: [], duplicates: [], unsupported: [] };
+
+  var GRAB_WHY = {
+    known: "Already in your library",
+    duplicates: "The same link appears more than once on that page",
+    unsupported: "Riplox has no reader for this site. Listed so you know it was seen, not skipped.",
+  };
+
+  function paintGrabGroup() {
+    var pick = grabShowing === "";
+    $("playlistBox").hidden = !pick;
+    document.querySelector(".playlist-bar").hidden = !pick;
+    $("grabLeftOut").hidden = pick;
+    if (pick) return;
+
+    var rows = grabGroups[grabShowing] || [];
+    $("grabLeftOut").innerHTML = rows.map(function (r) {
+      var why = GRAB_WHY[grabShowing];
+      if (grabShowing === "known" && r.hit && r.hit.when) {
+        // The same string the library rows show, so the two agree.
+        why = "Already in your library - saved " +
+          String(r.hit.when).replace("T", " ").slice(0, 16);
+      }
+      return '<div class="drow flat is-aside">' +
+        '<div class="grow" style="min-width:0">' +
+        '<div class="f15 w500 trunc">' + esc(r.title || r.url) + "</div>" +
+        '<div class="f12 ' + (grabShowing === "unsupported" ? "" : "faint") + '"' +
+          (grabShowing === "unsupported" ? ' style="color:var(--warn)"' : "") +
+          ">" + esc(why) + "</div></div>" +
+        '<span class="f12 faint mono trunc" style="max-width:240px">' +
+          esc(r.site || "") + "</span>" +
+        '<button type="button" class="btn sm" data-copy-url="' + esc(r.url) +
+          '">Copy link</button>' +
+        "</div>";
+    }).join("");
+  }
+
+  $("grabChips").addEventListener("click", function (e) {
+    var chip = e.target.closest("[data-grabgroup]");
+    if (!chip) return;
+    grabShowing = chip.dataset.grabgroup;
+    document.querySelectorAll("#grabChips .chip").forEach(function (c) {
+      c.classList.toggle("on", c.dataset.grabgroup === grabShowing);
+    });
+    paintGrabGroup();
+  });
+
+  $("grabLeftOut").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-copy-url]");
+    if (!b) return;
+    copyText(b.dataset.copyUrl);
+  });
+
+  $("grabAgain").addEventListener("click", function () {
+    grabPage($("grabUrl").textContent || $("urlInput").value.trim());
+  });
+
+  /* A playlist is not a read page, so none of the above belongs to it. */
+  function grabHide() {
+    grabShowing = "";
+    $("grabSource").hidden = true;
+    $("grabChips").hidden = true;
+    $("grabLeftOut").hidden = true;
+    $("grabFoot").hidden = true;
+    $("playlistBox").hidden = false;
+    var bar = document.querySelector(".playlist-bar");
+    if (bar) bar.hidden = false;
   }
 
   /* The design gives the topbar over to what you are looking at once there is
@@ -735,6 +873,7 @@
     }
 
     var isList = info.kind === "playlist";
+    if (!info.grabbed) grabHide();
 
     // A page that was read for its links is not a playlist, and saying so
     // would be the app claiming to know more about it than it does.
@@ -777,6 +916,10 @@
       thumb.removeAttribute("src");
       thumb.style.visibility = "hidden";
     }
+    // No picture, no frame. A read page never has one, and an empty 296px box
+    // with a label on it is the app dressing up the fact that it has nothing
+    // to show.
+    document.querySelector(".preview-media").hidden = !info.thumbnail;
     thumb.alt = info.title || "";
 
     var bits = [];
@@ -1328,6 +1471,7 @@
   }
 
   function renderPlaylist(entries) {
+    var grabbing = !!(current && current.grabbed);
     var shown = Math.min(entries.length, PL_LIMIT);
     selected = new Set();
     lastPicked = -1;
@@ -1338,12 +1482,18 @@
 
     var html = [];
     for (var i = 0; i < shown; i++) {
-      selected.add(i);
+      /* One already downloaded does not start ticked. It is still on the list
+         - a file can be deleted, and asking for it again is a real thing to
+         want - it just is not part of the answer to "download everything on
+         this page", which is what pressing the button means. */
+      var have = grabbing ? inLibrary(entries[i].url) : null;
+      if (!have) selected.add(i);
       html.push(
-        '<li data-i="' + i + '">' +
-          '<input type="checkbox" class="pl-check" checked>' +
+        '<li data-i="' + i + '"' + (have ? ' class="is-had"' : "") + ">" +
+          '<input type="checkbox" class="pl-check"' + (have ? "" : " checked") + ">" +
           "<b>" + (i + 1) + "</b>" +
-          "<span>" + esc(entries[i].title) + "</span>" +
+          "<span>" + esc(entries[i].title) +
+            (have ? ' <em class="had">already saved</em>' : "") + "</span>" +
           "<em>" + esc(fmtDuration(entries[i].duration)) + "</em>" +
           '<button type="button" class="pl-get" title="Download just this one">&#8595;</button>' +
         "</li>");

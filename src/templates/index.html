@@ -536,6 +536,19 @@
     </div>
 
     <div class="playlist-wrap" id="playlistWrap" hidden>
+
+      <!-- Only for a page that was read. A playlist knows what it is; a page
+           does not, so it says which address was read and how long that took -
+           the two facts that tell you whether to press Read it again. -->
+      <div class="drow grab-src" id="grabSource" hidden>
+        <span class="f12 faint mono trunc grow" id="grabUrl"></span>
+        <span class="badge b-ok" id="grabTime"></span>
+        <button type="button" class="btn sm" id="grabAgain">Read it again</button>
+      </div>
+      <div class="filters" id="grabChips" hidden></div>
+      <p class="f12 faint" id="grabFoot" hidden>Reading a page costs one request.
+        Nothing is fetched from any of these until you pick and press Download.</p>
+
       <div class="playlist-bar">
         <label class="pl-all">
           <input type="checkbox" id="plAll" checked>
@@ -559,6 +572,11 @@
         <span class="pl-count" id="plCount"></span>
       </div>
       <ul class="playlist" id="playlistBox"></ul>
+
+      <!-- What did not make the list. Shown, not summarised: a link you can
+           see is a link you can copy and paste on its own, which is the one
+           thing that still works for all of them. -->
+      <div class="rows" id="grabLeftOut" hidden></div>
       <p class="pl-note" id="plNote" hidden></p>
     </div>
   </section>
