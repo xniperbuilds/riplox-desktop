@@ -138,19 +138,22 @@
         <!-- Each of these shows only while it has something to act on. A row of
              buttons that is always there but usually does nothing teaches
              people to stop reading the row. -->
-        <button class="ghost small" id="pauseAll" hidden>Pause all</button>
-        <button class="ghost small" id="resumeAllTop" hidden>Resume all</button>
-        <button class="ghost small" id="retryAll" hidden>Retry all</button>
-        <button class="ghost small" id="clearFinished">Clear finished</button>
-        <button class="ghost small" id="failedRetryAll" hidden>Retry all failed</button>
-        <button class="ghost small danger" id="failedClear" hidden>Delete all failed</button>
+        <button class="btn sm" id="pauseAll" hidden>Pause all</button>
+        <button class="btn sm" id="resumeAllTop" hidden>Resume all</button>
+        <button class="btn sm" id="retryAll" hidden>Retry all</button>
+        <button class="btn sm" id="clearFinished">Clear finished</button>
+        <button class="btn sm" id="failedRetryAll" hidden>Retry all failed</button>
+        <button class="btn sm danger" id="failedClear" hidden>Delete all failed</button>
       </div>
       <div class="room-actions" data-room="library" hidden>
         <div class="row-gap">
-          <button class="ghost small" id="openInsights">Insights</button>
-          <button class="ghost small" id="openConvert">Convert to audio…</button>
-          <button class="ghost small" id="openFolder">Open folder</button>
-          <button class="ghost small danger" id="clearHistory">Clear history</button>
+          <button class="btn sm" id="openInsights">Insights</button>
+          <button class="btn sm" id="openConvert">Convert to audio…</button>
+          <button class="btn sm" id="openFolder">Open folder</button>
+        <!-- The endpoint has been there all along and the only way to reach it
+             was Settings - Backup. The design puts it where the list is. -->
+        <button class="btn sm" data-export="txt">Export list</button>
+          <button class="btn sm danger" id="clearHistory">Clear history</button>
         </div>
       </div>
       <div class="room-actions" data-room="watch" hidden>
@@ -355,7 +358,7 @@
   <div class="more-sec">
             <div class="more-row between">
               <label>The command Riplox will run</label>
-              <button type="button" class="ghost small" id="cmdCopy">Copy</button>
+              <button type="button" class="btn sm" id="cmdCopy">Copy</button>
             </div>
             <pre class="cmd" id="cmdBox">…</pre>
           </div>
@@ -436,7 +439,7 @@
   <div class="more-sec" id="thumbSec" hidden>
             <div class="more-row between">
               <label>Cover picture</label>
-              <button type="button" class="ghost small" id="thumbClear">Use the default</button>
+              <button type="button" class="btn sm" id="thumbClear">Use the default</button>
             </div>
             <div class="thumb-pick" id="thumbPick"></div>
             <p class="more-note" id="thumbNote"></p>
@@ -454,7 +457,7 @@
               </label>
               <div class="more-field">
                 <span>Into</span>
-                <button type="button" class="ghost small" id="optDir"
+                <button type="button" class="btn sm" id="optDir"
                         data-dir="">Default folder</button>
               </div>
             </div>
@@ -520,8 +523,8 @@
           <p class="summary" id="pvSummary"></p>
 
           <div class="preview-actions">
-            <button class="primary big" id="downloadBtn">Download</button>
-            <button class="ghost" id="resetBtn">Clear</button>
+            <button class="btn pri" id="downloadBtn">Download</button>
+            <button class="btn" id="resetBtn">Clear</button>
           </div>
         </aside>
       </div>
@@ -553,9 +556,9 @@
         </select>
         <label class="pl-first">First
           <input type="number" id="plFirst" min="1" step="1" placeholder="10">
-          <button type="button" class="ghost small" id="plFirstGo">Pick</button>
+          <button type="button" class="btn sm" id="plFirstGo">Pick</button>
         </label>
-        <button type="button" class="ghost small" id="plInvert">Invert</button>
+        <button type="button" class="btn sm" id="plInvert">Invert</button>
         <span class="pl-count" id="plCount"></span>
       </div>
       <ul class="playlist" id="playlistBox"></ul>
@@ -590,11 +593,11 @@
     </div>
     <div class="resume-bar update-bar" id="updateBar" hidden>
       <span id="updateText"></span>
-      <button class="ghost small" id="updateOpen">Open the release page</button>
+      <button class="btn sm" id="updateOpen">Open the release page</button>
     </div>
     <div class="resume-bar" id="resumeBar" hidden>
       <span id="resumeText"></span>
-      <button class="primary small" id="resumeAll">Resume</button>
+      <button class="btn pri sm" id="resumeAll">Resume</button>
     </div>
     <!-- Why nothing is starting. A queue that just sits there, saying nothing,
          is the difference between "it is waiting" and "it is broken". -->
@@ -650,7 +653,7 @@
         <option value="big">Biggest first</option>
       </select>
       <span class="lib-count" id="libCount"></span>
-      <button class="ghost small" id="showAccounts">Accounts</button>
+      <button class="btn sm" id="showAccounts">Accounts</button>
       <div class="chips lib-chips" id="libChips"></div>
     </div>
 
@@ -692,8 +695,8 @@
     <div class="watch-add">
       <input type="url" id="watchUrl" class="text-input"
              placeholder="Paste a channel or playlist link" autocomplete="off">
-      <button class="ghost small" id="addChannel">Add channel</button>
-      <button class="ghost small" id="addPlaylist">Add playlist</button>
+      <button class="btn sm" id="addChannel">Add channel</button>
+      <button class="btn sm" id="addPlaylist">Add playlist</button>
     </div>
     <p class="warn" id="watchError" hidden></p>
 
@@ -714,7 +717,7 @@
             <option value="48">2 days</option>
           </select>
         </label>
-        <button class="ghost small" id="watchCheckAll">Check now</button>
+        <button class="btn sm" id="watchCheckAll">Check now</button>
       </div>
     </div>
 
@@ -790,7 +793,7 @@
           <div class="row-gap">
             <input type="text" id="shareName" class="text-input pair-name"
                    maxlength="24" autocomplete="off" placeholder="Whose phone?">
-            <button class="ghost small" id="shareInvite">Show code</button>
+            <button class="btn sm" id="shareInvite">Show code</button>
           </div>
         </div>
         <div class="qr-box" id="qrBox" hidden>
@@ -802,8 +805,8 @@
               <code class="inline">relay.xniperbuilds.com/p/</code> on the phone
               and paste this code.</p>
             <div class="btn-row">
-              <button class="ghost small" id="qrCopy">Copy code</button>
-              <button class="ghost small" id="qrCopyLink">Copy link</button>
+              <button class="btn sm" id="qrCopy">Copy code</button>
+              <button class="btn sm" id="qrCopyLink">Copy link</button>
             </div>
             <code id="qrLink" hidden></code>
           </div>
@@ -813,7 +816,7 @@
       <div class="panel">
         <div class="view-head sub-head panel-head">
           <h3>Paired devices</h3>
-          <button class="ghost small danger" id="revokeAll" hidden>Remove all</button>
+          <button class="btn sm danger" id="revokeAll" hidden>Remove all</button>
         </div>
         <div class="empty small" id="devicesEmpty">
           <p>No devices yet.</p>
@@ -853,7 +856,7 @@
 
     <div class="view-head sub-head">
       <h3>Incoming</h3>
-      <button class="ghost small" id="shareClearLog">Clear</button>
+      <button class="btn sm" id="shareClearLog">Clear</button>
     </div>
     <div class="empty small" id="incomingEmpty">
       <p>Nothing has been sent yet.</p>
@@ -912,7 +915,7 @@
           <label>Save downloads to</label>
           <code id="dirLabel">{{ settings.download_dir }}</code>
         </div>
-        <button class="ghost small" id="chooseDir">Change</button>
+        <button class="btn sm" id="chooseDir">Change</button>
       </div>
 
       <div class="field">
@@ -1038,7 +1041,7 @@
           <label>Only from these sites</label>
           <span id="clipSitesNote">Instant download acts on any site.</span>
         </div>
-        <button class="ghost small" id="clipSitesBtn">Choose sites</button>
+        <button class="btn sm" id="clipSitesBtn">Choose sites</button>
       </div>
 
       <div class="field sub-field">
@@ -1062,7 +1065,7 @@
                 <b>automatic</b> and Riplox keeps choosing for you.</span>
           <span class="hint" id="comboNote"></span>
         </div>
-        <button class="ghost small" id="pickCombo">Pick keys</button>
+        <button class="btn sm" id="pickCombo">Pick keys</button>
       </div>
     </div>
 
@@ -1193,7 +1196,7 @@
         <div class="row-gap">
           <button class="toggle {% if settings.potoken %}on{% endif %}"
                   id="setPotoken" role="switch"><i></i></button>
-          <button class="ghost small" id="removePotoken" hidden>Remove</button>
+          <button class="btn sm" id="removePotoken" hidden>Remove</button>
         </div>
       </div>
     </div>
@@ -1215,8 +1218,8 @@
           <code id="cookieState">checking…</code>
         </div>
         <div class="row-gap">
-          <button class="ghost small" id="refreshCookies" hidden>Refresh</button>
-          <button class="ghost small" id="forgetCookies" hidden>Forget all</button>
+          <button class="btn sm" id="refreshCookies" hidden>Refresh</button>
+          <button class="btn sm" id="forgetCookies" hidden>Forget all</button>
         </div>
       </div>
 
@@ -1239,8 +1242,8 @@
           <div class="cookie-files" id="cookieFileList"></div>
         </div>
         <div class="row-gap">
-          <button class="ghost small" id="chooseCookies">Add files</button>
-          <button class="ghost small" id="clearCookies">Clear all</button>
+          <button class="btn sm" id="chooseCookies">Add files</button>
+          <button class="btn sm" id="clearCookies">Clear all</button>
         </div>
       </div>
 
@@ -1305,7 +1308,7 @@
                 shortcut above suits you.</span>
           <span class="hint" id="extPath"></span>
         </div>
-        <button class="ghost small" id="openExtFolder">Open its folder</button>
+        <button class="btn sm" id="openExtFolder">Open its folder</button>
       </div>
 
       <div class="field">
@@ -1348,7 +1351,7 @@
                 take that entry back out.</span>
           <span class="hint" id="extConnectState"></span>
         </div>
-        <button class="ghost small" id="connectBrowser">Connect</button>
+        <button class="btn sm" id="connectBrowser">Connect</button>
       </div>
     </div>
 
@@ -1361,9 +1364,9 @@
           <span>Every video you have downloaded, as a list or a spreadsheet.</span>
         </div>
         <div class="btn-row">
-          <button class="ghost small" data-export="txt">.txt</button>
-          <button class="ghost small" data-export="csv">.csv</button>
-          <button class="ghost small" data-export="json">.json</button>
+          <button class="btn sm" data-export="txt">.txt</button>
+          <button class="btn sm" data-export="csv">.csv</button>
+          <button class="btn sm" data-export="json">.json</button>
         </div>
       </div>
 
@@ -1374,8 +1377,8 @@
                 machine.</span>
         </div>
         <div class="btn-row">
-          <button class="ghost small" id="settingsExport">Save</button>
-          <button class="ghost small" id="settingsImport">Restore</button>
+          <button class="btn sm" id="settingsExport">Save</button>
+          <button class="btn sm" id="settingsImport">Restore</button>
         </div>
       </div>
     </div>
@@ -1405,7 +1408,7 @@
                  published; nothing is fetched until Update is pressed. -->
             <span id="engineUpdate" class="warn" hidden></span>
           </div>
-          <button class="ghost small" id="updateEngine">Update</button>
+          <button class="btn sm" id="updateEngine">Update</button>
         </div>
 
         <div class="field">
@@ -1461,7 +1464,7 @@
             <label>Check now</label>
             <span>You are on v{{ version }}.</span>
           </div>
-          <button class="ghost small" id="checkUpdateNow">Check</button>
+          <button class="btn sm" id="checkUpdateNow">Check</button>
         </div>
 
         <p class="footnote">
@@ -1542,7 +1545,7 @@
                 last result per site. No links, no sign-ins, and your account
                 name is taken out of the paths.</span>
         </div>
-        <button class="ghost small" id="copyDiag">Copy report</button>
+        <button class="btn sm" id="copyDiag">Copy report</button>
       </div>
       <pre class="diag" id="diagBox" hidden></pre>
     </div>
@@ -1687,7 +1690,7 @@
                 and if a download failed, <b>Copy error details</b> on the
                 failed row puts everything needed in one paste.</span>
         </div>
-        <button class="ghost small" id="reportIssue">Open</button>
+        <button class="btn sm" id="reportIssue">Open</button>
       </div>
     </div>
 
@@ -1711,10 +1714,10 @@
      which quality, where the new file goes, and files from outside. That is a
      dialog, not a destination. -->
 <div class="scrim" id="convDlg" hidden>
-  <div class="dlg dlg-wide" role="dialog" aria-modal="true" aria-labelledby="convDlgTitle">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="convDlgTitle">
     <div class="dlg-head">
       <h3 id="convDlgTitle">Convert to audio</h3>
-      <button class="ghost small" id="convPick">Choose files from this PC…</button>
+      <button class="btn sm" id="convPick">Choose files from this PC…</button>
     </div>
 
 
@@ -1734,7 +1737,7 @@
         <input type="checkbox" id="convBeside" checked>
         <span>Save next to the original</span>
       </label>
-      <button class="primary" id="convStart" disabled>Convert</button>
+      <button class="btn pri" id="convStart" disabled>Convert</button>
     </div>
 
     <div class="conv-picked" id="convPicked" hidden></div>
@@ -1750,7 +1753,7 @@
     <ul class="conv-list" id="convList"></ul>
 
     <div class="dlg-foot">
-      <button class="ghost" id="convClose">Close</button>
+      <button class="btn" id="convClose">Close</button>
     </div>
   </div>
 </div>
@@ -1789,7 +1792,7 @@
     </div>
 
     <div class="dlg-foot">
-      <button class="ghost" id="insightsClose">Close</button>
+      <button class="btn" id="insightsClose">Close</button>
     </div>
   </div>
 </div>
@@ -1806,8 +1809,8 @@
     <div class="panel tight fr-card">
       <b>Where should downloads go?</b>
       <div class="btn-row">
-        <button class="ghost" id="frDir"><span class="mono" id="frDirText"></span></button>
-        <button class="ghost small" id="frDirPick">Change</button>
+        <button class="btn" id="frDir"><span class="mono" id="frDirText"></span></button>
+        <button class="btn sm" id="frDirPick">Change</button>
       </div>
       <label class="check"><input type="checkbox" id="frPerSite"><span>Keep a folder per site</span></label>
     </div>
@@ -1826,8 +1829,8 @@
 
     <div class="dlg-foot">
       <span class="fr-note">Everything here can be changed later.</span>
-      <button class="ghost" id="frSkip">Skip</button>
-      <button class="primary" id="frDone">Start using Riplox</button>
+      <button class="btn" id="frSkip">Skip</button>
+      <button class="btn pri" id="frDone">Start using Riplox</button>
     </div>
   </div>
 </div>
@@ -1855,12 +1858,12 @@
   <div class="dlg dlg-wide" role="dialog" aria-modal="true" aria-labelledby="jobDetailTitle">
     <div class="dlg-head">
       <h3 id="jobDetailTitle">What happened</h3>
-      <button class="ghost small" id="jobLogCopy">Copy for a bug report</button>
+      <button class="btn sm" id="jobLogCopy">Copy for a bug report</button>
     </div>
     <p class="dlg-msg" id="jobDetailWhat"></p>
     <pre class="cmd job-log" id="jobLogBox"></pre>
     <div class="dlg-foot">
-      <button class="ghost" id="jobDetailClose">Close</button>
+      <button class="btn" id="jobDetailClose">Close</button>
     </div>
   </div>
 </div>
@@ -1873,8 +1876,8 @@
       <input type="text" id="xdlgInput" class="text-input" autocomplete="off">
     </div>
     <div class="dlg-foot">
-      <button class="ghost" id="xdlgCancel">Cancel</button>
-      <button class="primary" id="xdlgOk">OK</button>
+      <button class="btn" id="xdlgCancel">Cancel</button>
+      <button class="btn pri" id="xdlgOk">OK</button>
     </div>
   </div>
 </div>
@@ -1904,8 +1907,8 @@
         temporary, and ordinary downloads keep working.</li>
     </ul>
     <div class="dlg-foot">
-      <button class="ghost" id="watchWarnNo">Cancel</button>
-      <button class="primary" id="watchWarnOk" disabled>I understand (15)</button>
+      <button class="btn" id="watchWarnNo">Cancel</button>
+      <button class="btn pri" id="watchWarnOk" disabled>I understand (15)</button>
     </div>
   </div>
 </div>
@@ -1952,8 +1955,8 @@
     </div>
 
     <div class="dlg-foot">
-      <button class="ghost" id="sitePickerCancel">Cancel</button>
-      <button class="primary" id="sitePickerSave">Save</button>
+      <button class="btn" id="sitePickerCancel">Cancel</button>
+      <button class="btn pri" id="sitePickerSave">Save</button>
     </div>
   </div>
 </div>

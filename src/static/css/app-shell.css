@@ -180,3 +180,8 @@ button.scell.is-on b { color: var(--accent-ink); }
   color: var(--faint);
   margin-bottom: 12px;
 }
+
+/* Convert holds a list of files, so its sheet scrolls rather than growing past
+   the window - same reason the site picker's does. */
+#convDlg .sheet { width: min(760px, 92vw); max-height: 84vh; display: flex; flex-direction: column; }
+#convDlg .conv-list { overflow-y: auto; }

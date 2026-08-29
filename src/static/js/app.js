@@ -2761,7 +2761,7 @@
         " asked Riplox to slow down. Waiting about " + mins +
         (mins === 1 ? " minute" : " minutes") +
         " — everything else carries on.</span>" +
-        '<button class="ghost small" data-gonow="' + esc(c.site) +
+        '<button class="btn sm" data-gonow="' + esc(c.site) +
         '" data-n="' + (c.account || 0) + '">Go now anyway</button></div>';
     }).join("");
   }
@@ -2869,14 +2869,29 @@
     var names = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; });
     if (libSource !== "all" && names.indexOf(libSource) === -1) libSource = "all";
 
-    $("libChips").innerHTML =
-      ['<button type="button" class="chip' + (libSource === "all" ? " is-on" : "") +
-       '" data-src="all">All · ' + libraryItems.length + "</button>"]
-        .concat(names.map(function (n) {
-          return '<button type="button" class="chip' +
-            (n === libSource ? " is-on" : "") + '" data-src="' + esc(n) + '">' +
-            esc(n) + " · " + counts[n] + "</button>";
-        })).join("");
+    /* The design filters the library by what a file is - video, audio, a clip -
+       not by where it came from. Where it came from is the uploader column
+       beside the list, which is the old Accounts panel folded in, so putting
+       it in the bar as well would be two ways to do one thing.
+
+       Kind is read off what the app already recorded: the quality it was
+       asked for says audio, and a clip carries the range it was cut to. */
+    var kinds = { video: 0, audio: 0, clip: 0 };
+    libraryItems.forEach(function (it) {
+      if (it.clip) kinds.clip++;
+      else if (it.quality === "mp3") kinds.audio++;
+      else kinds.video++;
+    });
+    var KINDS = [["all", "All", libraryItems.length],
+                 ["video", "Video", kinds.video],
+                 ["audio", "Audio", kinds.audio],
+                 ["clip", "Clips", kinds.clip]];
+    $("libChips").innerHTML = KINDS.filter(function (k) {
+      return k[0] === "all" || k[2];        // a kind nothing is is not a filter
+    }).map(function (k) {
+      return '<button type="button" class="chip' + (libSource === k[0] ? " is-on" : "") +
+        '" data-src="' + k[0] + '">' + k[1] + '<em class="k">' + k[2] + "</em></button>";
+    }).join("");
   }
 
   function renderHistory() {
@@ -2884,7 +2899,11 @@
     var sort = $("libSort").value;
 
     var shown = libraryItems.filter(function (h) {
-      if (libSource !== "all" && h._source !== libSource) return false;
+      // The chips are kinds now, so the filter reads the same thing they count.
+      if (libSource !== "all") {
+        var kind = h.clip ? "clip" : h.quality === "mp3" ? "audio" : "video";
+        if (kind !== libSource) return false;
+      }
       if (!term) return true;
       // The uploader counts as well as the title. Without it, searching for
       // a name found nothing even though every file was by that person -
@@ -3437,9 +3456,9 @@
                        : '<div class="new-thumb"></div>') +
           '<div class="new-what"><b>' + esc(v.title) + "</b>" +
             "<span>" + esc(fmtDuration(v.duration) || "") + "</span></div>" +
-          '<button class="primary small" data-get="' + esc(v.url) + '" data-item="' +
+          '<button class="btn pri sm" data-get="' + esc(v.url) + '" data-item="' +
             esc(it.id) + '" data-video="' + esc(v.id) + '">Download</button>' +
-          '<button class="ghost small" data-skip="' + esc(it.id) + '" data-video="' +
+          '<button class="btn sm" data-skip="' + esc(it.id) + '" data-video="' +
             esc(v.id) + '">Skip</button>' +
           "</div>";
       }).join("");
@@ -3456,7 +3475,7 @@
           (S.hasPotoken
             ? "<p>The helper is already on, so the next thing to try is " +
               "checking less often, or pausing this one for a day.</p>"
-            : '<button class="primary small" data-wfix="' + esc(it.id) +
+            : '<button class="btn pri sm" data-wfix="' + esc(it.id) +
               '">Turn on the helper</button>') +
           "</div>";
       } else if (it.error) {
@@ -3472,15 +3491,15 @@
             (it.paused ? ' <em class="tag">paused</em>' : "") + "</b>" +
             '<span>' + esc(it.kind) + " · checked " + when(it.checked) +
             (fresh.length ? " · " + fresh.length + " new" : "") + "</span></div>" +
-          '<button class="ghost small" data-check="' + esc(it.id) + '">Check</button>' +
-          '<button class="ghost small" data-wpause="' + esc(it.id) + '" data-to="' +
+          '<button class="btn sm" data-check="' + esc(it.id) + '">Check</button>' +
+          '<button class="btn sm" data-wpause="' + esc(it.id) + '" data-to="' +
             (it.paused ? "0" : "1") + '">' + (it.paused ? "Resume" : "Pause") + "</button>" +
-          '<button class="ghost small danger" data-drop="' + esc(it.id) +
+          '<button class="btn sm danger" data-drop="' + esc(it.id) +
             '">Remove</button>' +
         "</div>" + trouble +
         (fresh.length
           ? '<div class="new-list">' + videos +
-            '<button class="ghost small" data-skip="' + esc(it.id) +
+            '<button class="btn sm" data-skip="' + esc(it.id) +
             '">Clear all</button></div>'
           : "") +
         "</div>";
@@ -3737,8 +3756,8 @@
       '<label class="rule-check"><input type="checkbox" data-f="approve"' +
         (L.approve ? " checked" : "") + "><span>Ask before starting</span></label>" +
       '<div class="btn-row rule-foot">' +
-        '<button class="primary small" data-save="' + esc(d.id) + '">Save rules</button>' +
-        '<button class="ghost small" data-close="' + esc(d.id) + '">Close</button>' +
+        '<button class="btn pri sm" data-save="' + esc(d.id) + '">Save rules</button>' +
+        '<button class="btn sm" data-close="' + esc(d.id) + '">Close</button>' +
       "</div></div>";
   }
 
@@ -3781,10 +3800,10 @@
         '<div class="dev-row"><div class="who"><b>' + esc(d.name) +
           (d.paused ? ' <em class="tag">paused</em>' : "") + "</b>" +
           "<span>" + esc(facts.join(" · ")) + "</span></div>" +
-          '<button class="ghost small" data-pause="' + esc(d.id) + '" data-to="' +
+          '<button class="btn sm" data-pause="' + esc(d.id) + '" data-to="' +
             (d.paused ? "0" : "1") + '">' + (d.paused ? "Resume" : "Pause") + "</button>" +
-          '<button class="ghost small" data-rules="' + esc(d.id) + '">Rules</button>' +
-          '<button class="ghost small danger" data-revoke="' + esc(d.id) +
+          '<button class="btn sm" data-rules="' + esc(d.id) + '">Rules</button>' +
+          '<button class="btn sm danger" data-revoke="' + esc(d.id) +
           '">Remove</button></div>' +
         (rulesOpen === d.id ? deviceRules(d, s) : "") +
         "</div>";
@@ -3825,9 +3844,9 @@
           why + road + "</b><span>" + "•".repeat(Math.min(e.chars || 8, 24)) +
           " · " + (e.chars || 0) + " characters</span></div>" +
           (waiting
-            ? '<button class="primary small" data-ok="' + esc(e.id) + '">Approve</button>' +
-              '<button class="ghost small" data-no="' + esc(e.id) + '">No</button>'
-            : '<button class="primary small" data-copytext="' + esc(e.id) + '">Copy</button>' +
+            ? '<button class="btn pri sm" data-ok="' + esc(e.id) + '">Approve</button>' +
+              '<button class="btn sm" data-no="' + esc(e.id) + '">No</button>'
+            : '<button class="btn pri sm" data-copytext="' + esc(e.id) + '">Copy</button>' +
               '<span class="in-state">' + ago(e.at) + "</span>") +
           "</div>";
       }
@@ -3836,8 +3855,8 @@
         '<div class="what"><b>' + esc(e.from || "A device") + " · " +
         esc(e.quality || "default") + why + road + "</b><span>" + esc(e.url) + "</span></div>" +
         (waiting
-          ? '<button class="primary small" data-ok="' + esc(e.id) + '">Approve</button>' +
-            '<button class="ghost small" data-no="' + esc(e.id) + '">No</button>'
+          ? '<button class="btn pri sm" data-ok="' + esc(e.id) + '">Approve</button>' +
+            '<button class="btn sm" data-no="' + esc(e.id) + '">No</button>'
           : '<span class="in-state">' + esc(e.state) + " · " + ago(e.at) + "</span>") +
         "</div>";
     }).join("");
@@ -4600,15 +4619,15 @@
           '<span class="site-name">' + esc(r.site.label) + " · " +
             esc(r.acct.label) + "</span>" +
           '<span class="site-mark">' + state + "</span>" +
-          '<button class="ghost small" data-asignin="' + esc(r.site.key) +
+          '<button class="btn sm" data-asignin="' + esc(r.site.key) +
             '" data-n="' + r.acct.n + '">' +
             (r.acct.signedIn ? "Sign in again" : "Sign in") + "</button>" +
           (r.acct.signedIn
-            ? '<button class="ghost small" data-apause="' + esc(r.site.key) +
+            ? '<button class="btn sm" data-apause="' + esc(r.site.key) +
               '" data-n="' + r.acct.n + '" data-to="' + (r.acct.paused ? "0" : "1") +
               '">' + (r.acct.paused ? "Use again" : "Pause") + "</button>"
             : "") +
-          '<button class="ghost small danger" data-aremove="' + esc(r.site.key) +
+          '<button class="btn sm danger" data-aremove="' + esc(r.site.key) +
             '" data-n="' + r.acct.n + '">Remove</button>' +
           "</div>";
       }).join("");
