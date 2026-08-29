@@ -382,3 +382,24 @@ img.rthumb { object-fit: cover; }
 /* The two rows that decide whether Riplox works carry a state, so their own
    detail line sits under the description rather than beside the control. */
 #potNote, #engineChecked { display: block; margin-top: 4px; }
+
+/* ----------------------------------------------------------- limited mode */
+
+#ffmpegAlert { margin: 12px 32px 0; }
+#ffmpegAlert span { flex: 1; min-width: 0; }
+#ffmpegAlert b { font-weight: 500; }
+.lim-list .row { line-height: 2.1; align-items: flex-start; }
+.lim-list .dot { margin-top: 9px; }
+.lim-list .dot.bad { background: var(--bad); }
+#limitedDlg .dlg-msg { margin-top: 16px; }
+/* A panel that is there and cannot run. The app already had this shape for
+   the notification rows; hiding it is what reads as removed. */
+.trim-block.is-inert { opacity: .5; }
+
+/* ------------------------------------------------------------- dialogs */
+
+/* One shape, two widths. The design's sheet is 820, which is right for a
+   panel and much too wide for "are you sure". */
+.sheet-ask { width: min(420px, 92vw); }
+.sheet h3 { margin: 0 0 10px; font-size: 17px; font-weight: 500; }
+.sheet .dlg-foot { margin-top: auto; padding-top: 18px; }

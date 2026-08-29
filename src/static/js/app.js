@@ -827,6 +827,18 @@
     grabPage($("grabUrl").textContent || $("urlInput").value.trim());
   });
 
+  /* --------------------------------------------------------- limited mode */
+
+  $("limitedWhat").addEventListener("click", function () {
+    $("limitedDlg").hidden = false;
+  });
+  $("limitedClose").addEventListener("click", function () {
+    $("limitedDlg").hidden = true;
+  });
+  $("limitedDlg").addEventListener("click", function (e) {
+    if (e.target === $("limitedDlg")) $("limitedDlg").hidden = true;
+  });
+
   /* ------------------------------------------------------- the night window */
 
   /* Twenty-four cells, one an hour, lit for the hours inside the window - the
@@ -1134,8 +1146,16 @@
 
     $("preview").hidden = false;
 
-    // Trimming needs ffmpeg, and only makes sense for one video at a time.
-    $("trimBlock").hidden = isList || !S.hasFfmpeg;
+    /* Trimming needs the media tool, and only makes sense for one video at a
+       time. Missing the tool is not the same as not applying: a list has no
+       single video to trim, so the panel does not belong there at all - but
+       without the tool it belongs there and cannot run, which is a thing to
+       say rather than a panel to remove. */
+    $("trimBlock").hidden = isList;
+    $("trimBlock").classList.toggle("is-inert", !S.hasFfmpeg);
+    $("trimBlock").querySelectorAll("input, button, select").forEach(function (el) {
+      el.disabled = !S.hasFfmpeg;
+    });
     resetTrim();
     $("channelWrap").hidden = true;
 

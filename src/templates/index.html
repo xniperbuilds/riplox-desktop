@@ -112,13 +112,18 @@
 
 <div class="stage">
 
-{% if not has_ffmpeg %}
-<div class="alert" id="ffmpegAlert">
-  <strong>Limited mode.</strong>
-  ffmpeg is missing, so 1080p+ merging and MP3 conversion are unavailable.
-  Reinstall Riplox to restore them.
+<!-- Always in the page, hidden when the tool is there. Rendered only in the
+     missing case, nothing could reach it - not the script, and not a test. -->
+<div class="strip warn" id="ffmpegAlert" {% if has_ffmpeg %}hidden{% endif %}>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M12 8v5M12 16.5v.01"/>
+    <path d="M10.3 3.9 2.6 17.2A2 2 0 0 0 4.3 20h15.4a2 2 0 0 0 1.7-2.8L13.7 3.9a2 2 0 0 0-3.4 0z"/>
+  </svg>
+  <span><b>Limited mode.</b> The media tool is missing, so 1080p and above,
+    MP3 conversion, chapters and clips are unavailable.</span>
+  <button type="button" class="btn sm" id="limitedWhat">What still works</button>
 </div>
-{% endif %}
 
 <div class="work">
 
@@ -685,7 +690,7 @@
       <div class="lib-list">
         <div class="empty" id="libraryEmpty">
           <p>No downloads yet.</p>
-          <span>Finished files are listed here.</span>
+          <span>Finished files are listed here, with the folder they went to.</span>
         </div>
         <div class="history" id="history"></div>
       </div>
@@ -1831,8 +1836,9 @@
         <div class="field-text">
           <label>Report a bug or ask for a feature</label>
           <span>Opens the issue tracker. Say what you did and what happened —
-                and if a download failed, <b>Copy error details</b> on the
-                failed row puts everything needed in one paste.</span>
+                and if a download failed, open <b>What happened</b> on that row
+                and press <b>Copy this report</b>. That is everything needed,
+                in one paste.</span>
         </div>
         <button class="btn sm" id="reportIssue">Open</button>
       </div>
@@ -1859,6 +1865,47 @@
      dialog, not a destination. -->
   <!-- Adding moves behind the Add button: it is done once and then never
        again, so it does not need to sit at the top of the screen forever. -->
+<!-- The only question worth asking in this state, answered both ways. Five
+     and five, and every line is something Riplox actually does. -->
+<div class="scrim" id="limitedDlg" hidden>
+  <div class="sheet sheet-wide" role="dialog" aria-modal="true"
+       aria-labelledby="limitedTitle">
+    <div class="card-head">
+      <h3 id="limitedTitle">Without the media tool</h3>
+      <button type="button" class="icon-btn more" id="limitedClose" title="Close"
+              aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="two">
+      <div class="card">
+        <div class="card-head"><h3>What still works</h3></div>
+        <div class="f13 muted lim-list">
+          <div class="row gap8"><span class="dot"></span>Downloading up to 720p, in one file</div>
+          <div class="row gap8"><span class="dot"></span>Every site Riplox supports</div>
+          <div class="row gap8"><span class="dot"></span>Watching channels and playlists</div>
+          <div class="row gap8"><span class="dot"></span>Sending links from a phone</div>
+          <div class="row gap8"><span class="dot"></span>Subtitles, thumbnails and descriptions</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>What needs the media tool</h3></div>
+        <div class="f13 faint lim-list">
+          <div class="row gap8"><span class="dot bad"></span>1080p and above &mdash; video and audio
+            arrive separately and have to be merged</div>
+          <div class="row gap8"><span class="dot bad"></span>MP3, and any audio conversion</div>
+          <div class="row gap8"><span class="dot bad"></span>Chapters saved as separate files</div>
+          <div class="row gap8"><span class="dot bad"></span>Most-replayed moments cut into clips</div>
+          <div class="row gap8"><span class="dot bad"></span>Trimming part of a video</div>
+        </div>
+      </div>
+    </div>
+    <p class="dlg-msg">Riplox installs the media tool with itself. Reinstalling
+      restores it, and nothing you have downloaded or set up is touched.</p>
+  </div>
+</div>
+
 <div class="scrim" id="watchAddDlg" hidden>
     <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="watchAddTitle">
       <div class="card-head">
@@ -1948,7 +1995,7 @@
      download, and the failures separately. It had never shown any of it back.
      Nothing here is fetched or stored - it is those two files, counted. -->
 <div class="scrim" id="insights" hidden>
-  <div class="dlg dlg-wide" role="dialog" aria-modal="true" aria-labelledby="insightsTitle">
+  <div class="sheet sheet-wide" role="dialog" aria-modal="true" aria-labelledby="insightsTitle">
     <div class="dlg-head">
       <div>
         <h3 id="insightsTitle">Insights</h3>
@@ -1975,7 +2022,7 @@
 </div>
 
 <div class="scrim" id="firstRun" hidden>
-  <div class="dlg dlg-wide" role="dialog" aria-modal="true" aria-labelledby="firstRunTitle">
+  <div class="sheet sheet-wide" role="dialog" aria-modal="true" aria-labelledby="firstRunTitle">
     <div class="dlg-head">
       <div>
         <h3 id="firstRunTitle">Welcome to Riplox</h3>
@@ -2076,7 +2123,7 @@
 </div>
 
 <div class="scrim" id="xdlg" hidden>
-  <div class="dlg dlg-ask" role="dialog" aria-modal="true" aria-labelledby="xdlgTitle">
+  <div class="sheet sheet-ask" role="dialog" aria-modal="true" aria-labelledby="xdlgTitle">
     <h3 id="xdlgTitle">Riplox</h3>
     <p class="dlg-msg" id="xdlgMsg"></p>
     <div class="dlg-input" id="xdlgInputWrap" hidden>
@@ -2094,7 +2141,7 @@
      that makes repeated requests on its own, and the one that can get a
      Google account limited. It should not be possible to click past it. -->
 <div class="scrim" id="watchWarn" hidden>
-  <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="watchWarnTitle">
+  <div class="sheet sheet-ask" role="dialog" aria-modal="true" aria-labelledby="watchWarnTitle">
     <h3 id="watchWarnTitle">Read this before turning watching on</h3>
     <ul class="dlg-list">
       <li><b>This is automated.</b> Riplox will ask the site for each watched
