@@ -1102,6 +1102,23 @@
         </div>
       </div>
 
+      <!-- Two clock inputs tell you what you typed. They do not tell you that
+           22:00 to 06:00 is eight hours, or that it is a window at all. The
+           bar does, and it is the same twenty-four hours the engine checks
+           against. -->
+      <div class="field night-field">
+        <div class="night" id="nightBox">
+          <div class="night-bar" id="nightBar" aria-hidden="true"></div>
+          <div class="row night-legend">
+            <span class="f10 faint">00</span>
+            <span class="grow"></span>
+            <span class="f12" id="nightSays"></span>
+            <span class="grow"></span>
+            <span class="f10 faint">24</span>
+          </div>
+        </div>
+      </div>
+
       <!-- The number is not a guess: two maintained downloaders allow about
            one Instagram request every eight to twelve seconds, and sharing a
            dozen reels at once runs straight into that. Only Instagram is
@@ -1156,20 +1173,24 @@
         <button class="btn sm" id="clipSitesBtn">Choose sites</button>
       </div>
 
-      <div class="field sub-field">
+      <div class="field">
         <div class="field-text">
-          <label>Shortcut: <code class="inline" id="hotkeyLabel">checking…</code></label>
+          <label>Shortcut</label>
           <span id="hotkeyNote">Downloads the copied link from any program.
                 Restart Riplox after changing this.</span>
         </div>
-        <button class="toggle {% if settings.hotkey %}on{% endif %}"
-                id="setHotkey" role="switch"><i></i></button>
+        <div class="row-gap">
+          <span class="badge b-wait" id="hotkeyState">checking</span>
+          <code class="inline" id="hotkeyLabel">&hellip;</code>
+          <button class="toggle {% if settings.hotkey %}on{% endif %}"
+                  id="setHotkey" role="switch"><i></i></button>
+        </div>
       </div>
 
       <!-- Riplox tries four combinations and takes whichever Windows grants.
            When all four are spoken for there was, until now, no shortcut and
            no way to ask for a different one. -->
-      <div class="field sub-field">
+      <div class="field">
         <div class="field-text">
           <label>Choose your own keys</label>
           <span>Press <b>Pick keys</b>, then hold the combination you want -

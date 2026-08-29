@@ -341,3 +341,40 @@ img.rthumb { object-fit: cover; }
 .missed-row { height: 60px; }
 #missedCard { margin-top: 20px; }
 #missedCard .summary { margin-bottom: 14px; }
+
+/* ------------------------------------------------ settings, the night window */
+
+/* The design's own measurements for a dependent row: 20 and the mid line.
+   app.css has had 18 and the faint one since 1.4. */
+.sub-field { padding-left: 20px; border-left: 2px solid var(--line-mid); }
+
+.night-field { flex-direction: column; align-items: stretch; }
+.night {
+  width: 100%; background: var(--ground-2); border: 1px solid var(--line);
+  border-radius: var(--r-s); padding: 14px 16px;
+}
+.night.is-off { opacity: .5; }
+.night-bar {
+  position: relative; height: 34px; border-radius: 8px; overflow: hidden;
+  background: var(--surface-2); display: flex;
+}
+.night-bar i { flex: 1; border-right: 1px solid var(--line); }
+.night-bar i:last-child { border-right: 0; }
+.night-bar i.on { background: var(--accent-dim); }
+.night-legend { margin-top: 8px; }
+#nightSays { color: var(--accent); }
+.night.is-off #nightSays { color: var(--faint); }
+
+/* ------------------------------------------------------ settings, the shell */
+
+/* The list is the design's now. Two things it does not carry, because the
+   app's list does more than the mockup's: the count on the right, and a
+   scrollbar for fourteen rows plus a label. */
+#view-settings .set-list { overflow-y: auto; }
+#view-settings .set-item { width: 100%; font-family: inherit; text-align: left; }
+#view-settings .set-item .set-cat-name { flex: 1; min-width: 0; }
+#view-settings .set-item .set-cat-count {
+  flex: none; font-size: 11px; color: var(--faint);
+}
+#view-settings .set-item.on .set-cat-count { color: var(--muted); }
+#view-settings .set-list .rail-label { padding: 18px 14px 8px; }

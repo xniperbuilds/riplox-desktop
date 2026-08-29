@@ -2398,59 +2398,25 @@ button { font-family: var(--font); }
 
 /* ---- Settings: a list of categories, and one category ------------------- */
 
-.set-cols {
-  display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  gap: 24px;
-  align-items: start;
-}
+/* The list itself is the design's .set / .set-list / .set-item. What stays
+   here is what the app's list does that a mockup's does not. */
 
 /* Sticky, because the list is the way around the screen and scrolling a long
    category should not take it away. */
-.set-nav {
+#view-settings .set-list {
   position: sticky;
   top: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-self: start;
   padding: 8px;
   border: 1px solid var(--line);
   border-radius: var(--r);
   background: var(--surface);
 }
 
-.set-cat {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  height: 40px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: var(--r-s);
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 13px;
-  text-align: left;
-  cursor: pointer;
-  transition: background .15s var(--ease), color .15s var(--ease);
-}
-.set-cat:hover { background: var(--inner); color: var(--text); }
-
-/* The bar rather than a fill: it marks the row without turning the list into
-   a block of colour, and it survives the hover state landing on top of it. */
-.set-cat.is-on {
-  background: var(--accent-dim);
-  color: var(--text);
-  font-weight: 500;
-  box-shadow: inset 2px 0 0 var(--accent);
-}
-
 /* During a search the selection means nothing, so the categories still
    holding a match say so instead of going inert. */
-.set-cat.has-hit { color: var(--text); }
-.set-cat.has-hit .set-cat-count { color: var(--accent); }
+.set-item.has-hit { color: var(--text); }
+.set-item.has-hit .set-cat-count { color: var(--accent); }
 
 .set-cat-name {
   flex: 1;
@@ -2468,7 +2434,6 @@ button { font-family: var(--font); }
   font-size: 11px;
   color: var(--faint);
 }
-.set-cat.is-on .set-cat-count { color: var(--accent-ink); }
 
 .set-body { min-width: 0; }
 .set-group[hidden] { display: none; }
@@ -2483,54 +2448,19 @@ button { font-family: var(--font); }
   color: var(--text);
 }
 
-/* ---- the four things that were never settings --------------------------- */
-
-.set-about {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
-  margin-top: 24px;
-}
-.set-about-label {
-  grid-column: 1 / -1;
-  margin-bottom: -2px;
-  font-size: 11px;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  color: var(--faint);
-}
-.set-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-s);
-  background: var(--tint);
-  color: var(--muted);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color .15s var(--ease), color .15s var(--ease);
-}
-.set-info:hover { border-color: var(--accent-line); color: var(--text); }
-.set-info.is-on { border-color: var(--accent-line); color: var(--text); }
-.set-info-text { min-width: 0; }
-.set-info-text b { display: block; font-size: 12.5px; font-weight: 500; color: var(--text); }
-.set-info-text small { font-size: 11px; color: var(--faint); }
-
 /* Narrow enough that a column each would leave neither usable: the list lies
    down into a strip across the top and the panel takes the full width. */
 @media (max-width: 760px) {
-  .set-cols { grid-template-columns: 1fr; }
-  .set-nav {
+  #view-settings .set { grid-template-columns: 1fr; }
+  #view-settings .set-list {
     position: static;
     flex-direction: row;
     overflow-x: auto;
     padding: 6px;
   }
-  .set-cat { white-space: nowrap; }
+  .set-item { white-space: nowrap; }
   .set-cat-count { display: none; }
+  #view-settings .set-list .rail-label { display: none; }
 }
 
 /* A row whose switch still holds a choice but cannot act on it right now.

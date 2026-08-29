@@ -827,6 +827,48 @@
     grabPage($("grabUrl").textContent || $("urlInput").value.trim());
   });
 
+  /* ------------------------------------------------------- the night window */
+
+  /* Twenty-four cells, one an hour, lit for the hours inside the window - the
+     same span the engine checks a queued download against, including the
+     ordinary case where it runs past midnight. */
+  function paintNight() {
+    var from = $("setScheduleFrom").value || "01:00";
+    var to = $("setScheduleTo").value || "08:00";
+    var a = parseInt(from.split(":")[0], 10) || 0;
+    var b = parseInt(to.split(":")[0], 10) || 0;
+    var on = $("setSchedule").classList.contains("on");
+
+    var hours = 0;
+    var cells = "";
+    for (var h = 0; h < 24; h++) {
+      // a < b is an ordinary daytime window; a > b wraps past midnight, which
+      // is what a night window nearly always is.
+      var inside = a === b ? false : a < b ? (h >= a && h < b) : (h >= a || h < b);
+      if (inside) hours++;
+      cells += '<i' + (inside ? ' class="on"' : "") + "></i>";
+    }
+    $("nightBar").innerHTML = cells;
+    $("nightBox").classList.toggle("is-off", !on);
+    $("nightSays").textContent = a === b
+      ? "Both times are the same, so the window is empty"
+      : from + " \u2192 " + to + " \u00b7 " +
+        hours + (hours === 1 ? " hour" : " hours") +
+        /* "a night" is the design's phrase and it is a guess: 01:00 to
+           08:00 is a night to most people and the app cannot know that.
+           Running past midnight is not a guess, so that is what it says. */
+        (a > b ? ", running past midnight" : "");
+  }
+
+  ["setScheduleFrom", "setScheduleTo"].forEach(function (id) {
+    $(id).addEventListener("input", paintNight);
+  });
+  $("setSchedule").addEventListener("click", function () {
+    // After the class flips, not before - bindToggle owns the flip itself.
+    setTimeout(paintNight, 0);
+  });
+  paintNight();
+
   /* ------------------------------------------------ watch: the bot check */
 
   var watchFixId = "";
@@ -5604,10 +5646,9 @@
     var heads = Array.prototype.slice.call(view.querySelectorAll(".group-head"));
     if (!heads.length) return;
 
-    var cols  = mk("div", "set-cols");
-    var nav   = mk("nav", "set-nav");
+    var cols  = mk("div", "set");
+    var nav   = mk("nav", "set-list");
     var body  = mk("div", "set-body");
-    var about = mk("div", "set-about");
     nav.setAttribute("aria-label", "Settings categories");
     cols.appendChild(nav);
     cols.appendChild(body);
@@ -5634,16 +5675,21 @@
       body.appendChild(g.box);
       panel.hidden = false;              // the wrapper does the hiding now
 
-      var target = g.info ? about : nav;
-      target.appendChild(g.info ? aboutCard(g) : navButton(g));
       groups.push(g);
     });
 
-    if (about.childNodes.length) {
-      var label = mk("div", "set-about-label");
+    /* One list. The four that are not settings sit at its foot under a label
+       of their own - they were a second list below the columns, with its own
+       look, for four rows. */
+    groups.filter(function (g) { return !g.info; })
+      .forEach(function (g) { nav.appendChild(navButton(g)); });
+
+    var info = groups.filter(function (g) { return g.info; });
+    if (info.length) {
+      var label = mk("div", "rail-label");
       label.textContent = "About Riplox";
-      about.insertBefore(label, about.firstChild);
-      cols.parentNode.insertBefore(about, cols.nextSibling);
+      nav.appendChild(label);
+      info.forEach(function (g) { nav.appendChild(navButton(g)); });
     }
 
     showGroup(byName(SETTINGS_OPEN_BY_DEFAULT) || groups[0]);
@@ -5663,16 +5709,24 @@
   }
 
   function navButton(g) {
-    var btn = mk("button", "set-cat");
+    var btn = mk("button", "set-item" + (g.info ? " blank" : ""));
     btn.type = "button";
 
-    var name = mk("span", "set-cat-name");
-    name.textContent = g.name;
+    // The design's dot: filled on the group you are in, and never drawn for
+    // the four that are not settings.
+    btn.appendChild(mk("i"));
 
-    // The count is what makes the list worth reading rather than just
-    // clickable: it says how much is behind each name before you go there.
+    var name = mk("span", "set-cat-name");
+    name.textContent = g.info ? (g.head.dataset.short || g.name) : g.name;
+
+    /* On a settings group the count is what makes the list worth reading
+       rather than just clickable - it says how much is behind each name
+       before you go there. The four that are not settings have no rows to
+       count, so they carry their own line instead. */
     var tally = mk("span", "set-cat-count");
-    tally.textContent = g.count ? g.count : "";
+    tally.textContent = g.info ? (g.head.dataset.sub || "")
+      : (g.count ? g.count : "");
+    if (g.info) tally.className = "set-cat-count f12 faint";
 
     btn.appendChild(name);
     btn.appendChild(tally);
@@ -5687,27 +5741,6 @@
     return btn;
   }
 
-  function aboutCard(g) {
-    var card = mk("button", "set-info");
-    card.type = "button";
-
-    var text = mk("span", "set-info-text");
-    var b = mk("b");  b.textContent = g.head.dataset.short || g.name;
-    var s = mk("small"); s.textContent = g.head.dataset.sub || "";
-    text.appendChild(b);
-    text.appendChild(s);
-    card.appendChild(text);
-
-    card.addEventListener("click", function () {
-      if ($("setSearch").value) $("setSearch").value = "";
-      showGroup(g);
-      applySettingsFilter();
-      g.box.scrollIntoView({ block: "nearest" });
-    });
-    g.btn = card;
-    return card;
-  }
-
   /* Show exactly one group. Used while nothing is being searched for; a
      search takes over and shows every match instead, across all of them. */
   function showGroup(g) {
@@ -5716,7 +5749,7 @@
     groups.forEach(function (o) {
       o.box.hidden = o !== g;
       if (o.btn) {
-        o.btn.classList.toggle("is-on", o === g);
+        o.btn.classList.toggle("on", o === g);
         o.btn.setAttribute("aria-current", o === g ? "true" : "false");
       }
     });
@@ -5803,8 +5836,11 @@
       // hidden row and a removed feature look identical, so a count that
       // over-promises is not a cosmetic problem, it is the app telling you
       // something untrue. The toggle still says how many are hidden overall.
+      // The four that are not settings have no rows to count - their line is
+      // what they are, and recounting it as 0 or 2 was the list describing
+      // "What's new" as a quantity.
       var tally = g.btn && g.btn.querySelector(".set-cat-count");
-      if (tally) {
+      if (tally && !g.info) {
         var shown = g.panel.querySelectorAll(".field:not([hidden])").length;
         tally.textContent = g.count ? shown : "";
       }
@@ -6254,6 +6290,21 @@
           pollJobs();
         }
         lastAutoCount = res.autoCount;
+      }
+
+      /* The state Riplox already knew and never said. Set every poll rather
+         than once, because "off" is a real answer too and the switch can be
+         turned off after the first report. */
+      var badge = $("hotkeyState");
+      if (badge) {
+        var st = res.hotkey || "off";
+        badge.className = "badge " +
+          (st === "on" ? "b-ok" : st === "fallback" ? "b-warn"
+           : st === "taken" ? "b-bad" : "b-wait");
+        badge.textContent = st === "on" ? "Working"
+          : st === "fallback" ? "Different keys"
+          : st === "taken" ? "No keys free"
+          : "Off";
       }
 
       if (!hotkeyWarned && res.hotkey && res.hotkey !== "off") {
