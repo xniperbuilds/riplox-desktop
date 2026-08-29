@@ -2222,9 +2222,14 @@ def main() -> None:
     _window = webview.create_window(
         APP_TITLE,
         f"http://127.0.0.1:{port}",
-        width=1180,
-        height=780,
-        min_size=(940, 620),
+        # The design is drawn at 1440 x 1024 and every size in it - the 320
+        # rail, the 68 rows, the two-column panels - is measured for that
+        # width. Opening at 1180 does not shrink those, it just leaves them
+        # less room, which is why the rail read as too wide and everything
+        # else as too big. 1440 x 940 fits a 1080p screen with the taskbar.
+        width=1440,
+        height=940,
+        min_size=(1100, 680),
         background_color="#0A101B",
         text_select=False,
         hidden=quiet,

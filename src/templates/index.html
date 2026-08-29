@@ -33,12 +33,9 @@
     </div>
   </div>
 
-  <!-- The one thing the app is for, where the design puts it. -->
-  <button type="button" class="cta" id="newDownload">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-         stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-    New download
-  </button>
+  <!-- No "New download" button here. The Download room IS the new-download
+       screen and it is the first item in the list directly below, so the
+       button was a second door onto a room you can already see. -->
 
   <div class="rail-label">Workspace</div>
 
@@ -102,10 +99,13 @@
     <div class="status" id="engineStatus" title="Download engine">
       <span class="dot"></span><span id="engineLabel">ready</span>
     </div>
+    <!-- The letter is the control and the word is for screen readers and the
+         tooltip. Both were being drawn into a 27px button, so three words ran
+         into each other and read as one. -->
     <div class="theme-pick" id="themePick" role="group" aria-label="Appearance">
-      <button type="button" data-theme="auto"><b>A</b><span>Auto</span></button>
-      <button type="button" data-theme="light"><b>L</b><span>Light</span></button>
-      <button type="button" data-theme="dark"><b>D</b><span>Dark</span></button>
+      <button type="button" data-theme="auto" title="Match Windows"><b>A</b><span>Auto</span></button>
+      <button type="button" data-theme="light" title="Light"><b>L</b><span>Light</span></button>
+      <button type="button" data-theme="dark" title="Dark"><b>D</b><span>Dark</span></button>
     </div>
   </div>
 </aside>
@@ -188,7 +188,7 @@
     <!-- The design's empty state: one job, centred, and everything else a
          caption on the input. -->
     <div class="hero" id="captureHero">
-      <h1>Paste a link. <span>Keep the video.</span></h1>
+      <h1>Paste a link. <span>Rip Everything.</span></h1>
       <p>Works on <b id="siteCount">1,750</b> sites &mdash;
         <button type="button" class="link-quiet" id="browseSites">browse them</button></p>
 
@@ -528,8 +528,14 @@
                was pressed. -->
           <p class="summary" id="pvSummary"></p>
 
+          <!-- The app is called Riplox and the thing it does is rip. The
+               button says it, with what it will take underneath - the second
+               line changes with the selection, so the button states the job
+               rather than naming a verb. -->
           <div class="preview-actions">
-            <button class="btn pri" id="downloadBtn">Download</button>
+            <button class="btn pri rip" id="downloadBtn">
+              <b>RIP</b><em id="ripWhat">Everything</em>
+            </button>
             <button class="btn" id="resetBtn">Clear</button>
           </div>
         </aside>
@@ -636,17 +642,22 @@
     </div>
     <div class="jobs" id="jobs"></div>
 
-    <!-- What came over from the Failed room. It is one block so the chips
-         can show or hide it whole - a failed download is not a row in the
-         queue, it is a row that left the queue. -->
+    <!-- What came over from the Failed room. The rows sit directly under the
+         running ones because the whole point of the merge is that this is ONE
+         list - a failed download is a row that left the queue, not a second
+         page. The chips still hide the block whole. -->
     <div class="failed-part">
-      <p class="conv-note">Kept until you delete them, so a link that would not
-        download is still here tomorrow. Retry puts it back in the queue.</p>
+      <div class="empty" id="failedEmpty">
+        <p>Nothing has failed.</p>
+        <span>A download that will not finish is listed here, with the reason.</span>
+      </div>
+      <div class="history" id="failedList"></div>
+    </div>
 
-      <!-- The one thing this page is allowed to tidy by itself, and only after
-           being told to. Off means a link that downloads in the end stays here
-           with "downloaded later" beside it; on means the page is a list of
-           what is still outstanding. -->
+    <!-- The two things that are about the list rather than in it, kept at the
+         foot. They used to sit between the running rows and the failed ones,
+         which put a settings row in the middle of a list of downloads. -->
+    <div class="act-foot">
       <div class="field">
         <div class="field-text">
           <label>Remove a row once it downloads</label>
@@ -656,12 +667,9 @@
         <button class="toggle {% if settings.failed_clear_on_success %}on{% endif %}"
                 id="setFailedTidy" role="switch"><i></i></button>
       </div>
-
-      <div class="empty" id="failedEmpty">
-        <p>Nothing has failed.</p>
-        <span>A download that will not finish is listed here, with the reason.</span>
-      </div>
-      <div class="history" id="failedList"></div>
+      <p class="conv-note">Failed rows are kept until you delete them, so a link
+        that would not download is still here tomorrow. Retry puts it back in
+        the queue.</p>
     </div>
   </section>
 
@@ -681,11 +689,17 @@
       <div class="chips lib-chips" id="libChips"></div>
     </div>
 
-    <!-- Built from the uploader already recorded with every finished
-         download, so nothing is fetched to produce it. Clicking one searches
-         the library for that name rather than being a shelf of its own -
-         there is already a search box, and a second way to filter the same
-         list would be a second thing to keep in step. -->
+    <!-- Built from the uploader already recorded with every finished download,
+         so nothing is fetched to produce it. Clicking one searches the library
+         for that name.
+
+         These sit in the filter row rather than in a column of their own. As a
+         side panel they took a fixed width from the list whether or not there
+         was anything in them, and uploader names in a narrow column wrapped
+         into something nobody could read. They are filters; they belong with
+         the filters. -->
+    <div class="chips accounts" id="accountsBox" hidden></div>
+
     <div class="lib-body">
       <div class="lib-list">
         <div class="empty" id="libraryEmpty">
@@ -694,10 +708,6 @@
         </div>
         <div class="history" id="history"></div>
       </div>
-      <aside class="lib-side">
-        <h3 class="lib-side-head">Who you download from</h3>
-        <div class="accounts" id="accountsBox"></div>
-      </aside>
     </div>
   </section>
 

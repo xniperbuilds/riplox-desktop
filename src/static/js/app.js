@@ -19,6 +19,14 @@
 
   var $ = function (id) { return document.getElementById(id); };
 
+  /* The Rip button is two lines: RIP on top, what it will take underneath.
+     Writing textContent on the button itself would delete both of them, so
+     only the second line is ever touched. */
+  function ripWhat(text) {
+    var el = $("ripWhat");
+    if (el) el.textContent = text;
+  }
+
   function api(path, body) {
     return fetch(path, {
       method: body === undefined ? "GET" : "POST",
@@ -592,8 +600,12 @@
     $("urlInput").focus();
   });
 
-  // The rail's one action: back to Download, ready for a new link.
-  $("newDownload").addEventListener("click", function () {
+  // The rail's "New download" button is gone — the Download room is that
+  // screen and it is the first item in the list. The handler is kept behind a
+  // guard rather than deleted: the button may come back, and an unguarded
+  // getElementById on a removed id stops the whole file at load.
+  var newDl = $("newDownload");
+  if (newDl) newDl.addEventListener("click", function () {
     clearVideo();
     var box = $("urlInput");
     if (box) { box.value = ""; box.focus(); }
@@ -1193,7 +1205,7 @@
     } else {
       selected = null;
       $("downloadBtn").disabled = false;
-      $("downloadBtn").textContent = "Download";
+      ripWhat("Everything");
     }
   }
 
@@ -1587,11 +1599,11 @@
   function syncCutButton() {
     syncExactCut();
     var out = describeOutput();
-    $("downloadBtn").textContent =
-      out.chapters ? "Download " + plural(out.chapters, "chapter", "chapters")
-      : out.clips ? "Download " + plural(out.clips, "clip", "clips")
-      : out.files > 1 ? "Download " + plural(out.files, "file", "files")
-      : "Download";
+    ripWhat(
+      out.chapters ? plural(out.chapters, "chapter", "chapters")
+      : out.clips ? plural(out.clips, "clip", "clips")
+      : out.files > 1 ? plural(out.files, "file", "files")
+      : "Everything");
     syncSummary();
   }
 
@@ -1817,9 +1829,9 @@
 
     var btn = $("downloadBtn");
     btn.disabled = count === 0;
-    btn.textContent = count === 0 ? "Nothing selected"
-      : count === total ? "Download all " + total
-      : "Download " + count + " selected";
+    ripWhat(count === 0 ? "Nothing selected"
+      : count === total ? "All " + total
+      : count + " selected");
 
     updateNote(total);
   }
@@ -5497,29 +5509,38 @@
      so this is reading what is already there. Clicking a name puts it in the
      library search rather than making a second kind of filter. */
 
-  /* A column now rather than a panel behind a button. It was a shelf you had
-     to know to open, holding the one thing that answers "what have I taken
-     from this person" - and the button that opened it sat in a row of other
-     buttons saying nothing about what was behind it.
+  /* A row of chips under the filters, not a column beside the list. As a side
+     panel it held a fixed width whether or not it had anything in it, and the
+     list - the thing people opened the room for - was narrower for it. Names
+     wrapped in that column too.
 
-     The button stays for the narrow window, where there is no room for a
-     second column and hiding it is the right answer again. */
-  var accountsShown = true;
+     They are filters, so they live with the filters, and the button that
+     reveals them hides itself when there is nothing to reveal. */
+  var accountsShown = false;
 
   function loadAccounts() {
     var box = $("accountsBox");
     api("/api/accounts").then(function (res) {
       box.innerHTML = "";
       var list = (res.ok && res.accounts) || [];
+      // Nothing recorded yet is not a message, it is a button that should not
+      // be there. It comes back on its own with the first finished download.
+      $("showAccounts").hidden = !list.length;
       if (!list.length) {
-        var none = document.createElement("p");
-        none.className = "accounts-none";
-        none.textContent = "No uploader has been recorded yet. This fills in "
-                         + "as you download.";
-        box.appendChild(none);
+        box.hidden = true;
+        accountsShown = false;
         return;
       }
-      list.forEach(function (row) {
+      /* The most-downloaded first, and only a dozen of them. This machine has
+         240 uploaders recorded: as a full list it is not a filter row, it is a
+         wall nobody reads, and the twelve that matter are buried in it. The
+         rest are a search away, which is what the box above is for. */
+      var TOP = 12;
+      var sorted = list.slice().sort(function (a, b) { return (b.count || 0) - (a.count || 0); });
+      var shown = sorted.slice(0, TOP);
+      var rest = sorted.length - shown.length;
+
+      shown.forEach(function (row) {
         var chip = document.createElement("button");
         chip.type = "button";
         chip.className = "chip account-chip";
@@ -5537,6 +5558,15 @@
         });
         box.appendChild(chip);
       });
+
+      // Said out loud rather than silently cut. A list that stops at twelve
+      // without saying so is a list that looks like all there is.
+      if (rest > 0) {
+        var more = document.createElement("span");
+        more.className = "accounts-rest";
+        more.textContent = "+" + rest + " more · search by name";
+        box.appendChild(more);
+      }
     });
   }
 
@@ -5545,6 +5575,12 @@
     $("accountsBox").hidden = !accountsShown;
     $("showAccounts").classList.toggle("on", accountsShown);
     if (accountsShown) loadAccounts();
+  });
+
+  // Asked once on load so the button knows whether it has anything behind it.
+  // The chips stay hidden until they are asked for; this only counts them.
+  api("/api/accounts").then(function (res) {
+    $("showAccounts").hidden = !((res.ok && res.accounts) || []).length;
   });
 
   /* ------------------------------------------------------- how sites are */

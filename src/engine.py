@@ -1594,7 +1594,7 @@ QUALITY_LABELS = {
     # Deliberately not called "best" anything. It is not better for watching -
     # it is a bigger, less playable file that survives being uploaded again,
     # and the name has to carry that or it will be picked by mistake.
-    "max": "Highest - for re-uploading",
+    "max": "Max - for re-uploading",
     "2160": "4K · 2160p",
     "1440": "2K · 1440p",
     "1080": "Full HD · 1080p",
