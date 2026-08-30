@@ -2960,6 +2960,23 @@
     return ago(seconds);
   }
 
+  /* When this item comes round again. Worked out here rather than asked for:
+     the interval is one setting and the last check is already on the row, so
+     the server has nothing to add.
+
+     Empty where there is no answer - paused, never checked, or already due -
+     because "next in 0 min" on an item the sweep is about to reach is a
+     countdown to something that has effectively happened. */
+  function nextCheck(item, s) {
+    if (item.paused || !item.checked || !s.on) return "";
+    var at = item.checked + (s.hours || 0) * 3600;
+    var left = Math.round(at - Date.now() / 1000);
+    if (left <= 60) return "";
+    if (left < 3600) return "in " + Math.round(left / 60) + " min";
+    if (left < 86400) return "in " + Math.round(left / 3600) + " h";
+    return "in " + Math.round(left / 86400) + " d";
+  }
+
   function renderWatch(s) {
     watchState = s;
     $("setWatch").classList.toggle("on", s.on);
@@ -2975,21 +2992,38 @@
     $("watchCheckAll").disabled = !s.items.length || s.sweeping;
 
     $("watchEmpty").hidden = s.items.length > 0;
+
+    /* Everything new, in one list. Reading down five channel panels to find
+       out whether there is anything at all is the work this removes; the
+       channel each video came from travels on its own row instead. */
+    var allNew = [];
+    s.items.forEach(function (it) {
+      (it.new || []).forEach(function (v) {
+        allNew.push({ v: v, from: it.title, id: it.id });
+      });
+    });
+
+    $("watchNew").hidden = allNew.length === 0;
+    $("watchNewCount").textContent = allNew.length
+      ? allNew.length + (allNew.length === 1 ? " video" : " videos") : "";
+    $("watchNewList").innerHTML = allNew.map(function (n) {
+      var v = n.v;
+      return '<div class="new-row">' +
+        (v.thumbnail ? '<img src="' + esc(v.thumbnail) + '" alt="" loading="lazy">'
+                     : '<div class="new-thumb"></div>') +
+        '<div class="new-what"><b>' + esc(v.title) + "</b>" +
+          "<span>" + esc(n.from) +
+          (fmtDuration(v.duration) ? " · " + esc(fmtDuration(v.duration)) : "") +
+          "</span></div>" +
+        '<button class="primary small" data-get="' + esc(v.url) + '" data-item="' +
+          esc(n.id) + '" data-video="' + esc(v.id) + '">Download</button>' +
+        '<button class="ghost small" data-skip="' + esc(n.id) + '" data-video="' +
+          esc(v.id) + '">Skip</button>' +
+        "</div>";
+    }).join("");
+
     $("watchList").innerHTML = s.items.map(function (it) {
       var fresh = it.new || [];
-
-      var videos = fresh.map(function (v) {
-        return '<div class="new-row">' +
-          (v.thumbnail ? '<img src="' + esc(v.thumbnail) + '" alt="" loading="lazy">'
-                       : '<div class="new-thumb"></div>') +
-          '<div class="new-what"><b>' + esc(v.title) + "</b>" +
-            "<span>" + esc(fmtDuration(v.duration) || "") + "</span></div>" +
-          '<button class="primary small" data-get="' + esc(v.url) + '" data-item="' +
-            esc(it.id) + '" data-video="' + esc(v.id) + '">Download</button>' +
-          '<button class="ghost small" data-skip="' + esc(it.id) + '" data-video="' +
-            esc(v.id) + '">Skip</button>' +
-          "</div>";
-      }).join("");
 
       var trouble = it.error
         ? '<p class="warn watch-err">' + esc(it.error) +
@@ -3002,20 +3036,21 @@
                           '" alt="" loading="lazy">' : '<div class="watch-thumb"></div>') +
           '<div class="who"><b>' + esc(it.title) +
             (it.paused ? ' <em class="tag">paused</em>' : "") + "</b>" +
-            '<span>' + esc(it.kind) + " · checked " + when(it.checked) +
+            '<span>' + esc(it.kind) +
+            (it.watching ? " · " + it.watching + " seen" : "") +
+            " · checked " + when(it.checked) +
+            // Only where it can be worked out and is still ahead: a paused
+            // item has no next check, and neither has one never checked.
+            (nextCheck(it, s) ? " · next " + nextCheck(it, s) : "") +
             (fresh.length ? " · " + fresh.length + " new" : "") + "</span></div>" +
           '<button class="ghost small" data-check="' + esc(it.id) + '">Check</button>' +
           '<button class="ghost small" data-wpause="' + esc(it.id) + '" data-to="' +
             (it.paused ? "0" : "1") + '">' + (it.paused ? "Resume" : "Pause") + "</button>" +
           '<button class="ghost small danger" data-drop="' + esc(it.id) +
             '">Remove</button>' +
-        "</div>" + trouble +
-        (fresh.length
-          ? '<div class="new-list">' + videos +
-            '<button class="ghost small" data-skip="' + esc(it.id) +
-            '">Clear all</button></div>'
-          : "") +
-        "</div>";
+        // The videos themselves are in the one list above. What stays here is
+        // the channel and what is true of it.
+        "</div>" + trouble + "</div>";
     }).join("");
 
     $("watchBadge").textContent = s.new;
@@ -3137,7 +3172,9 @@
     });
   });
 
-  $("watchList").addEventListener("click", function (e) {
+  // Bound to both lists: the videos moved into the one at the top, and the
+  // channel rows below still carry Check, Pause and Remove.
+  function onWatchClick(e) {
     var get = e.target.closest("[data-get]");
     if (get) {
       api("/api/add", { items: [{ url: get.dataset.get }], quality: quality })
@@ -3188,6 +3225,102 @@
         });
       });
     }
+  }
+  $("watchList").addEventListener("click", onWatchClick);
+  $("watchNewList").addEventListener("click", onWatchClick);
+
+  /* Both of these act on the one list rather than on a channel, which is the
+     point of having one list: five channels' worth of new videos is a single
+     decision now instead of five. */
+  $("watchGetAll").addEventListener("click", function () {
+    var rows = $("watchNewList").querySelectorAll("[data-get]");
+    if (!rows.length) return;
+    var items = [];
+    rows.forEach(function (b) { items.push({ url: b.dataset.get }); });
+    api("/api/add", { items: items, quality: quality }).then(function (res) {
+      if (!res.ok) { toast(res.error || "Could not queue those.", "bad"); return; }
+      toast(items.length + " queued", "good");
+      pollJobs();
+      // Marked seen one at a time because that is what the endpoint takes;
+      // the screen is redrawn once, from the last answer, rather than after
+      // each of them.
+      var left = rows.length, last = null;
+      rows.forEach(function (b) {
+        api("/api/watch/seen", { id: b.dataset.item, video: b.dataset.video })
+          .then(function (r) {
+            if (r.state) last = r.state;
+            if (--left === 0 && last) renderWatch(last);
+          });
+      });
+    });
+  });
+
+  $("watchClearAll").addEventListener("click", function () {
+    var ids = {};
+    $("watchNewList").querySelectorAll("[data-skip]").forEach(function (b) {
+      ids[b.dataset.skip] = true;
+    });
+    var names = Object.keys(ids);
+    if (!names.length) return;
+    var left = names.length, last = null;
+    names.forEach(function (id) {
+      // No video id clears the whole channel's list, which is what the old
+      // per-channel "Clear all" did - this just does it for every channel.
+      api("/api/watch/seen", { id: id, video: "" }).then(function (r) {
+        if (r.state) last = r.state;
+        if (--left === 0 && last) renderWatch(last);
+      });
+    });
+  });
+
+  /* ------------------------------------------- five things you can press */
+  /* The advice for a bot check was five paragraphs naming five places to go.
+     Three of them still say where they are, because knowing that is worth as
+     much as arriving - but none of them has to be walked to any more. */
+
+  function gotoSetting(groupName) {
+    show("settings");
+    var g = byName(groupName);
+    if (!g) return false;
+    if ($("setSearch").value) { $("setSearch").value = ""; applySettingsFilter(); }
+    showGroup(g);
+    g.box.scrollIntoView({ block: "nearest" });
+    return true;
+  }
+
+  $("botSlow").addEventListener("click", function () {
+    $("watchHours").value = "24";
+    saveSetting({ watch_hours: 24 }).then(function (res) {
+      if (res && res.ok) toast("Checking every 24 hours");
+      loadWatch();
+    });
+  });
+
+  $("botPause").addEventListener("click", function () {
+    if (!$("setWatch").classList.contains("on")) { toast("Watch is already off"); return; }
+    $("setWatch").click();
+  });
+
+  $("botSignIn").addEventListener("click", function () {
+    if (!gotoSetting("Sign-in")) toast("That group has moved.", "bad");
+  });
+
+  $("botHelper").addEventListener("click", function () {
+    var toggle = $("setPotoken");
+    if (toggle.classList.contains("on")) {
+      toast("The helper is already on");
+      gotoSetting("YouTube");
+      return;
+    }
+    // Turned on here rather than in Settings, then shown, so what happened is
+    // visible rather than taken on trust.
+    toggle.click();
+    gotoSetting("YouTube");
+  });
+
+  $("botUpdate").addEventListener("click", function () {
+    if (!gotoSetting("Advanced")) { toast("That group has moved.", "bad"); return; }
+    $("updateEngine").click();
   });
 
   /* ------------------------------------------------------------- sharing */

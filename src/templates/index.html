@@ -682,6 +682,22 @@
       <p>Nothing being watched.</p>
       <span>Paste a channel or playlist link above.</span>
     </div>
+    <!-- Everything new from everything watched, in one list. Per-channel lists
+         meant reading down the page to find out whether there was anything at
+         all, and deciding what to take out of five separate places. The
+         channel each one came from is on its own row. -->
+    <div class="watch-new" id="watchNew" hidden>
+      <div class="wn-head">
+        <label>New since you last looked</label>
+        <div class="row-gap">
+          <span class="wn-count" id="watchNewCount"></span>
+          <button class="ghost small" id="watchGetAll">Download all</button>
+          <button class="ghost small" id="watchClearAll">Clear all</button>
+        </div>
+      </div>
+      <div id="watchNewList"></div>
+    </div>
+
     <div id="watchList"></div>
 
     <details class="more" id="watchHelp">
@@ -690,34 +706,51 @@
         <p class="more-note">This is the one thing watching can cause. It is
           usually temporary and it does not break anything — ordinary downloads
           keep working. In order:</p>
-        <div class="more-sec">
-          <label>1 · Slow it down</label>
-          <p class="more-note">Set <b>Check every</b> to 24 hours or 2 days, and
-            remove any channel you do not really follow. Every watched item is
-            another request.</p>
+        <!-- Each step is a control rather than a route to memorise. The three
+             that live in Settings still say where they are, because knowing
+             that is worth as much as arriving there. -->
+        <div class="more-sec step">
+          <div class="step-text">
+            <label>1 · Slow it down</label>
+            <p class="more-note">Check every 24 hours instead. Every watched
+              item is another request, so fewer and slower is the whole fix.</p>
+          </div>
+          <button class="ghost small" id="botSlow">Check every 24 h</button>
         </div>
-        <div class="more-sec">
-          <label>2 · Wait it out</label>
-          <p class="more-note">Turn Watch off for a day. These blocks lift on
-            their own far more often than not.</p>
+        <div class="more-sec step">
+          <div class="step-text">
+            <label>2 · Wait it out</label>
+            <p class="more-note">Turn Watch off for a day. These blocks lift on
+              their own far more often than not.</p>
+          </div>
+          <button class="ghost small" id="botPause">Turn Watch off</button>
         </div>
-        <div class="more-sec">
-          <label>3 · Sign in</label>
-          <p class="more-note"><b>Settings → Sign-in → Sign in to YouTube</b>.
-            A signed-in request is rarely challenged. Use an account you do not
-            mind losing — heavy automated use can get the account itself
-            limited, and that is a real risk, not a formality.</p>
+        <div class="more-sec step">
+          <div class="step-text">
+            <label>3 · Sign in</label>
+            <p class="more-note"><b>Settings → Sign-in</b>. A signed-in request
+              is rarely challenged. Use an account you do not mind losing —
+              heavy automated use can get the account itself limited, and that
+              is a real risk, not a formality.</p>
+          </div>
+          <button class="ghost small" id="botSignIn">Open Sign-in</button>
         </div>
-        <div class="more-sec">
-          <label>4 · Turn on the helper</label>
-          <p class="more-note"><b>Settings → YouTube → proof-of-origin
-            helper</b>. It answers the check YouTube is making, which is exactly
-            what this failure is.</p>
+        <div class="more-sec step">
+          <div class="step-text">
+            <label>4 · Turn on the helper</label>
+            <p class="more-note"><b>Settings → YouTube</b>. The proof-of-origin
+              helper answers the check YouTube is making, which is exactly what
+              this failure is.</p>
+          </div>
+          <button class="ghost small" id="botHelper">Turn the helper on</button>
         </div>
-        <div class="more-sec">
-          <label>5 · Update the engine</label>
-          <p class="more-note"><b>Settings → Advanced → Update engine</b>. When
-            YouTube changes something, the fix usually arrives there first.</p>
+        <div class="more-sec step">
+          <div class="step-text">
+            <label>5 · Update the engine</label>
+            <p class="more-note"><b>Settings → Advanced</b>. When YouTube
+              changes something, the fix usually arrives there first.</p>
+          </div>
+          <button class="ghost small" id="botUpdate">Update the engine</button>
         </div>
       </div>
     </details>

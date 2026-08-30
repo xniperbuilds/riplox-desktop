@@ -856,6 +856,17 @@ button { font-family: var(--body); }
 }
 
 .more-sec + .more-sec { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
+
+/* A step with something to press. The button keeps its own width and sits
+   against the text rather than under it, so five steps read as five actions
+   rather than as five more paragraphs. */
+.more-sec.step {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+.step-text { flex: 1; min-width: 0; }
+.more-sec.step > .ghost.small { flex: none; margin-top: 2px; }
 .more-sec > label,
 .more-row > label:not(.more-field) {
   display: block;
@@ -1818,6 +1829,32 @@ button { font-family: var(--body); }
 }
 
 .watch-err { margin: 0 14px 12px; font-size: 12px; }
+
+/* Everything new from every watched channel, above the channels themselves.
+   It is the part anybody came to this screen for, so it is first. */
+.watch-new {
+  margin-bottom: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--panel);
+  overflow: hidden;
+}
+.wn-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.wn-head > label {
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.wn-count { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); }
+#watchNewList { padding: 4px 14px 10px; background: var(--well); }
 
 .new-list {
   padding: 4px 14px 14px;
