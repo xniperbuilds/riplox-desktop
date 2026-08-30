@@ -555,7 +555,21 @@
         <option value="name">By name</option>
         <option value="big">Biggest first</option>
       </select>
+      <!-- What the file is, worked out from the quality and the name the
+           engine gave it - nothing new is recorded for this. A select rather
+           than a second row of chips: the chips below already filter by site,
+           and two rows of them would be two things to keep in step. -->
+      <select id="libKind" title="What kind of file">
+        <option value="all">Everything</option>
+        <option value="video">Video</option>
+        <option value="audio">Audio</option>
+        <option value="clip">Clips</option>
+      </select>
       <span class="lib-count" id="libCount"></span>
+      <!-- Named for what it writes. It is every finished download, not the
+           filtered view above, and the two would be easy to confuse. -->
+      <button class="ghost small" data-export="csv"
+              title="Every finished download as a spreadsheet — not just what the filters above are showing">Export library</button>
       <button class="ghost small" id="showAccounts">Accounts</button>
       <div class="chips lib-chips" id="libChips"></div>
     </div>

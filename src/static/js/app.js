@@ -2322,6 +2322,22 @@
   var siteNames = {};
   (S.sites || []).forEach(function (name) { siteNames[name.toLowerCase()] = name; });
 
+  /* What a downloaded file is, from what was already written down.
+
+     Nothing new is recorded for this: mp3 is a quality the job carried, and a
+     clip gets " clip 1.30-2.00" put into its filename by the engine precisely
+     so it cannot collide with the whole video. Reading those back is cheaper
+     than a migration, and it works on every row already in the library rather
+     than only on the ones downloaded after today. */
+  function kindOf(item) {
+    var path = String(item.filepath || "");
+    if (/ clip [\d.]+-/.test(path)) return "clip";
+    if (item.quality === "mp3" || /\.(mp3|m4a|opus|aac|flac|wav)$/i.test(path)) {
+      return "audio";
+    }
+    return "video";
+  }
+
   function sourceOf(item) {
     if (item.site) return item.site;
 
@@ -2340,6 +2356,7 @@
       libraryItems = (res.history || []).map(function (h) {
         h._source = sourceOf(h);
         h._bytes = bytesOf(h.size);
+        h._kind = kindOf(h);
         return h;
       });
       $("libraryEmpty").hidden = libraryItems.length > 0;
@@ -2357,8 +2374,15 @@
   }
 
   function renderChips() {
+    /* Counted within the kind that is being shown. A chip saying "youtube 253"
+       over a list of four audio files is the number disagreeing with the list
+       under it, which is the one thing a count on a screen must never do. */
+    var kind = $("libKind").value;
+    var pool = kind === "all" ? libraryItems
+      : libraryItems.filter(function (h) { return h._kind === kind; });
+
     var counts = {};
-    libraryItems.forEach(function (h) {
+    pool.forEach(function (h) {
       counts[h._source] = (counts[h._source] || 0) + 1;
     });
     var names = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; });
@@ -2366,7 +2390,7 @@
 
     $("libChips").innerHTML =
       ['<button type="button" class="chip' + (libSource === "all" ? " is-on" : "") +
-       '" data-src="all">All · ' + libraryItems.length + "</button>"]
+       '" data-src="all">All · ' + pool.length + "</button>"]
         .concat(names.map(function (n) {
           return '<button type="button" class="chip' +
             (n === libSource ? " is-on" : "") + '" data-src="' + esc(n) + '">' +
@@ -2378,8 +2402,10 @@
     var term = ($("libSearch").value || "").trim().toLowerCase();
     var sort = $("libSort").value;
 
+    var kind = $("libKind").value;
     var shown = libraryItems.filter(function (h) {
       if (libSource !== "all" && h._source !== libSource) return false;
+      if (kind !== "all" && h._kind !== kind) return false;
       if (!term) return true;
       // The uploader counts as well as the title. Without it, searching for
       // a name found nothing even though every file was by that person -
@@ -2419,6 +2445,10 @@
 
   $("libSearch").addEventListener("input", renderHistory);
   $("libSort").addEventListener("change", renderHistory);
+  $("libKind").addEventListener("change", function () {
+    renderChips();          // the site counts are of what this kind leaves
+    renderHistory();
+  });
   $("libChips").addEventListener("click", function (e) {
     var chip = e.target.closest("[data-src]");
     if (!chip) return;
