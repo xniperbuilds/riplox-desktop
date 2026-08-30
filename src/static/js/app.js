@@ -3369,6 +3369,185 @@
     $("updateEngine").click();
   });
 
+  /* ---------------------------------------------------------- Ctrl+K */
+
+  /* One search across the rooms, every setting and the library - or a pasted
+     link, which skips the rooms entirely.
+
+     Nothing is fetched to build it. The rooms are the rail's own buttons and
+     their counts are the badges already hanging on them; the settings rows are
+     the same rows the settings search reads; the library is the array the
+     library screen already holds. */
+
+  var palRows = [], palIndex = 0;
+
+  function palResults(term) {
+    var q = term.trim().toLowerCase();
+    var out = [];
+
+    // A link is the commonest thing anybody does here, so it comes first and
+    // is offered as itself rather than as something to search for.
+    if (/^https?:\/\//i.test(term.trim())) {
+      var url = term.trim();
+      out.push({ group: "Do", label: "Analyse this link", hint: "and pick a quality",
+                 run: function () { show("capture"); $("urlInput").value = url; analyze(url); } });
+      out.push({ group: "Do", label: "Find every video on that page", hint: "reads the page",
+                 run: function () { show("capture"); $("urlInput").value = url; grabPage(url); } });
+      return out;
+    }
+    if (!q) return out;
+
+    /* Go to - matched on [data-view] rather than on a class, so restyling the
+       rail cannot quietly empty this list: a button without a view is not a
+       room, whatever it has been renamed to. */
+    document.querySelectorAll(".tab[data-view]").forEach(function (tab) {
+      var label = tab.querySelector(".tab-label");
+      var name = label ? label.textContent.trim() : "";
+      if (!name || name.toLowerCase().indexOf(q) < 0) return;
+      var badge = tab.querySelector(".badge");
+      out.push({
+        group: "Go to", label: name,
+        hint: badge && !badge.hidden && badge.textContent !== "0"
+          ? badge.textContent + " waiting" : "",
+        run: function () { show(tab.dataset.view); }
+      });
+    });
+
+    /* Every settings row, with the group it lives in - "Settings → Doing it
+       for you" - because the path is most of the answer. Getting there is the
+       settings search doing its own job: typing the label in is what makes an
+       advanced row visible, and jumping straight to a hidden row would land
+       on nothing. */
+    document.querySelectorAll("#view-settings .field").forEach(function (row) {
+      if (out.length > 30) return;
+      var label = row.querySelector("label");
+      var name = label ? label.textContent.trim() : "";
+      if (!name || name.toLowerCase().indexOf(q) < 0) return;
+      var panel = row.closest(".panel");
+      var head = panel && panel.previousElementSibling;
+      out.push({
+        group: "Do", label: name,
+        hint: head && head.classList.contains("group-head")
+          ? "Settings → " + head.textContent.trim() : "Settings",
+        run: function () {
+          show("settings");
+          $("setSearch").value = name;
+          applySettingsFilter();
+          row.scrollIntoView({ block: "center" });
+          row.classList.add("is-hit");
+          setTimeout(function () { row.classList.remove("is-hit"); }, 1600);
+        }
+      });
+    });
+
+    // What is already downloaded. Capped, because this is a way in and not a
+    // second library screen.
+    libraryItems.forEach(function (h) {
+      if (out.length > 30) return;
+      if (!h.title || h.title.toLowerCase().indexOf(q) < 0) return;
+      out.push({
+        group: "In your library", label: h.title,
+        hint: (labels[h.quality] || h.quality || "") + (h.size ? " · " + h.size : ""),
+        run: function () {
+          show("library");
+          $("libSearch").value = h.title;
+          $("libSearch").dispatchEvent(new Event("input"));
+        }
+      });
+    });
+
+    return out;
+  }
+
+  function renderPalette() {
+    var rows = palResults($("paletteInput").value);
+    palRows = rows;
+    if (palIndex >= rows.length) palIndex = Math.max(0, rows.length - 1);
+
+    var box = $("paletteList");
+    if (!rows.length) {
+      box.innerHTML = '<p class="pal-none">' +
+        ($("paletteInput").value.trim() ? "Nothing matches that."
+                                        : "Type to search, or paste a link.") +
+        "</p>";
+      return;
+    }
+
+    var html = "", group = "";
+    rows.forEach(function (r, i) {
+      if (r.group !== group) {
+        group = r.group;
+        html += '<div class="pal-group">' + esc(group) + "</div>";
+      }
+      html += '<div class="pal-row' + (i === palIndex ? " is-on" : "") +
+        '" data-i="' + i + '"><span class="pal-label">' + esc(r.label) + "</span>" +
+        (r.hint ? '<span class="pal-hint">' + esc(r.hint) + "</span>" : "") +
+        "</div>";
+    });
+    box.innerHTML = html;
+    var on = box.querySelector(".pal-row.is-on");
+    if (on) on.scrollIntoView({ block: "nearest" });
+  }
+
+  function openPalette() {
+    // The library is what makes a third of this list, and it is only fetched
+    // when its own room is opened.
+    if (!libraryItems.length) loadHistory();
+    $("palette").hidden = false;
+    $("paletteInput").value = "";
+    palIndex = 0;
+    renderPalette();
+    $("paletteInput").focus();
+  }
+
+  function closePalette() { $("palette").hidden = true; }
+
+  function runPalette(i) {
+    var row = palRows[i];
+    if (!row) return;
+    closePalette();
+    row.run();
+  }
+
+  $("paletteInput").addEventListener("input", function () {
+    palIndex = 0;
+    renderPalette();
+  });
+
+  $("paletteList").addEventListener("click", function (e) {
+    var row = e.target.closest(".pal-row");
+    if (row) runPalette(parseInt(row.dataset.i, 10));
+  });
+
+  $("palette").addEventListener("click", function (e) {
+    if (e.target === $("palette")) closePalette();
+  });
+
+  $("paletteInput").addEventListener("keydown", function (e) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      palIndex = Math.min(palIndex + 1, palRows.length - 1);
+      renderPalette();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      palIndex = Math.max(palIndex - 1, 0);
+      renderPalette();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      runPalette(palIndex);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      closePalette();
+    }
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) {
+      e.preventDefault();
+      if ($("palette").hidden) openPalette(); else closePalette();
+    }
+  });
+
   /* ------------------------------------------------------------- sharing */
 
   var shareTimer = null;
