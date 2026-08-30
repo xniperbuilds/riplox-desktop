@@ -514,6 +514,9 @@
     <div class="view-head">
       <h2>Library</h2>
       <div class="row-gap">
+        <!-- Opened from here rather than from a room of its own: every number
+             behind it is counted from this list, so it belongs beside it. -->
+        <button class="ghost small" id="openInsights">Insights</button>
         <button class="ghost small" id="openFolder">Open folder</button>
         <button class="ghost small danger" id="clearHistory">Clear history</button>
       </div>
@@ -1730,6 +1733,94 @@
     <div class="dlg-foot">
       <button class="ghost" id="sitePickerCancel">Cancel</button>
       <button class="primary" id="sitePickerSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- What the library already knows, counted. Nothing here is fetched and no
+     new file is written: every figure comes from history.json and failed.json,
+     which the app has had all along and had never shown back. -->
+<div class="scrim" id="insights" hidden>
+  <div class="dlg dlg-wide" role="dialog" aria-modal="true"
+       aria-labelledby="insightsTitle">
+    <h3 id="insightsTitle">Insights</h3>
+    <p class="dlg-msg" id="insSub"></p>
+
+    <div class="ins-tiles">
+      <div class="ins-tile">
+        <label>Downloaded</label><b id="insFiles">—</b><span id="insSize"></span>
+      </div>
+      <div class="ins-tile">
+        <label>This week</label><b id="insWeek">—</b><span id="insWeekSize"></span>
+      </div>
+      <div class="ins-tile">
+        <label>Worked first try</label><b id="insFirst">—</b><span id="insFirstOf"></span>
+      </div>
+      <div class="ins-tile">
+        <label>Most from</label><b id="insTop">—</b><span id="insTopShare"></span>
+      </div>
+    </div>
+
+    <div class="ins-where">
+      <label>Where it comes from, and how often it works</label>
+      <div class="ins-sites" id="insSites"></div>
+    </div>
+
+    <div class="dlg-foot">
+      <!-- Named for the file it writes, not for the screen it sits on: what
+           comes out is the library - one row per finished download - and not
+           the figures above, which have no columns of their own. -->
+      <button class="ghost small ins-export" data-export="csv"
+              title="One row per finished download — the list these figures are counted from">Export the library as CSV</button>
+      <button class="primary" id="insightsClose">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Asked once, on a new install. Where files go is a choice worth making
+     before the first download rather than discovering afterwards - and the
+     other two are the things people go looking for in Settings on day one.
+     Each control saves the moment it is used, exactly as it does in Settings,
+     so Skip never means "nothing you touched was kept". -->
+<div class="scrim" id="firstRun" hidden>
+  <div class="dlg dlg-wide" role="dialog" aria-modal="true"
+       aria-labelledby="firstRunTitle">
+    <h3 id="firstRunTitle">Welcome to Riplox</h3>
+    <p class="dlg-msg">Three things, then it is out of your way.</p>
+
+    <div class="fr-card">
+      <label>Where should downloads go?</label>
+      <div class="fr-dir">
+        <code id="frDirText">{{ settings.download_dir }}</code>
+        <button class="ghost small" id="frDirPick">Change</button>
+      </div>
+      <label class="fr-check">
+        <input type="checkbox" id="frPerSite"
+               {% if settings.subfolder_per_site %}checked{% endif %}>
+        <span>Keep a folder per site — YouTube, TikTok and Instagram get their own</span>
+      </label>
+    </div>
+
+    <div class="fr-card">
+      <label>Should Riplox watch your clipboard?</label>
+      <span>Copy a link anywhere and Riplox offers to take it, even while it is
+        in the background.</span>
+      <label class="fr-check">
+        <input type="checkbox" id="frClip"
+               {% if settings.auto_paste %}checked{% endif %}>
+        <span>Watch the clipboard</span>
+      </label>
+    </div>
+
+    <div class="fr-card">
+      <label>Media tool <em class="tag" id="frToolState"></em></label>
+      <span id="frToolWhy"></span>
+    </div>
+
+    <div class="dlg-foot">
+      <span class="fr-note">Everything here can be changed later, in Settings.</span>
+      <button class="ghost" id="frSkip">Skip</button>
+      <button class="primary" id="frDone">Start using Riplox</button>
     </div>
   </div>
 </div>

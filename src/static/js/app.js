@@ -2299,6 +2299,76 @@
     });
   });
 
+  /* ------------------------------------------------------------- insights */
+  /* What the library already knows. The app has counted all of this since it
+     started keeping a history and had never shown any of it back.
+
+     Read every time it opens rather than cached: the numbers move with every
+     download, and a panel that opens on figures from an hour ago is worse
+     than one that takes a moment. */
+
+  $("openInsights").addEventListener("click", function () {
+    $("insights").hidden = false;
+    api("/api/insights").then(renderInsights, function () {
+      $("insSub").textContent = "Riplox could not read its own library.";
+    });
+  });
+
+  $("insightsClose").addEventListener("click", function () {
+    $("insights").hidden = true;
+  });
+
+  function renderInsights(d) {
+    if (!d || !d.ok) {
+      $("insSub").textContent = "Riplox could not read its own library.";
+      return;
+    }
+
+    // Nothing downloaded yet: four zeroes and a percentage of nothing say
+    // less than one sentence does, so the tiles stay blank and the sentence
+    // does the talking.
+    if (!d.files) {
+      $("insSub").textContent =
+        "Nothing has finished downloading yet, so there is nothing to count.";
+      $("insSites").innerHTML = "";
+      return;
+    }
+
+    // The history file keeps the most recent N and drops the rest, so "since"
+    // is the oldest row still held - not the day Riplox was installed. Said
+    // plainly, because the difference matters once the cap is reached.
+    $("insSub").textContent = d.capped
+      ? "The most recent " + d.kept + " downloads. Older ones are no longer kept."
+      : (d.since ? "Everything since " + d.since + "." : "Everything downloaded so far.");
+
+    $("insFiles").textContent = d.files;
+    $("insSize").textContent = d.size || "";
+
+    $("insWeek").textContent = d.week;
+    $("insWeekSize").textContent = d.week_size || "";
+
+    $("insFirst").textContent = d.first_try + "%";
+    $("insFirstOf").textContent = "of " + d.first_try_of + " tried";
+
+    $("insTop").textContent = d.top || "—";
+    $("insTopShare").textContent = d.top_share ? d.top_share + "% of them" : "";
+
+    // Sorted by how much came from each site, which is the order the engine
+    // already returns. The failure rate is only drawn where something has
+    // actually failed - a row of "0%" on every site is noise, and the whole
+    // point of the column is to make the one bad site stand out.
+    $("insSites").innerHTML = (d.sites || []).map(function (s) {
+      var bad = s.failed
+        ? '<span class="ins-bad">' + s.rate + "% failed</span>"
+        : '<span class="ins-ok">all worked</span>';
+      return '<div class="ins-row">' +
+        '<span class="ins-site">' + esc(s.site) + "</span>" +
+        '<span class="ins-count">' + s.done +
+          (s.size ? " · " + esc(s.size) : "") + "</span>" +
+        bad + "</div>";
+    }).join("");
+  }
+
   /* ---------------------------------------------------------------- failed */
   /* The list nothing tidies up. Every button here that removes a row is one
      the user pressed: there is no age limit, no cap, and no quiet clean-up
@@ -4917,6 +4987,68 @@
       if (!res.ok) toast("Could not open the browser.", "bad");
     });
   });
+
+  /* ------------------------------------------------------------ first run */
+  /* Three questions on a new install, so where files go is a choice rather
+     than something discovered afterwards.
+
+     Only ever asked once, and never of somebody who was already here: the
+     engine writes first_run_done into any settings file that predates the
+     flag, so upgrading cannot make an existing install look new.
+
+     Each control saves the moment it is used, exactly as the same control
+     does in Settings. Skip therefore means "stop asking", not "throw away
+     what I just chose" - and the two buttons differ only in whether anything
+     was touched, which is the honest shape for a screen that changes settings
+     while it is open. */
+
+  function firstRun() {
+    if (settings.first_run_done) return;
+
+    var tool = $("frToolState");
+    tool.textContent = S.hasFfmpeg ? "found" : "missing";
+    tool.classList.toggle("good", !!S.hasFfmpeg);
+    $("frToolWhy").textContent = S.hasFfmpeg
+      ? "Merging 1080p and above, MP3, trimming and clips are all available."
+      : "Without it, 1080p and above cannot be merged and MP3 is unavailable. "
+        + "Reinstalling Riplox restores it.";
+
+    $("frDirPick").addEventListener("click", function () {
+      api("/api/choose-folder", {}).then(function (res) {
+        if (res.ok) {
+          $("frDirText").textContent = res.settings.download_dir;
+          $("dirLabel").textContent = res.settings.download_dir;
+        } else if (!res.cancelled) {
+          toast(res.error || "Could not open the picker.", "bad");
+        }
+      });
+    });
+
+    // The pair on the Settings screen has to move too, or the two disagree
+    // the first time anybody looks - the toggle there is drawn from the same
+    // setting this checkbox just changed.
+    function mirror(boxId, toggleId, key) {
+      $(boxId).addEventListener("change", function () {
+        var on = $(boxId).checked;
+        $(toggleId).classList.toggle("on", on);
+        var patch = {}; patch[key] = on;
+        saveSetting(patch);
+      });
+    }
+    mirror("frPerSite", "setSubfolder", "subfolder_per_site");
+    mirror("frClip", "setAutoPaste", "auto_paste");
+
+    function done() {
+      $("firstRun").hidden = true;
+      saveSetting({ first_run_done: true });
+      $("urlInput").focus();
+    }
+    $("frDone").addEventListener("click", done);
+    $("frSkip").addEventListener("click", done);
+
+    $("firstRun").hidden = false;
+  }
+  firstRun();
 
   $("urlInput").focus();
   pollJobs();

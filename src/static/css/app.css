@@ -2533,6 +2533,145 @@ button { font-family: var(--body); }
 /* --- the site picker ----------------------------------------------------- */
 
 /* Wider than the ask box: this one holds a grid, not a sentence. */
+/* --- insights, and the first-run questions -------------------------------- */
+
+/* Both hold rows rather than a sentence, so they get the site picker's width
+   rather than the ask box's. */
+.dlg-wide { width: min(620px, 100%); }
+
+.ins-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+.ins-tile {
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--well);
+}
+.ins-tile label {
+  display: block;
+  font-size: 10px;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.ins-tile b {
+  display: block;
+  margin-top: 7px;
+  font-family: var(--display);
+  font-size: 21px;
+  font-weight: 600;
+  color: var(--ink);
+  /* A site name can be long where a count never is, and this is the one tile
+     that holds one. It shortens rather than widening the grid column. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ins-tile span {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+
+.ins-where { margin-top: 18px; }
+.ins-where > label {
+  display: block;
+  margin-bottom: 9px;
+  font-size: 12.5px;
+  color: var(--ink-dim);
+}
+.ins-sites {
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  overflow: hidden;
+}
+.ins-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 14px;
+  font-size: 12.5px;
+}
+.ins-row + .ins-row { border-top: 1px solid var(--line-soft); }
+.ins-site { flex: 1; min-width: 0; color: var(--ink);
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ins-count { flex: none; font-family: var(--mono); font-size: 11px; color: var(--ink-dim); }
+/* Wide enough for either verdict, so the column does not jump between rows. */
+.ins-bad, .ins-ok { flex: none; width: 84px; text-align: right; font-size: 11px; }
+.ins-bad { color: var(--pink); }
+.ins-ok { color: var(--ink-faint); }
+
+/* The export sits at the far left of the foot: it is about the library, not
+   about closing this box, and putting the two side by side reads as a choice
+   between them. */
+.ins-export { margin-right: auto; min-width: 0; }
+
+.fr-card {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--well);
+}
+.fr-card > label {
+  display: block;
+  font-family: var(--display);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.fr-card > span {
+  display: block;
+  margin-top: 5px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-dim);
+}
+.fr-dir {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+.fr-dir code {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--well-2);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fr-check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 11px;
+  font-size: 12.5px;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+.fr-check input { flex: none; }
+.fr-note {
+  margin-right: auto;
+  align-self: center;
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+/* The state of the media tool is the one tag in the app that can be good news,
+   so it is not left amber like the rest. */
+.tag.good { color: var(--cyan); }
+
 .dlg-sites { width: min(620px, 100%); }
 
 .dlg-sites .text-input {
