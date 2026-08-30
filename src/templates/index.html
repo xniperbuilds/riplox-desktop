@@ -88,6 +88,18 @@
     </button>
   </nav>
 
+  <!-- What is downloading, in the corner of the rail, so the question a
+       downloader asks constantly is answerable from any room instead of only
+       from Queue. Nothing is fetched for it: the queue poll already carries
+       the title, the percent, the size and the speed. Two rows at most - it
+       is a glance, and the full list is one click away. Hidden entirely when
+       nothing is running, because a panel that says "nothing" is a panel you
+       learn to ignore. -->
+  <div class="rail-live" id="railLive" hidden>
+    <div class="live-head"><span>Downloading</span><em id="liveCount"></em></div>
+    <div id="liveRows"></div>
+  </div>
+
   <div class="side-foot">
     <div class="theme-pick" id="themePick" role="group" aria-label="Appearance">
       <button type="button" data-theme="auto"><b>A</b><span>Auto</span></button>
@@ -116,7 +128,7 @@
   <section class="view is-active" id="view-capture">
 
     <div class="capture-head reveal" style="--d:0ms">
-      <h1>Paste a link.<br><span>Keep the video.</span></h1>
+      <h1>Paste a link.<br><span>Rip Everything.</span></h1>
       <!-- The claim and the proof in one place: the app says "a thousand
            more", so the phrase itself opens the list and shows them. -->
       <p class="sub">YouTube · TikTok · Instagram · Facebook · X · Reddit —
@@ -407,7 +419,12 @@
         </details>
 
         <div class="preview-actions">
-          <button class="primary big" id="downloadBtn">Download</button>
+          <!-- Two lines: what it does, and what it is about to take. The
+               second line is the only one that ever changes, so writing
+               textContent on the button itself would delete both. -->
+          <button class="primary big rip" id="downloadBtn">
+            <b>RIP</b><em id="ripWhat">Everything</em>
+          </button>
           <button class="ghost" id="resetBtn">Clear</button>
         </div>
       </div>

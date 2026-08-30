@@ -383,8 +383,16 @@
     } else {
       selected = null;
       $("downloadBtn").disabled = false;
-      $("downloadBtn").textContent = "Download";
+      ripWhat("Everything");
     }
+  }
+
+  /* The RIP button is two lines - RIP on top, what it will take underneath -
+     so only the second line is ever written to. Setting textContent on the
+     button would take both of them with it. */
+  function ripWhat(text) {
+    var el = $("ripWhat");
+    if (el) el.textContent = text;
   }
 
   function resetTrim() {
@@ -712,10 +720,10 @@
     syncExactCut();
     var chapters = chapterPicks.length;
     var clips = $("clipOn") && $("clipOn").checked ? currentClips().length : 0;
-    $("downloadBtn").textContent =
-      chapters ? "Download " + chapters + (chapters === 1 ? " chapter" : " chapters")
-      : clips ? "Download " + clips + (clips === 1 ? " clip" : " clips")
-      : "Download";
+    ripWhat(
+      chapters ? chapters + (chapters === 1 ? " chapter" : " chapters")
+      : clips ? clips + (clips === 1 ? " clip" : " clips")
+      : "Everything");
   }
 
   $("chapterList").addEventListener("change", function (e) {
@@ -918,9 +926,9 @@
 
     var btn = $("downloadBtn");
     btn.disabled = count === 0;
-    btn.textContent = count === 0 ? "Nothing selected"
-      : count === total ? "Download all " + total
-      : "Download " + count + " selected";
+    ripWhat(count === 0 ? "Nothing selected"
+      : count === total ? "All " + total
+      : count + " selected");
 
     updateNote(total);
   }
@@ -1708,6 +1716,7 @@
     var badge = $("queueBadge");
     badge.textContent = active;
     badge.hidden = active === 0;
+    syncRailLive(jobs);
 
     $("queueEmpty").hidden = jobs.length > 0;
 
@@ -1842,6 +1851,38 @@
 
   // Pausing only means anything while bytes are moving.
   var PAUSE_BTN = ["pause", ICON.pause, "Pause — keeps what has downloaded", ""];
+
+  /* The rail's live panel. Two rows at most: it is a glance, not a list, and
+     the list itself is one click away in Queue. An open-ended clip has no
+     total to measure against, so its bar says "working" rather than sitting
+     at zero as if nothing were happening - the same rule the queue rows
+     already follow. */
+  function syncRailLive(jobs) {
+    var live = jobs.filter(function (j) {
+      return j.status === "downloading" || j.status === "converting";
+    });
+    $("railLive").hidden = live.length === 0;
+    if (!live.length) { $("liveRows").innerHTML = ""; return; }
+
+    $("liveCount").textContent = live.length > 2
+      ? "2 of " + live.length : String(live.length);
+
+    $("liveRows").innerHTML = live.slice(0, 2).map(function (j) {
+      var unmeasurable = !!j.stage && j.percent < 1;
+      var pct = unmeasurable ? 100 : j.percent;
+      var left = unmeasurable
+        ? esc(j.stage)
+        : j.percent.toFixed(0) + "%" + (j.size ? " · " + esc(j.size) : "");
+      return '<div class="live-row">' +
+        '<div class="live-title" title="' + esc(j.title || "") + '">' +
+        esc(j.title || "") + "</div>" +
+        '<div class="meter"><i class="' + (unmeasurable ? "working" : "") +
+        '" style="width:' + pct.toFixed(0) + '%"></i></div>' +
+        '<div class="live-meta"><span>' + left + "</span>" +
+        "<span>" + (j.speed ? esc(j.speed) : "") + "</span></div>" +
+        "</div>";
+    }).join("");
+  }
 
   function actionsFor(j) {
     var set = (ACTIONS[j.status] || ACTIONS.busy).slice();

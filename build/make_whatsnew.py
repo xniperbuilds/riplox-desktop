@@ -57,10 +57,14 @@ INTERNAL = (
 # resurrect one.
 # Checked one at a time against the interface that is actually shipping, not
 # assumed from the commit they came in: every line here names something that
-# was built on a redesigned screen and has no home in the classic one. Two
+# was built on a redesigned screen and has no home in the classic one. Three
 # lines from that same range survived the check and are still in the panel -
-# the shortcut telling you which keys Windows granted, and a download's own
-# log - because the classic interface has both.
+# the shortcut telling you which keys Windows granted, a download's own log,
+# and the rail's live panel, which was rebuilt on the classic rail afterwards.
+#
+# So this list is not "everything from those commits". A line leaves it the
+# moment the feature exists again, or the panel starts lying in the other
+# direction - hiding something the app really does.
 WITHDRAWN = (
     "Riplox has been redesigned",
     "Queue and Failed are one room",
@@ -68,7 +72,6 @@ WITHDRAWN = (
     "Press Ctrl+K anywhere",
     "Insights shows what your library already knows",
     "Insights can write your library out",
-    "The rail shows what is downloading right now",
     "says what it left out",
     "asked three questions on first run",
     "already in your library",

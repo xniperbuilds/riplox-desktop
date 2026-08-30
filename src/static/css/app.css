@@ -252,7 +252,12 @@ body::before {                       /* faint technical grid */
 }
 .wordmark i { font-style: normal; color: var(--cyan-ink); opacity: var(--soft-o-2); }
 
-.tabs { display: flex; flex-direction: column; gap: 2px; }
+/* The nav takes the rail's spare height, which is what puts the live panel and
+   the foot at the bottom in that order. Doing it with an auto margin on each
+   of them does not work: two auto margins SPLIT the free space, so the panel
+   ends up floating with a gap under it. Grow but never shrink - a short window
+   scrolls the rail rather than squeezing the tabs. */
+.tabs { display: flex; flex-direction: column; gap: 2px; flex: 1 0 auto; }
 
 .tab {
   position: relative;
@@ -304,6 +309,49 @@ body::before {                       /* faint technical grid */
   font-weight: 700;
   text-align: center;
 }
+
+/* What is downloading, in the corner of the rail. It has no auto margin of its
+   own - the nav above takes the spare height, so this and the foot land at the
+   bottom in order. See .tabs. */
+.rail-live {
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.live-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 10px;
+}
+.live-head span {
+  font-family: var(--display);
+  font-size: 10px;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.live-head em { font-style: normal; font-size: 11px; color: var(--ink-dim); }
+.live-row { padding: 8px; border-radius: var(--r-s); }
+.live-row + .live-row { margin-top: 2px; }
+.live-title {
+  font-size: 12px;
+  color: var(--ink-dim);
+  margin-bottom: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.live-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 7px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.live-meta span { overflow: hidden; text-overflow: ellipsis; }
 
 .side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
 
@@ -497,6 +545,31 @@ button { font-family: var(--body); }
 .primary:active { transform: translateY(0); }
 .primary:disabled { opacity: .45; cursor: default; transform: none; box-shadow: none; }
 .primary.big { padding: 13px 28px; font-size: 15px; }
+
+/* RIP, and under it what is about to be taken. Two lines rather than a long
+   label, so the button keeps its shape whether the second line says
+   "Everything" or "12 selected". The stack is scoped to .rip - every other
+   .primary in the app is one line and stays a row. */
+.rip {
+  flex-direction: column;
+  gap: 1px;
+  padding-top: 9px;
+  padding-bottom: 9px;
+  line-height: 1.15;
+}
+.rip b { font-size: 16px; font-weight: 700; letter-spacing: .12em; }
+.rip em {
+  font-family: var(--body);
+  font-size: 10.5px;
+  font-style: normal;
+  font-weight: 500;
+  letter-spacing: .02em;
+  opacity: .78;
+  max-width: 15ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .ghost {
   padding: 10px 16px;
@@ -2850,7 +2923,9 @@ select:focus { border-color: rgba(var(--cyan-rgb), .45); }
   /* Below this width the labels are what has to go, not the navigation. */
   .sidebar { width: 62px; padding: 16px 8px 14px; align-items: center; }
   .brand { padding: 4px 0 0; }
-  .wordmark, .tab-label, .theme-pick button span { display: none; }
+  /* The live panel steps aside too: a title and a speed cannot be read in
+     62 pixels, and the icons are what this width exists to keep. */
+  .wordmark, .tab-label, .theme-pick button span, .rail-live { display: none; }
   .theme-pick button b { display: block; }
   .tabs { width: 100%; }
   .tab { justify-content: center; padding: 10px 0; }
