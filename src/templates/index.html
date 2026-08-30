@@ -461,8 +461,17 @@
         <button type="button" class="ghost small" id="plInvert">Invert</button>
         <span class="pl-count" id="plCount"></span>
       </div>
+      <!-- What a page read left out, and why. Four reasons said as four
+           different things: "48 left out" would be true and useless. Only
+           shown for a grabbed page - a playlist leaves nothing out. -->
+      <div class="grab-chips" id="grabChips" hidden></div>
+
       <ul class="playlist" id="playlistBox"></ul>
+      <div class="grab-left" id="grabLeftOut" hidden></div>
       <p class="pl-note" id="plNote" hidden></p>
+      <p class="grab-foot" id="grabFoot" hidden>Reading a page costs one
+        request. Nothing is fetched from any of these until you pick and press
+        RIP.</p>
     </div>
   </section>
 

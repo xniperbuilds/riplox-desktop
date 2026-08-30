@@ -257,6 +257,139 @@
      not know: a blog post with three embedded videos, a links page, a forum
      thread. It comes back shaped like a playlist on purpose, so the picking,
      sorting and first-N screen below needs no second version of itself. */
+  /* ------------------------------------------ what a page read left out */
+
+  /* Matching a page's links against the library. Only the parameters known to
+     be tracking come off; the rest stays, because a video id lives in the
+     query on YouTube and stripping the whole thing would match every video on
+     the channel to every other.
+
+     lazy: a fixed list. A link carrying some other site's tracking parameter
+     will not match, and the cost of that is one video downloaded twice, which
+     is what happens today anyway. Matching harder risks the opposite - hiding
+     a video from the pickable list because it looked like one already saved -
+     and that is the worse mistake of the two. */
+  var TRACKING = /^(utm_[a-z]+|igsh?i?|si|fbclid|gclid|feature|ref|ref_src|source|share_id)$/i;
+
+  function bareUrl(url) {
+    var s = String(url || "").split("#")[0];
+    var cut = s.indexOf("?");
+    if (cut < 0) return s.replace(/\/+$/, "").toLowerCase();
+    var kept = s.slice(cut + 1).split("&").filter(function (pair) {
+      return pair && !TRACKING.test(pair.split("=")[0]);
+    });
+    return (s.slice(0, cut).replace(/\/+$/, "") +
+            (kept.length ? "?" + kept.join("&") : "")).toLowerCase();
+  }
+
+  function inLibrary(url) {
+    var bare = bareUrl(url);
+    if (!bare) return null;
+    for (var i = 0; i < libraryItems.length; i++) {
+      if (bareUrl(libraryItems[i].url) === bare) return libraryItems[i];
+    }
+    return null;
+  }
+
+  var grabShowing = "";
+  var grabCapped = 0;
+  var grabGroups = { known: [], duplicates: [], unsupported: [] };
+
+  var GRAB_WHY = {
+    known: "Already in your library",
+    duplicates: "The same link appears more than once on that page",
+    unsupported: "Riplox has no reader for this site. Listed so you know it "
+               + "was seen, not skipped."
+  };
+
+  /* Four reasons a link is not on the list, said as four different things.
+     "48 left out" would be true and useless: one of those reasons means the
+     video is already downloaded, and another means Riplox cannot fetch it at
+     all, and those are not the same news. */
+  function grabNote(info) {
+    var skipped = info.skipped || {};
+    var left = info.left_out || {};
+
+    // Worked out here rather than asked for, and taken off the pickable count:
+    // a chip that says 6 while the list holds 8 is worse than no chip at all.
+    var known = [];
+    (info.entries || []).forEach(function (e) {
+      var hit = inLibrary(e.url);
+      if (hit) known.push({ url: e.url, title: e.title, site: e.site, hit: hit });
+    });
+
+    var groups = [
+      ["", "To download", ((info.entries || []).length - known.length)],
+      ["known", "In your library", known.length],
+      ["duplicates", "Repeated on the page", skipped.duplicates || 0],
+      ["unsupported", "No reader for the site", skipped.unsupported || 0]
+    ];
+
+    grabGroups = { known: known,
+                   duplicates: left.duplicates || [],
+                   unsupported: left.unsupported || [] };
+
+    // Read by updateNote, which owns that line and is called again whenever
+    // the filter or the selection changes.
+    grabCapped = skipped.capped ? (info.count || 0) : 0;
+    updateNote((info.entries || []).length);
+
+    $("grabChips").hidden = false;
+    $("grabChips").innerHTML = groups
+      .filter(function (g) { return g[2] > 0 || g[0] === ""; })
+      .map(function (g) {
+        return '<button type="button" class="chip' +
+          (grabShowing === g[0] ? " is-on" : "") + '" data-grabgroup="' +
+          g[0] + '">' + g[1] + " · " + g[2] + "</button>";
+      }).join("");
+
+    $("grabFoot").hidden = false;
+    paintGrabGroup();
+  }
+
+  function paintGrabGroup() {
+    var picking = grabShowing === "";
+    $("playlistBox").hidden = !picking;
+    document.querySelector(".playlist-bar").hidden = !picking;
+    $("grabLeftOut").hidden = picking;
+    if (picking) return;
+
+    var rows = grabGroups[grabShowing] || [];
+    $("grabLeftOut").innerHTML = rows.map(function (r) {
+      var why = GRAB_WHY[grabShowing];
+      // The same string the library rows show, so the two agree.
+      if (grabShowing === "known" && r.hit && r.hit.when) {
+        why = "Already in your library — saved " +
+          String(r.hit.when).replace("T", " ").slice(0, 16);
+      }
+      return '<div class="gl-row">' +
+        '<div class="gl-what"><b>' + esc(r.title || r.url) + "</b>" +
+        '<span class="' + (grabShowing === "unsupported" ? "gl-warn" : "") +
+          '">' + esc(why) + "</span></div>" +
+        '<span class="gl-site">' + esc(r.site || "") + "</span>" +
+        '<button type="button" class="ghost small" data-copyurl="' +
+          esc(r.url) + '">Copy link</button>' +
+        "</div>";
+    }).join("");
+  }
+
+  $("grabChips").addEventListener("click", function (e) {
+    var chip = e.target.closest("[data-grabgroup]");
+    if (!chip) return;
+    grabShowing = chip.dataset.grabgroup;
+    $("grabChips").querySelectorAll(".chip").forEach(function (c) {
+      c.classList.toggle("is-on", c.dataset.grabgroup === grabShowing);
+    });
+    paintGrabGroup();
+  });
+
+  $("grabLeftOut").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-copyurl]");
+    if (!btn) return;
+    copyText(btn.dataset.copyurl);
+    toast("Link copied");
+  });
+
   function grabPage(url) {
     if (!url) { toast("Paste a page link first.", "bad"); return; }
 
@@ -275,6 +408,13 @@
       }
       current = res.info;
       renderPreview(res.info);
+      // The library is only fetched when its own room is opened, and the
+      // "already saved" match needs it. Someone who reads a page without ever
+      // visiting Library would otherwise be told nothing is already there -
+      // which is worse than saying nothing, because it reads as an answer.
+      if (libraryItems.length) grabNote(res.info);
+      else loadHistory().then(function () { grabNote(res.info); },
+                              function () { grabNote(res.info); });
       toast(res.info.count + " found on that page", "good");
     }).catch(function () {
       setBusy(false);
@@ -283,6 +423,16 @@
   }
 
   function renderPreview(info) {
+    // Cleared for every result, and put back only by grabNote(). A playlist
+    // leaves nothing out, so the chips from the last page read must not stay
+    // on screen describing something else.
+    grabShowing = "";
+    grabCapped = 0;
+    grabGroups = { known: [], duplicates: [], unsupported: [] };
+    $("grabChips").hidden = true;
+    $("grabLeftOut").hidden = true;
+    $("grabFoot").hidden = true;
+
     // A channel is not a video and not a playlist - it is a set of sections.
     // Show those, and let opening one become an ordinary playlist.
     if (info.kind === "channel") {
@@ -957,6 +1107,13 @@
     if (buried) {
       lines.push(buried + (buried === 1 ? " selected video is" : " selected videos are") +
         " hidden by the filter.");
+    }
+
+    // A cap is about the read, not about any particular link, so it has
+    // nothing to list and belongs in the sentence rather than in a chip.
+    if (grabCapped) {
+      lines.push("The page had more than " + grabCapped +
+        " and the read stopped there. Paste a later part of the page to see the rest.");
     }
 
     var note = $("plNote");
@@ -2175,8 +2332,11 @@
     return siteNames[folder.toLowerCase()] || "Other";
   }
 
+  // Returns its request so a caller that needs the library before it can do
+  // its own work - the page read, matching links against what is already
+  // saved - can wait for it rather than racing it.
   function loadHistory() {
-    api("/api/history").then(function (res) {
+    return api("/api/history").then(function (res) {
       libraryItems = (res.history || []).map(function (h) {
         h._source = sourceOf(h);
         h._bytes = bytesOf(h.size);

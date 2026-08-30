@@ -2533,6 +2533,63 @@ button { font-family: var(--body); }
 /* --- the site picker ----------------------------------------------------- */
 
 /* Wider than the ask box: this one holds a grid, not a sentence. */
+/* --- what a page read left out -------------------------------------------- */
+
+.grab-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--line);
+}
+.grab-chips .chip { flex: none; white-space: nowrap; }
+
+.grab-left { padding: 6px; }
+.gl-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  border-radius: var(--r-s);
+}
+.gl-row + .gl-row { border-top: 1px solid var(--line-soft); }
+.gl-what { flex: 1; min-width: 0; }
+.gl-what b {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gl-what span {
+  display: block;
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+/* The one reason that is not merely informational: Riplox cannot fetch these
+   at all, and that is worth a colour the other three do not get. */
+.gl-what span.gl-warn { color: var(--amber-ink); }
+.gl-site {
+  flex: none;
+  max-width: 180px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.grab-foot {
+  margin: 0;
+  padding: 10px 13px 12px;
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+
 /* --- insights, and the first-run questions -------------------------------- */
 
 /* Both hold rows rather than a sentence, so they get the site picker's width
