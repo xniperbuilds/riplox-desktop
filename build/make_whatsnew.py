@@ -56,34 +56,28 @@ INTERNAL = (
 # fragment, like INTERNAL, so tidying the wording later cannot silently
 # resurrect one.
 # Checked one at a time against the interface that is actually shipping, not
-# assumed from the commit they came in: every line here names something that
-# was built on a redesigned screen and has no home in the classic one.
+# assumed from the commit they came in.
 #
-# So this list is not "everything from those commits". A line leaves it the
-# moment the feature exists again, or the panel starts lying in the other
-# direction - hiding something the app really does. Four have left it already:
-# the shortcut naming the keys Windows granted, a download's own log, the
-# rail's live panel once it was rebuilt on the classic rail, and held links.
+# This list started at seventeen, when the 1.5 redesign was reverted and every
+# screen built on it went with it. Fourteen have since come off: some were
+# never gone at all, and the rest were rebuilt on the classic interface one at
+# a time. What remains is the three that describe the redesign itself - six
+# rooms instead of eight, Activity, and Convert as an overlay - and those are
+# the only ones that are still not true.
 #
-# ⚠️ That last one was withdrawn in error. The check was a grep for a UI name
-# that the classic interface happens not to use, and the conclusion drawn was
-# that the feature was gone. It is not: the Sharing room shows the device that
-# sent it, when, Approve and No, and text from a phone as dots and a character
-# count. A line is only safe to withdraw after reading the code that renders
-# it - a name that does not appear proves nothing.
+# A line leaves this list the moment the feature exists again. It has to, or
+# the panel starts lying in the other direction: hiding something the app
+# really does.
+#
+# ⚠️ One line was withdrawn in error, and the mistake is worth keeping written
+# down. The check was a grep for a UI name that the classic interface happens
+# not to use, and the conclusion drawn was that the feature was gone. It was
+# not. A line is only safe to withdraw after reading the code that renders it -
+# a name that does not appear proves nothing at all.
 WITHDRAWN = (
     "Riplox has been redesigned",
     "Queue and Failed are one room",
     "Converting to audio opens over your library",
-    "Press Ctrl+K anywhere",
-    "says what it left out",
-    "already in your library",
-    "when each channel is next checked",
-    "whether you are a bot",
-    "lists what still works",
-    "download window is drawn as a bar",
-    "whether the download engine is the current one",
-    "filters by what a file is",
 )
 
 
