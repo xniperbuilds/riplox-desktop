@@ -2570,6 +2570,62 @@ button { font-family: var(--body); }
 /* --- the site picker ----------------------------------------------------- */
 
 /* Wider than the ask box: this one holds a grid, not a sentence. */
+/* --- limited mode: both halves ------------------------------------------- */
+
+.alert-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+.alert-cols label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.alert-cols p {
+  margin: 5px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+}
+@media (max-width: 720px) { .alert-cols { grid-template-columns: 1fr; } }
+
+/* --- the download window, drawn ------------------------------------------ */
+
+.sched-bar { padding: 0 18px 15px; }
+.sched-track {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--track);
+  overflow: hidden;
+}
+/* Two, because a window that runs through midnight is one period drawn as
+   two pieces of the same day. */
+.sched-track i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  background: linear-gradient(90deg, var(--cyan), var(--cyan-2));
+}
+.sched-ticks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--ink-faint);
+}
+.sched-say {
+  margin: 7px 0 0;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
 /* --- what a page read left out -------------------------------------------- */
 
 .grab-chips {

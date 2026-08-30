@@ -2869,6 +2869,22 @@
         ? res.path
         : "Not found on this PC - reinstall Riplox to get it back.";
     }
+
+    /* Which browser can reach this copy, by name. "A browser" is not an
+       answer on the ordinary PC with two installed and one of them
+       connected - and the app has always known which, it just returned true
+       and threw the name away. */
+    var who = $("extBrowsers");
+    if (who) {
+      var names = res.browsers || [];
+      who.textContent = names.length
+        ? (names.length === 1
+            ? names[0] + " can reach this copy."
+            : names.slice(0, -1).join(", ") + " and " + names[names.length - 1] +
+              " can reach this copy.")
+        : "No browser has been told about this copy yet.";
+    }
+
     showPortable(res);
   });
 
@@ -4059,9 +4075,65 @@
     return saveSetting({ schedule_on: on, schedule_from: from, schedule_to: to });
   }
 
+  /* The window, drawn along a day.
+
+     "23:00 to 06:00" has to be turned into a picture before it is obvious it
+     runs through the night rather than being an empty seven hours - and that
+     is the schedule most people actually want. A window that wraps past
+     midnight is two pieces of one bar, which is why there are two fills. */
+  function minutesOf(value) {
+    var bits = String(value || "").split(":");
+    var h = parseInt(bits[0], 10), m = parseInt(bits[1], 10);
+    if (isNaN(h) || isNaN(m)) return null;
+    return h * 60 + m;
+  }
+
+  function drawSchedule() {
+    var bar = $("schedBar");
+    if (!bar) return;
+
+    var on = $("setSchedule").classList.contains("on");
+    bar.hidden = !on;
+    if (!on) return;
+
+    var from = minutesOf($("setScheduleFrom").value);
+    var to = minutesOf($("setScheduleTo").value);
+    var a = $("schedFill"), b = $("schedFill2"), say = $("schedSay");
+    if (from === null || to === null) { bar.hidden = true; return; }
+
+    var pct = function (mins) { return (mins / 1440 * 100).toFixed(2) + "%"; };
+
+    // Equal ends is the one case the engine treats as "all day", and a bar
+    // showing a hairline would say the opposite of what happens.
+    if (from === to) {
+      a.style.left = "0"; a.style.width = "100%";
+      b.style.width = "0";
+      say.textContent = "Any time — the two times are the same.";
+      return;
+    }
+
+    if (from < to) {
+      a.style.left = pct(from); a.style.width = pct(to - from);
+      b.style.width = "0";
+    } else {
+      // Through midnight: from the start to the end of the day, and again
+      // from the start of the day to the finish.
+      a.style.left = pct(from); a.style.width = pct(1440 - from);
+      b.style.left = "0"; b.style.width = pct(to);
+    }
+
+    var span = from < to ? to - from : 1440 - from + to;
+    say.textContent = $("setScheduleFrom").value + " to " +
+      $("setScheduleTo").value + " · " +
+      (span % 60 ? (span / 60).toFixed(1) : span / 60) +
+      (span === 60 ? " hour" : " hours") +
+      (from < to ? "" : ", through midnight");
+  }
+
   $("setSchedule").addEventListener("click", function () {
     var on = !$("setSchedule").classList.contains("on");
     $("setSchedule").classList.toggle("on", on);
+    drawSchedule();
     saveSchedule(on).then(function () {
       toast(on ? "Downloads will run " + $("setScheduleFrom").value
                  + "–" + $("setScheduleTo").value
@@ -4072,12 +4144,14 @@
 
   ["setScheduleFrom", "setScheduleTo"].forEach(function (id) {
     $(id).addEventListener("change", function () {
+      drawSchedule();
       // Changing the hours while it is off is just setting them up; it should
       // not quietly switch the thing on.
       saveSchedule($("setSchedule").classList.contains("on"))
         .then(function () { toast("Saved"); pollJobs(); });
     });
   });
+  drawSchedule();
 
   /* ------------------------------------------------------- browser sign-in */
 
@@ -5114,9 +5188,34 @@
     var line = $("engineUpdate");
     if (!line) return;
     api("/api/check-engine", { force: !!force }).then(function (res) {
-      if (!res || !res.newer) { line.hidden = true; return; }
-      line.textContent = "A newer engine is published (" + res.latest +
-        "). Press Update when you have a moment.";
+      if (res && res.newer) {
+        line.textContent = "A newer engine is published (" + res.latest +
+          "). Press Update when you have a moment.";
+        line.classList.add("warn");
+        line.hidden = false;
+        return;
+      }
+      /* Saying nothing was the old answer to "is this the current one?", and
+         silence is not an answer - it reads the same whether the check passed
+         or never ran. The app has recorded when it last asked since 1.3 and
+         no screen had ever read it.
+
+         A failed check is not "up to date" either. It is the case where the
+         old silence was most wrong: no connection, and the app looked as
+         reassuring as it does when it has just confirmed the version. */
+      if (res && res.ok === false) {
+        line.textContent = "Could not check for a newer engine.";
+        line.classList.add("warn");
+        line.hidden = false;
+        return;
+      }
+
+      line.classList.remove("warn");
+      if (res && res.checked) settings.engine_checked = Date.now() / 1000;
+      var asked = settings.engine_checked;
+      line.textContent = asked
+        ? "Up to date · last checked " + ago(asked)
+        : "Up to date";
       line.hidden = false;
     });
   }

@@ -115,10 +115,26 @@
 <div class="stage">
 
 {% if not has_ffmpeg %}
+<!-- Both halves, because one of them was the whole message and it read like
+     the app was broken. Most of Riplox does not need the media tool at all,
+     and somebody who has just been told "limited mode" has no way to know
+     which half they are in. -->
 <div class="alert" id="ffmpegAlert">
   <strong>Limited mode.</strong>
-  ffmpeg is missing, so 1080p+ merging and MP3 conversion are unavailable.
-  Reinstall Riplox to restore them.
+  <span>The media tool is missing. Reinstalling Riplox restores it.</span>
+  <div class="alert-cols">
+    <div>
+      <label>Still works</label>
+      <p>Downloads up to 720p · MP3 where the site already offers it ·
+        playlists and whole pages · watching channels · links sent from a
+        phone · your library</p>
+    </div>
+    <div>
+      <label>Needs the tool</label>
+      <p>1080p and above · converting to MP3 · trimming · clips ·
+        splitting a video by chapter</p>
+    </div>
+  </div>
 </div>
 {% endif %}
 
@@ -988,6 +1004,18 @@
         </div>
       </div>
 
+      <!-- The same window, drawn. 23:00 to 06:00 is two numbers that have to
+           be turned into a picture before it is obvious they run through the
+           night rather than being an empty seven hours - and that is exactly
+           the schedule most people want. -->
+      <div class="sched-bar" id="schedBar" hidden>
+        <div class="sched-track"><i id="schedFill"></i><i id="schedFill2"></i></div>
+        <div class="sched-ticks">
+          <span>00</span><span>06</span><span>12</span><span>18</span><span>24</span>
+        </div>
+        <p class="sched-say" id="schedSay"></p>
+      </div>
+
       <!-- The number is not a guess: two maintained downloaders allow about
            one Instagram request every eight to twelve seconds, and sharing a
            dozen reels at once runs straight into that. Only Instagram is
@@ -1305,6 +1333,10 @@
                 quality before sending. <b>You do not need it</b> if the
                 shortcut above suits you.</span>
           <span class="hint" id="extPath"></span>
+          <!-- Which browser, not "a browser". The ordinary PC has two
+               installed and one of them connected, and the app has always
+               known which - it just returned true and threw the name away. -->
+          <span class="hint" id="extBrowsers"></span>
         </div>
         <button class="ghost small" id="openExtFolder">Open its folder</button>
       </div>
