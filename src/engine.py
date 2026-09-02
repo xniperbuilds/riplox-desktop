@@ -4369,7 +4369,10 @@ class Job:
                  # count when it started. That pair is what lets the bar
                  # measure its way across a fragment instead of dividing by an
                  # estimate that moves. See _apply_progress.
-                 "frag_base_at", "frag_base_bytes")
+                 "frag_base_at", "frag_base_bytes",
+                 # The size currently on screen, kept so it can stay there
+                 # while the estimate behind it wobbles. See _settled_size.
+                 "size_shown")
 
     def __init__(self, url, title="", thumbnail="", quality="best", uploader="",
                  batch=False, start="", end="", exact=False, opts=None,
@@ -4454,6 +4457,7 @@ class Job:
         self.streams = 0
         self.frag_base_at = 0.0
         self.frag_base_bytes = 0.0
+        self.size_shown = 0.0
         # How many of a cut's parts have arrived. One job, many files.
         self.parts = 0
         # Kept so the user can hand a real error to someone who can read it,
@@ -4510,15 +4514,30 @@ class Job:
         }
 
 
-def _settled_size(byte_count: float) -> float:
+# How far the truth must move before the number on screen is worth changing.
+# 25% was measured: it takes the changes over a whole download from 89 to 7,
+# and the error at the halfway mark does not move at all - 8% either way,
+# because the underlying estimate is already wrong by more than the band.
+_SIZE_BAND = 0.25
+
+
+def _settled_size(byte_count: float, held: float = 0.0) -> float:
     """A size to read, not a size to watch.
 
-    yt-dlp's total is an extrapolation that moves all the way through a
-    download - 147 MB to 353 MB on one measured run - and showing every reading
-    made it flicker 484 times. The reader wants to know roughly how big the
-    file is; the extra digits are not accuracy, they are noise. Rounding to a
-    step that grows with the number cuts that to 89 changes and costs nothing:
-    the error at the halfway mark is 8% either way.
+    yt-dlp's total is an extrapolation - the average fragment so far times how
+    many there are - and it moves the whole way through a download: 147 MB to
+    353 MB on one measured run, and 174 MB downwards on another. Showing every
+    reading made it change 484 times, and rounding alone still left 89.
+
+    So the number already on screen stays there until the truth has left a band
+    around it. Nothing is held back and nothing is smoothed: when the estimate
+    genuinely moves, this follows it in one step.
+
+    ⚠️ Deliberately NOT one-directional. Holding the maximum scores better on
+    the two downloads measured here - 2 changes instead of 7 - and both of them
+    happen to have estimates that climb. One that FELL, 88 MB to 37 MB on a
+    37.3 MB file, was measured earlier and reported: holding the maximum showed
+    88 for the entire download. A band recovers from that by itself.
     """
     mb = byte_count / 1048576.0
     # Below this, rounding costs more than it buys - and rounding a 100-byte
@@ -4526,7 +4545,11 @@ def _settled_size(byte_count: float) -> float:
     if mb < 10:
         return byte_count
     step = 5.0 if mb < 200 else 25.0
-    return round(mb / step) * step * 1048576.0
+    rounded = round(mb / step) * step * 1048576.0
+
+    if held and abs(byte_count - held) / held < _SIZE_BAND:
+        return held
+    return rounded
 
 
 class DownloadManager:
@@ -6206,6 +6229,9 @@ class DownloadManager:
             if at < job.frag_base_at:
                 job.frag_base_at = 0.0
                 job.frag_base_bytes = 0.0
+                # The size is reported per stream, so the number held for the
+                # video half must not anchor the audio half's.
+                job.size_shown = 0.0
             if at > job.frag_base_at:
                 job.frag_base_at = at
                 job.frag_base_bytes = downloaded
@@ -6264,7 +6290,11 @@ class DownloadManager:
                 # rises, 54 times in one download and once by 174 MB in the
                 # other, which is the 51% overstatement that rule produced
                 # the first time it was tried.
-                job.size = human_bytes(size if exact else _settled_size(size))
+                if exact:
+                    job.size = human_bytes(size)
+                else:
+                    job.size_shown = _settled_size(size, job.size_shown)
+                    job.size = human_bytes(job.size_shown)
             # ⚠️ Per STREAM, not per file: yt-dlp fetches the video and the
             # audio separately and reports each on its own. The stage beside it
             # says which one, so the numbers restarting is readable rather than

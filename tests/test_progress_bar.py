@@ -123,8 +123,11 @@ for fixture in sorted(HERE.glob("fixtures/progress-*.txt")):
         check("gets to the end", pcts[-1] >= 90.0, "ended at %.1f%%" % pcts[-1])
 
         changes = sum(1 for a, b in zip(sizes, sizes[1:]) if a != b)
-        # Unrounded it changed 484 times on this same data.
-        check("the size does not flicker", changes <= 150,
+        # On this same data: 484 changes raw, 89 with rounding alone, 7-10 once
+        # the number on screen is held until the estimate leaves a band around
+        # it. 20 is tight enough that dropping the band fails here - 89 was
+        # still reported as "size aage peeche ho raha hai".
+        check("the size does not flicker", changes <= 20,
               "%d changes across %d readings" % (changes, len(sizes)))
 
 print("\n" + "=" * 68)
