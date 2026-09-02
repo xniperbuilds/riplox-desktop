@@ -898,6 +898,24 @@ button { font-family: var(--body); }
 /* The ones that need the width say so rather than being cramped into half. */
 .more-sec.full { grid-column: 1 / -1; }
 
+/* Last, not first. The exact-format table used to greet anyone who opened the
+   options - a table of format ids and codecs above subtitles and the trim -
+   and it is the single most technical thing on the screen. Order rather than
+   moving the markup: it costs one class and cannot break a handler. */
+.more-sec.adv { order: 10; }
+
+/* ⚠️ Two labels were still shouting. The uppercase and the letter-spacing came
+   from a rule further up that these inherit, and it was doing the job that
+   size and colour should do - at the cost of being harder to read, which is
+   the opposite of what a label is for. */
+.also-audio > span,
+.chapter-all > span {
+  font-family: var(--body);
+  font-size: 12.5px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
 /* A step with something to press. The button keeps its own width and sits
    against the text rather than under it, so five steps read as five actions
    rather than as five more paragraphs. */
