@@ -11,6 +11,8 @@ const stateEl = document.getElementById("state");
 const badgeEl = document.getElementById("showBadge");
 const inPageEl = document.getElementById("inPageButton");
 const permNoteEl = document.getElementById("permNote");
+const getEl = document.getElementById("get");
+const backEl = document.getElementById("back");
 
 // The same pattern the background registers the script for. One place, so the
 // two cannot drift into asking for one thing and injecting into another.
@@ -158,6 +160,51 @@ async function showState() {
   getEl.hidden = !(missing || outdated);
 }
 
+/** The host of the tab being looked at, or "" when there is not one. */
+function hostOf(url) {
+  try {
+    return new URL(url).hostname;
+  } catch (e) {
+    return "";
+  }
+}
+
+/* Putting the button back.
+ *
+ * The cross on the in-page button hides it on that site for good, and until
+ * now that was the end of it: the site went into a list nothing could take it
+ * out of, so one mis-click cost that site the button permanently. A dismissal
+ * that cannot be undone is not a setting, it is damage.
+ *
+ * The offer only appears on a site that has actually been dismissed, so the
+ * popup stays quiet everywhere else.
+ */
+async function fillDismissed() {
+  const host = hostOf(current);
+  const { neverSites } = await chrome.storage.sync.get({ neverSites: [] });
+  const list = Array.isArray(neverSites) ? neverSites : [];
+  if (!host || !list.includes(host)) {
+    backEl.hidden = true;
+    return;
+  }
+  backEl.textContent = `Show the button on ${host} again`;
+  backEl.hidden = false;
+}
+
+backEl.addEventListener("click", async () => {
+  const host = hostOf(current);
+  if (!host) return;
+  const { neverSites } = await chrome.storage.sync.get({ neverSites: [] });
+  const list = (Array.isArray(neverSites) ? neverSites : [])
+    .filter((h) => h !== host);
+  await chrome.storage.sync.set({ neverSites: list });
+  backEl.hidden = true;
+  // The content script read that list when the page loaded, so the page has to
+  // be loaded again for it to see the change. Saying so beats leaving somebody
+  // staring at a button that has not come back yet.
+  say(`It will be back on ${host} when you reload the page.`, true);
+});
+
 async function fill() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   current = tab?.url || "";
@@ -253,7 +300,7 @@ async function showLastNote() {
   say(lastNote.text, true);
 }
 
-fill();
+fill().then(fillDismissed);
 fillOptions();
 showState();
 showLastNote();

@@ -224,6 +224,11 @@ footer p {
 /* The way out, when Riplox is not here to send anything to. It sits where the
    state line just said something is wrong, so it reads as the answer to that
    sentence rather than as an advert. */
+/* The hidden attribute is honoured by a UA rule this class would otherwise
+   outrank, so the link showed in every state - including the healthy ones,
+   where offering a download is nonsense. Both of these say it explicitly. */
+.get[hidden], .back[hidden] { display: none; }
+
 .get {
   display: block;
   margin: 0 0 10px;
@@ -237,6 +242,21 @@ footer p {
   text-align: center;
 }
 .get:hover { background: var(--line); }
+
+.back {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.back:hover { background: var(--card); }
 
 footer a { color: var(--accent); text-decoration: none; }
 footer a:hover { text-decoration: underline; }
