@@ -66,7 +66,24 @@ check("turning compatibility off leaves plain highest-first",
       sort_of(args_for("best", prefer_h264=False)) == "res",
       sort_of(args_for("best", prefer_h264=False)))
 check("⭐ max takes the fattest stream, for re-uploading",
-      sort_of(args_for("max")) == "res,vbr,abr", sort_of(args_for("max")))
+      sort_of(args_for("max")) == "res,proto,vbr,abr", sort_of(args_for("max")))
+# ⚠️ "proto" was added above the bitrate on 3 Sep 2026, and it does not soften
+# that promise. Measured on two videos: sorting by bitrate alone lands on
+# YouTube's m3u8 rendition, which DECLARES 22,055 kbps where the https one at
+# the same resolution declares 9,649 - but that is the manifest's peak, not the
+# encode. At 22 Mbps the file would have weighed about 719 MB; the one that
+# actually arrived was 319, and the https pair for that video weighs
+# 314.4 + 5.0 = 319.4. The same media, delivered two ways.
+#
+# What differs is that the m3u8 one reports no filesize at all, so the total
+# has to be extrapolated the whole way through - it showed 550 MB and then
+# 350 MB on that 319 MB file - and it arrives in fragments. Preferring https
+# keeps the picture and makes the size known before the first byte.
+check("...and the bitrate still decides between two of the same protocol",
+      sort_of(args_for("max")).index("vbr") < sort_of(args_for("max")).index("abr"),
+      sort_of(args_for("max")))
+check("...with the resolution still ahead of everything",
+      sort_of(args_for("max")).startswith("res,"), sort_of(args_for("max")))
 check("...and asks for no particular codec",
       "vcodec~=" not in selector_of(args_for("max")))
 

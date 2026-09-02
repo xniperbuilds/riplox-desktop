@@ -1867,7 +1867,23 @@ def format_args(quality: str, settings: dict, audio_lang: str = "") -> list:
     # ⚠ A codec CHAIN does not work: "res,vcodec:h264:av01:vp9" was measured and
     # the chain is ignored. Only one codec preference is honoured.
     if quality == "max":
-        order = "res,vbr,abr"
+        # ⚠️ "proto" ranks above the bitrate on purpose, and it is not a
+        # quality decision - it is the same picture with a size attached.
+        #
+        # Sorting on bitrate alone lands on YouTube's m3u8 rendition, which
+        # declares a far higher rate than the https one at the same
+        # resolution - 22,055 kbps against 9,649 on one measured video. That
+        # number is the manifest's peak, not the encode's average: at 22 Mbps
+        # the file would have weighed about 719 MB, and the one that actually
+        # arrived was 319. The https pair for the same video weighs 314.4 + 5.0
+        # = 319.4 MB. Same media, delivered two ways.
+        #
+        # The difference is what comes with it. The m3u8 rendition reports no
+        # filesize at all, so the total has to be extrapolated the whole way
+        # through - shown as 550 MB and then 350 MB on a file that was 319 -
+        # and it arrives in fragments. The https one is known before the first
+        # byte and never moves.
+        order = "res,proto,vbr,abr"
     else:
         order = "res,vcodec:h264,acodec:aac" if safe else "res"
 
