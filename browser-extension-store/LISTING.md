@@ -34,54 +34,50 @@ Send a link to Riplox, the download manager on your PC. The download happens in 
 ```
 Riplox is a download manager for Windows. This extension is the shortcut to it.
 
-Click the toolbar button, or right-click a page or a link, and the address is
-handed to Riplox on your PC. That is the whole job. Nothing is fetched here and
-nothing is stored anywhere.
+Click the toolbar button, or right-click a page or a link, and the address is handed to Riplox on your PC. That is the whole job. Nothing is fetched here and nothing is stored anywhere.
 
 WHAT IT DOES
 • Toolbar button — sends the page you are looking at
 • Right-click a page — "Send this page to Riplox"
 • Right-click a link — "Send this link to Riplox"
-• An optional button on the page itself, which you can drag anywhere and
-  dismiss on any site you do not want it
+• An optional button on the page itself, which you can drag anywhere and dismiss on any site you do not want it
 • A count on the icon showing how many downloads Riplox has on the go
 
 WHAT IT DOES NOT DO
 • It does not download anything itself
-• It does not read the pages you visit. The optional in-page button draws
-  itself and sends the address of the page it is on — nothing more
+• It does not read the pages you visit. The optional in-page button draws itself and sends the address of the page it is on — nothing more
 • It does not talk to the internet at all
 • It does not collect, store or send any data anywhere
 
 ACCESS TO PAGES IS OFF UNTIL YOU ASK FOR IT
-Installing this grants no access to any website. That access is optional, and
-turning on the in-page button is what makes the browser ask you for it.
-Turning the button off hands it straight back.
+Installing this grants no access to any website. That access is optional, and turning on the in-page button is what makes the browser ask you for it. Turning the button off hands it straight back.
 
 HOW IT REACHES RIPLOX
-Riplox's installer registers a small program with your browser, and the
-extension speaks to that program directly — no server, no account, no port to
-configure. If that route is not available, it falls back to a riplox:// link,
-which your browser will ask you to allow.
+Riplox's installer registers a small program with your browser, and the extension speaks to that program directly — no server, no account, no port to configure. If that route is not available, it falls back to a riplox:// link, which your browser will ask you to allow.
 
-The settings stay in Riplox. Where files are saved, and at what quality, are
-decided there — this extension sends the address and nothing else, so whatever
-you have set in Riplox is what you get.
+The settings stay in Riplox. Where files are saved, and at what quality, are decided there — this extension sends the address and nothing else, so whatever you have set in Riplox is what you get.
 
 REQUIREMENTS
-Riplox must already be installed on the same computer. Without it, this
-extension has nothing to send to.
+Riplox must already be installed on the same computer. Without it, this extension has nothing to send to.
 ```
 
 ## Category
 
 ```
-Workflow & Planning
+Tools
 ```
 
-> Alternative: **Tools**. Comparable download-manager companions sit in the
-> general-utility categories rather than anything media-shaped, and the
-> category is a signal a reviewer reads.
+> The dashboard picks this one from the package by itself, and it is the right
+> one: a download-manager companion is a utility, and the category is a signal
+> a reviewer reads. Workflow & Planning would also pass; nothing media-shaped
+> should ever be chosen here.
+
+## A note on pasting the description
+
+The field keeps every newline exactly as given, so the block above is written
+with each paragraph on **one long line**. It was hard-wrapped once, and the
+listing came out breaking mid-sentence - "Without it," then "this" alone on the
+line below. Do not re-wrap it to make this file tidier.
 
 ## Language
 
