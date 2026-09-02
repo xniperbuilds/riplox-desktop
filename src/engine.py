@@ -4364,7 +4364,12 @@ class Job:
                  "net_waits",
                  # When the engine last said ANYTHING, and whether it went
                  # quiet for so long that we gave up on it. See _SILENCE_LIMIT.
-                 "heard", "went_quiet")
+                 "heard", "went_quiet",
+                 # Where the current fragment began: its index, and the byte
+                 # count when it started. That pair is what lets the bar
+                 # measure its way across a fragment instead of dividing by an
+                 # estimate that moves. See _apply_progress.
+                 "frag_base_at", "frag_base_bytes")
 
     def __init__(self, url, title="", thumbnail="", quality="best", uploader="",
                  batch=False, start="", end="", exact=False, opts=None,
@@ -4447,6 +4452,8 @@ class Job:
         # How many streams have finished. A merged download is video then
         # audio, and the one progress bar has to cover both.
         self.streams = 0
+        self.frag_base_at = 0.0
+        self.frag_base_bytes = 0.0
         # How many of a cut's parts have arrived. One job, many files.
         self.parts = 0
         # Kept so the user can hand a real error to someone who can read it,
@@ -4501,6 +4508,25 @@ class Job:
             # retry is coming is the app keeping a secret.
             "retryIn": max(0, int(self.retry_at - time.time())) if self.retry_at else 0,
         }
+
+
+def _settled_size(byte_count: float) -> float:
+    """A size to read, not a size to watch.
+
+    yt-dlp's total is an extrapolation that moves all the way through a
+    download - 147 MB to 353 MB on one measured run - and showing every reading
+    made it flicker 484 times. The reader wants to know roughly how big the
+    file is; the extra digits are not accuracy, they are noise. Rounding to a
+    step that grows with the number cuts that to 89 changes and costs nothing:
+    the error at the halfway mark is 8% either way.
+    """
+    mb = byte_count / 1048576.0
+    # Below this, rounding costs more than it buys - and rounding a 100-byte
+    # file to the nearest megabyte reports zero, which is how this was caught.
+    if mb < 10:
+        return byte_count
+    step = 5.0 if mb < 200 else 25.0
+    return round(mb / step) * step * 1048576.0
 
 
 class DownloadManager:
@@ -6112,6 +6138,20 @@ class DownloadManager:
         frag_at, frag_of = (parts[6], parts[7]) if len(parts) >= 8 else ("", "")
 
         downloaded = _num(done)
+        # Told apart deliberately. total_bytes is measured; total_bytes_estimate
+        # is yt-dlp's own extrapolation and moves all through a download. On the
+        # two downloads measured here, total_bytes arrived on 14 lines out of
+        # 1453 - so nearly everything below is running on the estimate, and the
+        # difference decides both how the bar is worked out and whether the
+        # size shown is blurred.
+        # ⚠️ NOT the file's size when the download is fragmented: there,
+        # total_bytes is the CURRENT FRAGMENT's size, and its opening line
+        # reads 1024 of 1024. That is why the bar below asks the fragments
+        # first and only falls back to bytes when there are none - and why this
+        # is used for nothing except deciding whether the size shown may be
+        # rounded, which is a question that only arises when there are no
+        # fragments to begin with.
+        exact = _num(total) if not _num(frag_of) else 0.0
         size = _num(total) or _num(total_est)
 
         index = min(job.streams, len(self._STREAM_BANDS) - 1)
@@ -6140,12 +6180,49 @@ class DownloadManager:
         # download: longest freeze 63 lines against 149, 279 moves against 38,
         # and it never passes 3.3% in the opening tenth.
         whole = _num(frag_of)
-        floor = (_num(frag_at) / whole) if whole else 0.0
-        # Ignored until a fragment has actually completed, because before that
-        # the estimate is the 1024-of-1024 fiction above.
-        usable = (not whole) or _num(frag_at) >= 1
-        ratio = (downloaded / size) if (size and usable) else 0.0
-        pct = min(1.0, max(floor, ratio)) if (whole or size) else None
+        at = _num(frag_at)
+
+        # 3. And the fix for both was still dividing by that estimate. Measured
+        #    again on two real downloads at "max": total_bytes arrived on 14 of
+        #    1453 lines, so "size" below was the estimate nearly always - and
+        #    that estimate CLIMBED from 147 MB to 353 MB during one of them. A
+        #    denominator that grows drags the ratio down with it, and the bar
+        #    went backwards 144 times, by up to 3.44%. Reported as "% peeche
+        #    jaati thi", with the freezes that follow it being pinned to the
+        #    floor in between.
+        #
+        # So the estimate is gone from here entirely. A finished fragment's
+        # size needs no extrapolation: it is however many bytes arrived while
+        # the index stood still. That gives an exact boundary and a measured
+        # position inside the current fragment, which cannot reach the next
+        # boundary and cannot fall below the last one.
+        #
+        #    rule                          moves  back   worst  freeze
+        #    what shipped                    782   144   3.44%      26
+        #    fragments alone                  54     0       -      18
+        #    fragments + bytes inside them   741     0       -      14
+        if whole:
+            # A new stream restarts the count, and so must this.
+            if at < job.frag_base_at:
+                job.frag_base_at = 0.0
+                job.frag_base_bytes = 0.0
+            if at > job.frag_base_at:
+                job.frag_base_at = at
+                job.frag_base_bytes = downloaded
+            base_at = job.frag_base_at
+            base_bytes = job.frag_base_bytes
+            typical = (base_bytes / base_at) if base_at else 0.0
+            inside = ((downloaded - base_bytes) / typical) if typical else 0.0
+            # Never the whole of the next fragment: that one is not in yet.
+            pct = min(1.0, (base_at + min(0.999, max(0.0, inside))) / whole)
+        elif size:
+            # No fragments at all - and only then is total_bytes the file's own
+            # size rather than the current fragment's. The audio half of every
+            # download arrives this way, and the byte maths was always right
+            # here.
+            pct = min(1.0, downloaded / size)
+        else:
+            pct = None
 
         if pct is not None:
             # ⚠️ No furthest-reached guard any more, deliberately: holding the
@@ -6172,9 +6249,22 @@ class DownloadManager:
             # once a tenth of the fragments were in. So nothing clever is
             # needed - only patience: say nothing until the estimate is an
             # estimate, then say what it says.
-            settled = (not whole) or _num(frag_at) >= max(2.0, whole * 0.1)
+            settled = (not whole) or at >= max(2.0, whole * 0.1)
             if settled and size >= downloaded:
-                job.size = human_bytes(size)
+                # ⚠️ Rounded, because the estimate keeps moving and a total is
+                # read to know roughly how big the file is. Measured on the same
+                # two downloads: the exact number changed 484 times in one of
+                # them; rounded, 89 - for the same error, 8% at the halfway
+                # point either way.
+                #
+                # Waiting longer was measured and rejected: showing it only
+                # past a third, or past halfway, leaves the same 8% error and
+                # simply says nothing for 256 to 399 lines. And holding the
+                # largest reading stays dead - the estimate FALLS as well as
+                # rises, 54 times in one download and once by 174 MB in the
+                # other, which is the 51% overstatement that rule produced
+                # the first time it was tried.
+                job.size = human_bytes(size if exact else _settled_size(size))
             # ⚠️ Per STREAM, not per file: yt-dlp fetches the video and the
             # audio separately and reports each on its own. The stage beside it
             # says which one, so the numbers restarting is readable rather than
