@@ -1621,7 +1621,17 @@ NO_UPSCALE = "[format_id!*=-sr]"
 
 # Which player client "More options" is allowed to ask for. Anything else the
 # browser sends is dropped rather than passed through to the command line.
-PLAYER_CLIENTS = ("", "tv_simply", "web_safari", "mweb", "android_vr", "ios", "web")
+#
+# ⚠️ The first five after "" are the ones measured (1 Sep 2026) to offer every
+# format with no proof-of-origin token at all; the rest are kept because the
+# whole point of this control is working around a refusal, and a refused
+# download at 360p still beats no download. What changed is that the dropdown
+# now SAYS which is which - four of the six it used to list stop at 360p or
+# 180p however much quality was asked for, and it said nothing.
+PLAYER_CLIENTS = ("", "tv_embedded", "visionos", "web_embedded",
+                  "android_music", "ios_music",
+                  "tv_simply", "mweb",
+                  "web_safari", "android_vr", "ios", "web")
 
 _OPT_KEYS = ("format_id", "audio_lang", "sub_langs", "outtmpl", "dest_dir",
              "player_client", "no_cookies", "max_mb",
@@ -3116,6 +3126,30 @@ def _door_verdict(engine_error: str, door_error: str,
             "is gone.")
 
 
+# The connection itself going away, told apart from a site saying no.
+#
+# ⚠️ Deliberately narrow: only failures that cannot be a site's own answer. A
+# name that will not resolve, and a network with no route, are nobody's verdict
+# on the video. "giving up after N retries", "max retries exceeded",
+# "connection reset" and "timed out" are all things a site does to a request it
+# is refusing, so they are NOT here - reading those as an outage would put a
+# genuinely dead download back on the queue forty times over, which is the
+# failure this whole area exists to avoid.
+_NETWORK_LOST = (
+    "getaddrinfo failed", "failed to resolve", "errno 11001",
+    "name resolution", "network is unreachable", "no route to host",
+    "failed to establish a new connection",
+    "winerror 10051",                    # network is unreachable
+    "winerror 10065",                    # no route to host
+)
+
+
+def network_lost(text: str) -> bool:
+    """Does this say the connection went, rather than the site refusing?"""
+    low = (text or "").lower()
+    return any(sign in low for sign in _NETWORK_LOST)
+
+
 def _clean_error(stderr: str) -> str:
     """Turn a yt-dlp stack of ERROR lines into one human sentence."""
     text = (stderr or "").strip()
@@ -3123,6 +3157,17 @@ def _clean_error(stderr: str) -> str:
         return "That link could not be opened."
 
     low_all = text.lower()
+
+    # Before any reading of what the site said: a name that would not resolve
+    # means nothing was reached, so nothing after it is the site's opinion of
+    # anything. And what comes after it is loud - yt-dlp goes on to join
+    # fragments it never wrote and reports THAT, "[Errno 2] No such file or
+    # directory: ...part-Frag3", which is the consequence rather than the
+    # cause, and was what the user was being shown.
+    if network_lost(low_all):
+        return ("The connection dropped while this was downloading. What "
+                "already arrived is kept, so carrying on continues from "
+                "there rather than starting again.")
 
     # Chrome-family cookie stores cannot be decrypted by anything but the
     # browser itself, and this is the error that says so. Riplox no longer
@@ -3231,6 +3276,14 @@ def _clean_error(stderr: str) -> str:
         if line.startswith("ERROR:"):
             msg = line[6:].strip()
             msg = msg.split(";")[0].strip()
+            # yt-dlp puts the word on one stream and the reason on another when
+            # the download itself fails, so stderr can carry a bare "ERROR:"
+            # with nothing after it. Returning that emptied the message
+            # altogether and the Failed page said "No reason was recorded."
+            # over a reason that was plainly recorded - measured on a real job,
+            # where seventeen of these stood ahead of the only useful line.
+            if not msg:
+                continue
             low = msg.lower()
             if "unsupported url" in low:
                 return "This site is not supported."
@@ -3270,7 +3323,37 @@ THUMB_TAG = "@@RPXTHUMB@@"
 
 # First attempt uses whatever yt-dlp picks. The next two ask YouTube through a
 # different player client, which is what usually clears a bot check.
-_RETRY_CLIENTS = ["", "tv_simply,web_safari", "mweb,android_vr"]
+#
+# ⚠️⚠️ Every client here was MEASURED on 1 Sep 2026 (yt-dlp 2026.08.19, three
+# videos), because the previous list quietly cost the user their quality:
+#
+#     client        no PO token   with PO token
+#     tv_simply         360p          2160p
+#     mweb              360p          2160p
+#     web_safari        180p           180p     <- was on rung 2
+#     android_vr        360p           360p     <- was on rung 3
+#     tv_embedded      2160p          2160p
+#     visionos         2160p          2160p
+#
+# Two separate faults were in one line. `web_safari` and `android_vr` are
+# capped EVEN WITH a token, so they could never contribute a good format -
+# they were pure downside. And `tv_simply`/`mweb` are only whole while a
+# proof-of-origin token can be minted, which is exactly what a network outage
+# takes away - so the ladder collapsed to 360p at the precise moment it ran.
+# Reported by a user as a full-quality request arriving as a 360p file.
+#
+# So each rung now pairs its token-dependent client with one measured to give
+# every format WITHOUT a token. `tv_embedded` and `visionos` were both checked
+# by actually fetching bytes at 1080p+, not merely by listing formats.
+# ⚠️ `visionos` does not serve "Made for kids" videos (yt-dlp's own note), the
+# same limitation the `android_vr` it replaces already had.
+#
+# ⚠️ This list ages. yt-dlp adds and retires clients every few weeks
+# (`tv_downgraded` is newer than the engine shipped here, which does not know
+# it). That is why _quality_short below checks the RESULT rather than trusting
+# any list - a name that is right today will be wrong, and the outcome check
+# does not care which client let the user down.
+_RETRY_CLIENTS = ["", "tv_simply,tv_embedded", "mweb,visionos"]
 
 # How long an engine may say NOTHING before Riplox stops waiting for it.
 #
@@ -4167,6 +4250,50 @@ def _is_transient(text: str) -> bool:
     return any(marker in low for marker in _TRANSIENT)
 
 
+# The height each named quality is asking for. "best" and "max" name no
+# number - they ask for whatever the site has - which is why they are absent,
+# and why the check below has to go and look rather than compare.
+_ASKED_HEIGHT = {"2160": 2160, "1440": 1440, "1080": 1080,
+                 "720": 720, "480": 480, "360": 360}
+
+# Above this a fallback route's answer is not worth questioning. Measured
+# 1 Sep 2026: the clients Riplox falls back to top out at exactly 360p when no
+# proof-of-origin token can be minted, so anything taller did not come from a
+# degraded route and needs no second look.
+_FALLBACK_CEILING = 360
+
+
+def best_height(url: str, settings: dict, cookie_path=None) -> int:
+    """
+    The tallest video the MAIN route can see for this link. 0 when it cannot
+    be asked - and 0 deliberately means "do not complain", so a link that
+    cannot be re-read never produces a warning about a file that is fine.
+
+    This exists for one question: a small file is either a small video or a
+    download that went wrong, and those need opposite answers. Without asking,
+    the honest message would have to say "may be", and a maybe-warning on a
+    video that only ever had 360p is exactly the kind of misleading line that
+    teaches people to ignore warnings.
+
+    The default client on purpose: it is the one measured to see every format,
+    and the question being asked is "was there a better one we missed".
+    """
+    args = _base_args(settings, cookie_path)
+    args += ["-J", "--no-playlist", "--no-progress", url]
+    try:
+        out = _run(args, timeout=90)
+    except (subprocess.TimeoutExpired, OSError):
+        return 0
+    if out.returncode != 0 or not (out.stdout or "").strip():
+        return 0
+    try:
+        info = json.loads(out.stdout)
+    except ValueError:
+        return 0
+    return max((int(f.get("height") or 0)
+                for f in (info.get("formats") or [])), default=0)
+
+
 # The one failure a proof-of-origin token actually helps with. Kept separate
 # from _TRANSIENT, which is far broader.
 _BOTCHECK = ("not a bot", "login_required", "sign in to confirm")
@@ -4410,7 +4537,14 @@ class DownloadManager:
                      # size ceiling chosen for this one download, and origin
                      # is the device whose allowance it counts against. A
                      # restored job used to quietly lose both.
-                     "opts": j.opts, "origin": j.origin}
+                     "opts": j.opts, "origin": j.origin,
+                     # Written for the browser extension, which reads this file
+                     # to put a count on its toolbar icon. It was looking for a
+                     # status that was never saved here, so it read every queue
+                     # as empty and the badge could never show anything at all.
+                     # restore() does not consult it - it deliberately brings
+                     # everything back paused - so nothing here changes.
+                     "status": j.status}
                     for j in (self._jobs.get(i) for i in self._order)
                     if j is not None and j.status in self.ACTIVE
                 ]
@@ -4887,6 +5021,17 @@ class DownloadManager:
                 note_health(job.url, HEALTH_OK)
             return
 
+        # ⚠️ Put back on the queue to wait for the network - not failed, and so
+        # not finished with. Going on from here undid that entirely: the second
+        # door below sets a status of its own whatever it finds, so a job that
+        # was safely waiting became a failed one seconds later and the wait
+        # counted for nothing. The engine never got a fair attempt, so nothing
+        # has been ruled out and there is nothing yet for a fallback to fall
+        # back from. This is the one route out of _run_engine that is not an
+        # answer about the video.
+        if job.status in self.ACTIVE:
+            return
+
         # A refusal aimed at the session rather than at the video: worth one
         # more go with the session left out, before anything more elaborate.
         if self._signed_out_retry(job, settings) or job.cancelled:
@@ -4932,7 +5077,25 @@ class DownloadManager:
         if job.cancelled:
             return False
 
-        gone = not network_ok(force=True)
+        # ⚠️ The LOG is asked before the probe. The probe answers "is there a
+        # network NOW", and by the time an attempt has failed the answer is
+        # usually yes again - the connection came back while yt-dlp was still
+        # spending its retries. Measured on a real job: seventeen "getaddrinfo
+        # failed" lines, the network back before the process exited, the probe
+        # green and the same Wi-Fi as before, so both of the old signals said
+        # "not our problem" and the job went to Failed for ever over an outage
+        # that had already ended. What happened was written down; it does not
+        # have to be guessed at afterwards.
+        #
+        # ⚠️ But not while a proxy is in play. A proxy hostname that will not
+        # resolve produces these very same lines, and that is a setting to
+        # correct rather than an outage to wait out - waiting would hide the
+        # one thing the user has to change. The log is believed only when
+        # Riplox is going out directly, where the name that failed can only
+        # have been the site's own.
+        by_log = network_lost(job.log) and not clean_proxy(
+            load_settings().get("proxy"))
+        gone = by_log or not network_ok(force=True)
         moved = bool(job.started_on) and here_now() not in ("", job.started_on)
         if not (gone or moved):
             return False
@@ -4993,6 +5156,57 @@ class DownloadManager:
                 time.sleep(0.2)
 
         return False
+
+    def _quality_short(self, job: Job, settings: dict) -> str:
+        """
+        Did a fallback route quietly hand over a far smaller video?
+        Returns the sentence to show, or "" when there is nothing wrong.
+
+        Exiting 0 is not the same as doing what was asked. When the main route
+        is refused, Riplox asks YouTube as a different player client - and some
+        of those are only ever offered small formats. The download then
+        succeeds, the row goes green, and a request for 4K is answered with a
+        360p file whose name still says [max]. Reported from real use.
+
+        ⚠️ The check is on the RESULT, not on a list of client names. Which
+        clients are degraded changes every few weeks; that a 4K request came
+        back at 360p does not.
+        """
+        # The main route's answer IS the truth about this video - if it says
+        # 360p, 360p is what there is. Only a fallback's answer is suspect.
+        if job.attempt <= 1 or job.kind != "download":
+            return ""
+        # A folder of chapters or clips, an audio extraction, subtitles only:
+        # no single height to judge, and the parts check above owns those.
+        if (job.opts.get("chapters") or job.opts.get("chapters_all")
+                or job.opts.get("clips") or job.opts.get("subs_only")):
+            return ""
+
+        height = int(getattr(job, "height", 0) or 0)
+        if not height or height > _FALLBACK_CEILING:
+            return ""
+
+        asked = _ASKED_HEIGHT.get(job.quality, 0)
+        if asked and height >= asked:
+            return ""            # they asked for small and got small
+
+        # Now, and only now, is it worth a request: ask the main route what
+        # this video actually has. Costs one listing, on a path that should be
+        # rare, and buys a message that is true rather than hedged.
+        cookie_path, temp_cookie, _account = open_cookies(settings, job.url)
+        try:
+            available = best_height(job.url, settings, cookie_path)
+        finally:
+            close_cookies(cookie_path, temp_cookie)
+
+        # Could not ask, or there really is nothing better: say nothing.
+        if available <= height:
+            return ""
+
+        return (f"This came back at {height}p, but the video has "
+                f"{available}p. Riplox's usual way in was refused, and the "
+                f"way round it only carries small formats. The {height}p file "
+                f"is saved - press Retry to ask again for the full one.")
 
     # A site turning a request down flat, rather than the download going wrong.
     _AUTH_REFUSED = ("http error 400", "http error 401", "http error 403",
@@ -5499,11 +5713,29 @@ class DownloadManager:
             "--windows-filenames",
             "--retries", "5",
             "--fragment-retries", "10",
+            # ⚠️⚠️ The engine's own default is to SKIP a fragment it cannot
+            # get, merge what it has with the complete audio track, exit 0 and
+            # call that a download. Measured on this machine after one network
+            # drop: a 2160p file whose video runs 36 seconds against 390
+            # seconds of audio, and a 1080p one at 85 against 197 - both marked
+            # done, both with twenty abandoned .part-Frag files beside them. A
+            # file that plays for a few seconds and then goes to a still frame
+            # is worse than a failure, because nothing anywhere says so. Now it
+            # fails, which puts it back on the queue to resume from what it
+            # already has.
+            #
+            # The cost, stated: a site with a fragment that is permanently gone
+            # will now fail instead of handing over a partial video. That is
+            # the right way round - a partial video that claims to be whole is
+            # the one outcome nobody can act on.
+            "--abort-on-unavailable-fragments",
             "-o", self._outtmpl(settings, job),
             "--progress-template",
             (PROGRESS_TAG + "%(progress.status)s|%(progress.downloaded_bytes)s|"
              "%(progress.total_bytes)s|%(progress.total_bytes_estimate)s|"
-             "%(progress.speed)s|%(progress.eta)s"),
+             "%(progress.speed)s|%(progress.eta)s|"
+             # Counted, unlike the byte totals below - see _apply_progress.
+             "%(progress.fragment_index)s|%(progress.fragment_count)s"),
             "--progress-template",
             "postprocess:" + POST_TAG + "%(progress.status)s|%(progress.postprocessor)s",
             "--print", "after_move:" + PATH_TAG + "%(filepath)s|%(height)s",
@@ -5762,6 +5994,18 @@ class DownloadManager:
                 job.speed = job.eta = ""
                 return True
 
+            # And the second way exiting 0 is not the same as doing the job:
+            # the right file at the wrong quality, because the main route was
+            # refused and the way round it only carries small formats. Same
+            # shape as the parts check above - the file is kept, the row says
+            # what happened, and Retry means something.
+            undersized = self._quality_short(job, settings)
+            if undersized:
+                job.status = "error"
+                job.error = undersized
+                job.speed = job.eta = ""
+                return True          # it downloaded; it just downloaded small
+
             job.status = "done"
             job.percent = 100.0
             job.speed = job.eta = ""
@@ -5863,6 +6107,9 @@ class DownloadManager:
         if len(parts) < 6:
             return
         status, done, total, total_est, speed, eta = parts[:6]
+        # An older engine does not send these, and an unfragmented download
+        # sends "NA". Both read as "no fragments", which is the safe way round.
+        frag_at, frag_of = (parts[6], parts[7]) if len(parts) >= 8 else ("", "")
 
         downloaded = _num(done)
         size = _num(total) or _num(total_est)
@@ -5870,12 +6117,64 @@ class DownloadManager:
         index = min(job.streams, len(self._STREAM_BANDS) - 1)
         low, high = self._STREAM_BANDS[index]
 
+        # ⚠️⚠️ Two things are true here at once, and getting either one wrong
+        # produces a bar somebody reports. Both were measured on real
+        # downloads, after three wrong tries that were reasoned about instead.
+        #
+        # 1. The engine's estimate is its OWN extrapolation. From its source:
+        #        (bytes_so_far + this_fragment) / (fragment_index + 1) * total
+        #    - the average fragment so far, times how many there are. On the
+        #    opening lines that average comes from one part-finished fragment
+        #    and reads 1024 of 1024: a ratio of 1.0, which sent the bar to the
+        #    top of its band on line one and, with a furthest-reached guard,
+        #    kept it there. Reported as "start hote hi 92% pe chala jata hai".
+        #
+        # 2. Counting fragments instead fixed that and broke the other half.
+        #    Fragments complete in bursts: over 1,316 progress lines of one
+        #    download the fragment bar moved 38 times and stood still for 149
+        #    lines in a row. Reported as "percentage stuck".
+        #
+        # So the fragment count is a FLOOR - exact, and it never goes back -
+        # and the byte ratio moves the bar between fragments. Whichever is
+        # further along wins. Measured against the alternatives on one
+        # download: longest freeze 63 lines against 149, 279 moves against 38,
+        # and it never passes 3.3% in the opening tenth.
+        whole = _num(frag_of)
+        floor = (_num(frag_at) / whole) if whole else 0.0
+        # Ignored until a fragment has actually completed, because before that
+        # the estimate is the 1024-of-1024 fiction above.
+        usable = (not whole) or _num(frag_at) >= 1
+        ratio = (downloaded / size) if (size and usable) else 0.0
+        pct = min(1.0, max(floor, ratio)) if (whole or size) else None
+
+        if pct is not None:
+            # ⚠️ No furthest-reached guard any more, deliberately: holding the
+            # maximum is what froze the bar for 326 lines in that same
+            # measurement, which is worse than the wobble it prevented - and
+            # the floor caps that wobble at 1.3%. 100% is still kept for the
+            # moment the file is actually on the disk.
+            job.percent = min(99.0, low + (high - low) * pct)
+
         if size:
-            pct = min(1.0, downloaded / size)
-            # Only ever forward, and 100% is saved for the moment the file is
-            # actually on the disk.
-            job.percent = max(job.percent, min(99.0, low + (high - low) * pct))
-            job.size = human_bytes(size)
+            # ⚠️⚠️ A fragmented download reports NO total_bytes at all - only
+            # total_bytes_estimate, and for its first few fragments that is an
+            # extrapolation from almost nothing. Measured on a file that turned
+            # out to be 37.3 MB: the opening readings were 4, 14, 56 and 88 MB,
+            # and they fell as often as they rose.
+            #
+            # Holding the LARGEST reading was the first attempt at this, and it
+            # was worse than the problem: it froze on the 88 and never came
+            # down, so an 83 MB download called itself 510 MB the whole way.
+            # Reported, and measured again afterwards - 88.8 MB shown for that
+            # 37.3 MB file, wrong from a tenth of the way in to the end.
+            #
+            # The estimate does settle. The same run read 47, 45, 40, 37, 39
+            # once a tenth of the fragments were in. So nothing clever is
+            # needed - only patience: say nothing until the estimate is an
+            # estimate, then say what it says.
+            settled = (not whole) or _num(frag_at) >= max(2.0, whole * 0.1)
+            if settled and size >= downloaded:
+                job.size = human_bytes(size)
             # ⚠️ Per STREAM, not per file: yt-dlp fetches the video and the
             # audio separately and reports each on its own. The stage beside it
             # says which one, so the numbers restarting is readable rather than

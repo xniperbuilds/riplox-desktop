@@ -127,8 +127,52 @@ async function send(url, quality) {
 
   const target = `${SCHEME}?url=${encodeURIComponent(url)}&q=${encodeURIComponent(quality)}`;
   const tab = await chrome.tabs.create({ url: target, active: false });
-  setTimeout(() => chrome.tabs.remove(tab.id).catch(() => {}), TAB_LINGER);
+  await rememberHandoff(tab.id);
+  // The fast path. It is only a fast path: a service worker is killed after 30
+  // seconds of quiet and takes its timers with it, so this timeout is allowed
+  // to be missed and the sweep below is what actually guarantees the close.
+  setTimeout(() => closeHandoff(tab.id), TAB_LINGER);
   return "scheme";
+}
+
+/* -------------------------------------------------------------------------
+ * The handoff tabs, and why they are written down
+ *
+ * The tab carrying the riplox:// question closes itself twelve seconds later.
+ * That was a setTimeout in the service worker - and a service worker is stopped
+ * after thirty seconds of quiet, timers included. When that happened the tab
+ * was simply left open, on a page nobody asked for, and the only clue was a
+ * stray tab appearing "sometimes".
+ *
+ * So each one is written down as it opens, and any that are older than the
+ * linger get closed the next time this worker starts. The age matters: sweeping
+ * on sight would close the tab while the browser was still asking the question
+ * in it, which is the same bug wearing the other coat.
+ * ---------------------------------------------------------------------- */
+
+async function rememberHandoff(id) {
+  if (!id) return;
+  const { handoff = [] } = await chrome.storage.session.get({ handoff: [] });
+  handoff.push({ id, at: Date.now() });
+  await chrome.storage.session.set({ handoff: handoff.slice(-20) });
+}
+
+async function closeHandoff(id) {
+  await chrome.tabs.remove(id).catch(() => {});
+  const { handoff = [] } = await chrome.storage.session.get({ handoff: [] });
+  await chrome.storage.session.set({ handoff: handoff.filter((t) => t.id !== id) });
+}
+
+async function sweepHandoff() {
+  const { handoff = [] } = await chrome.storage.session.get({ handoff: [] });
+  if (!handoff.length) return;
+  const now = Date.now();
+  const keep = [];
+  for (const tab of handoff) {
+    if (now - tab.at < TAB_LINGER) { keep.push(tab); continue; }
+    await chrome.tabs.remove(tab.id).catch(() => {});
+  }
+  await chrome.storage.session.set({ handoff: keep });
 }
 
 /* -------------------------------------------------------------------------
@@ -249,7 +293,11 @@ function buttonMatches(sites) {
 
 async function syncInPageButton() {
   const { inPageButton, sites } = await settings();
-  const granted = await chrome.permissions.contains({ origins: ["*://*/*"] });
+  // Against what the button actually needs, not against "*://*/*". Somebody
+  // who granted three sites has granted enough, and testing for everything
+  // would call that "not granted" and silently do nothing.
+  const granted = await chrome.permissions.contains({ origins: buttonMatches(sites) })
+    .catch(() => false);
   const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [SCRIPT_ID] })
     .catch(() => []);
 
@@ -316,30 +364,87 @@ chrome.permissions.onRemoved.addListener(syncInPageButton);
 
 const BADGE_ALARM = "riplox-badge";
 
+/* How often to ask.
+ *
+ * Every tick starts a fresh copy of Riplox's helper program: sendNativeMessage
+ * runs the host, asks, and the host exits. At half a minute that is a process
+ * every thirty seconds for as long as the browser is open - on a machine where
+ * Riplox is not even installed, forever, for an answer that never changes.
+ *
+ * So the interval follows the answer. Busy while something is running, slower
+ * when Riplox is idle, slowest when its helper does not answer at all - and
+ * straight back to busy the moment something is sent.
+ */
+const BADGE_BUSY = 0.5;      // Chrome will not honour less than this
+const BADGE_IDLE = 2;
+const BADGE_ASLEEP = 10;
+
+/**
+ * Put the alarm on a footing, without disturbing one already on it.
+ *
+ * This is the whole reason the badge used to stop: `alarms.create` with a name
+ * that already exists "will be cancelled and replaced", schedule and all, and
+ * the call sat at the top level of this worker - which runs again on every
+ * single event. Any click within the half minute restarted the countdown, so a
+ * browser in ordinary use could go all day without the alarm ever firing once.
+ */
+async function ensureBadgeAlarm(minutes) {
+  const existing = await chrome.alarms.get(BADGE_ALARM).catch(() => null);
+  if (existing && Math.abs((existing.periodInMinutes || 0) - minutes) < 0.01) return;
+  chrome.alarms.create(BADGE_ALARM, { periodInMinutes: minutes });
+}
+
+// The tick that says "sent" owns the badge for a moment. Without this the next
+// refresh - which can land at any time - wipes it, and the only confirmation a
+// right-click send ever had disappears before it is read.
+const TICK_MS = 2500;
+
 async function refreshBadge() {
   const { showBadge } = await settings();
   if (!showBadge) {
     await chrome.action.setBadgeText({ text: "" });
+    await chrome.alarms.clear(BADGE_ALARM).catch(() => {});
     return;
   }
-  let active = 0;
+
+  let answer = null;
   try {
-    const answer = await chrome.runtime.sendNativeMessage(HOST, { ask: "status" });
-    if (!answer || !answer.ok) throw new Error("no answer");
-    active = Number(answer.active) || 0;
+    const reply = await chrome.runtime.sendNativeMessage(HOST, { ask: "status" });
+    if (reply && reply.ok) answer = reply;
   } catch (e) {
-    await chrome.action.setBadgeText({ text: "" });   // silence, not a stale number
+    // No host registered, or it failed. Nothing to say, and no hurry to ask again.
+  }
+
+  const { tickUntil = 0 } = await chrome.storage.session.get({ tickUntil: 0 });
+  const speaking = Date.now() < tickUntil;
+
+  if (!answer) {
+    if (!speaking) await chrome.action.setBadgeText({ text: "" });
+    await ensureBadgeAlarm(BADGE_ASLEEP);
     return;
   }
-  await chrome.action.setBadgeBackgroundColor({ color: "#0e7490" });
-  await chrome.action.setBadgeText({ text: active ? String(active) : "" });
+
+  const active = Number(answer.active) || 0;
+  const waiting = Number(answer.waiting) || 0;
+  if (!speaking) {
+    await chrome.action.setBadgeBackgroundColor({ color: "#0e7490" });
+    await chrome.action.setBadgeText({ text: active ? String(active) : "" });
+  }
+  await ensureBadgeAlarm(active || waiting ? BADGE_BUSY : BADGE_IDLE);
 }
 
-chrome.alarms.create(BADGE_ALARM, { periodInMinutes: 0.5 });
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === BADGE_ALARM) refreshBadge();
 });
-chrome.runtime.onStartup.addListener(refreshBadge);
+
+// Created where the documentation says to create it, and checked on every start
+// in case it was never made or has been cleared.
+chrome.runtime.onInstalled.addListener(() => ensureBadgeAlarm(BADGE_IDLE));
+chrome.runtime.onStartup.addListener(async () => {
+  await ensureBadgeAlarm(BADGE_IDLE);
+  await sweepHandoff();
+  await refreshBadge();
+});
 
 /* -------------------------------------------------------------------------
  * Saying what happened
@@ -351,10 +456,17 @@ chrome.runtime.onStartup.addListener(refreshBadge);
  * ---------------------------------------------------------------------- */
 
 async function note(text) {
-  await chrome.storage.session.set({ lastNote: { text, at: Date.now() } });
+  const at = Date.now();
+  // Read by the popup, which is the only place the words can actually be shown.
+  // For a long time this was written and never read anywhere, so a right-click
+  // send said nothing at all beyond a tick that could mean anything.
+  await chrome.storage.session.set({
+    lastNote: { text, at },
+    tickUntil: at + TICK_MS,
+  });
   await chrome.action.setBadgeText({ text: "✓" });
   await chrome.action.setBadgeBackgroundColor({ color: "#22c55e" });
-  setTimeout(() => chrome.action.setBadgeText({ text: "" }), 2500);
+  setTimeout(() => refreshBadge(), TICK_MS);
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
@@ -372,6 +484,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
       // The in-page button carries no quality of its own; the saved one is
       // the same choice the toolbar would have used.
       const via = await send(msg.url, msg.quality || saved.quality);
+      await ensureBadgeAlarm(BADGE_BUSY);
       refreshBadge();
       reply({ ok: true, via });
     })();
@@ -390,6 +503,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   if (msg?.kind === "sites") {
     reply({ ok: true, names: Object.keys(SITE_HOSTS) });
     return false;
+  }
+
+  /* What the popup must ask the browser for. Worked out here because this is
+   * where the site list is turned into match patterns, and two copies of that
+   * rule would drift the first time either changed. */
+  if (msg?.kind === "origins") {
+    (async () => {
+      const { sites } = await settings();
+      reply({ ok: true, origins: buttonMatches(sites) });
+    })();
+    return true;
   }
 
   /* What Riplox is doing with what it has been given.

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <img class="mark" src="icons/icon48.png" alt="" width="22" height="22">
+    <span>Riplox</span>
+  </header>
+
+  <p class="page" id="page" title="">Reading this tab…</p>
+
+  <!-- What Riplox is doing with what it already has. Without this the popup
+       could say "sent" and nothing more, and "sent to something that is
+       closed" reads exactly like "nothing happened". -->
+  <p class="state" id="state" hidden></p>
+
+  <button id="send" class="primary">Send to Riplox</button>
+
+  <p class="said" id="said" hidden></p>
+
+  <details class="more">
+    <summary>Options</summary>
+    <label class="check">
+      <input type="checkbox" id="showBadge">
+      <span>Show how many downloads are running</span>
+    </label>
+  </details>
+
+  <footer>
+    <p>Riplox must be installed on this PC. The download happens there, not in
+      the browser — including the quality, which Riplox uses whatever you have
+      set in it.</p>
+  </footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>

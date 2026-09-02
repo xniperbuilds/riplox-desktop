@@ -153,9 +153,18 @@ def running() -> int:
     jobs = saved.get("jobs") if isinstance(saved, dict) else saved
     if not isinstance(jobs, list):
         return 0
+    known = [j for j in jobs if isinstance(j, dict)]
+
     live = ("queued", "starting", "downloading", "converting")
-    return sum(1 for j in jobs
-               if isinstance(j, dict) and j.get("status") in live)
+    if any("status" in j for j in known):
+        return sum(1 for j in known if j.get("status") in live)
+
+    # A queue file written by a Riplox that did not record the status - which
+    # is every version before this one. Counting the entries is the right
+    # answer rather than a guess: the app writes a job into this file only
+    # while it is active or paused, so the length IS the count. Asking for a
+    # key nobody ever wrote is what made this return zero forever.
+    return len(known)
 
 
 def waiting() -> dict:

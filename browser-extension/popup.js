@@ -140,6 +140,25 @@ async function fillOptions() {
     box.addEventListener("change", async () => {
       box.checked ? chosen.add(name) : chosen.delete(name);
       await chrome.storage.sync.set({ sites: [...chosen] });
+      // A site added while the in-page button is on is a site the browser has
+      // not been asked about yet. Without this the tick stays on and the button
+      // simply never appears there - the exact "looks set, does nothing" the
+      // rest of this file is written to avoid. The click is the user gesture
+      // the request needs, so it has to happen here.
+      if (inPageEl.checked) {
+        const origins = await wantedOrigins();
+        const have = await chrome.permissions.contains({ origins })
+          .catch(() => false);
+        if (!have) {
+          const granted = await chrome.permissions.request({ origins })
+            .catch(() => false);
+          if (!granted) {
+            permNoteEl.textContent = "The browser did not grant access to that "
+              + "site, so the button will not appear on it.";
+          }
+        }
+      }
+      chrome.runtime.sendMessage({ kind: "sync" });
     });
     const text = document.createElement("span");
     text.textContent = name;
@@ -156,9 +175,29 @@ badgeEl.addEventListener("change", async () => {
 /* The permission is asked for at the moment it is turned on, and given back
    the moment it is turned off. If the browser says no, the tick goes back -
    a switch left on while the thing it controls cannot run is a lie. */
+/* What to ask the browser for.
+ *
+ * This used to be the all-sites pattern whatever the site list said - the
+ * widest request
+ * Chrome has, and the one whose wording is "Read and change all your data on
+ * all websites". Somebody who had ticked YouTube alone was being asked for the
+ * entire web, which is both more than the feature needs and the single most
+ * common reason a switch like this never gets turned on.
+ *
+ * With no sites ticked the answer is still every site, because that is what an
+ * empty list means everywhere else in this extension.
+ */
+async function wantedOrigins() {
+  const answer = await chrome.runtime.sendMessage({ kind: "origins" })
+    .catch(() => null);
+  const origins = answer && answer.origins;
+  return Array.isArray(origins) && origins.length ? origins : ["*://*/*"];
+}
+
 inPageEl.addEventListener("change", async () => {
   if (inPageEl.checked) {
-    const granted = await chrome.permissions.request({ origins: ["*://*/*"] })
+    const origins = await wantedOrigins();
+    const granted = await chrome.permissions.request({ origins })
       .catch(() => false);
     if (!granted) {
       inPageEl.checked = false;
@@ -167,7 +206,8 @@ inPageEl.addEventListener("change", async () => {
       return;
     }
   } else {
-    await chrome.permissions.remove({ origins: ["*://*/*"] }).catch(() => {});
+    const origins = await wantedOrigins();
+    await chrome.permissions.remove({ origins }).catch(() => {});
   }
   await chrome.storage.sync.set({ inPageButton: inPageEl.checked });
   chrome.runtime.sendMessage({ kind: "sync" });
@@ -207,6 +247,25 @@ sendEl.addEventListener("click", async () => {
   }
 });
 
+/* What the last right-click send said.
+ *
+ * A send from the context menu has no popup open to talk to, so all it could
+ * ever do was flash a tick on the icon. The words went into session storage and
+ * were never read by anything. Now the next opening of the popup reports them,
+ * once - stale news is worse than none, so anything older than the tick itself
+ * is dropped rather than shown.
+ */
+const NOTE_LIFE = 8000;
+
+async function showLastNote() {
+  const { lastNote } = await chrome.storage.session.get({ lastNote: null });
+  if (!lastNote || !lastNote.text) return;
+  await chrome.storage.session.remove("lastNote");
+  if (Date.now() - (lastNote.at || 0) > NOTE_LIFE) return;
+  say(lastNote.text, true);
+}
+
 fill();
 fillOptions();
 showState();
+showLastNote();
