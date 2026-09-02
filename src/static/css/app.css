@@ -613,6 +613,18 @@ button { font-family: var(--body); }
   color: var(--cyan-ink); font-size: 12.5px;
   cursor: pointer; text-decoration: underline;
 }
+/* ⚠ #chapterNote is a .hint only for its type size. The dashed cyan box
+   above belongs to the clipboard offer, which is something to act on; this
+   is a fact to read past, and in the box it read as a warning that a feature
+   had failed. */
+#chapterNote {
+  margin-top: 10px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--ink-faint);
+}
+
 .hint em {
   font-style: normal;
   font-family: var(--mono);
@@ -806,6 +818,69 @@ button { font-family: var(--body); }
 
 .chips { display: flex; flex-wrap: wrap; gap: 7px; }
 
+/* ⚠️ Scoped to #qualityChips rather than .chips, because the clip lengths use
+   the same class and are a row of pills, which is right for them.
+   Six columns so the two answers can take three each and the rungs two, which
+   is the two-then-three the design asks for without a second container - and
+   the click delegation still has exactly one .chip list to look at. */
+#qualityChips {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+}
+/* One shape for both sizes of chip: name left, size hard right, and anything
+   after that on its own line. A rung has nothing after it, so it stays the
+   single row it looks like. */
+#qualityChips .chip {
+  grid-column: span 2;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 2px 8px;
+  padding: 9px 12px;
+  border-radius: var(--r-s);
+  text-align: left;
+}
+#qualityChips .chip-note { grid-column: 1 / -1; }
+#qualityChips .chip-name { font-weight: 500; }
+#qualityChips .chip-size {
+  font-family: var(--mono);
+  font-size: 11px;
+  opacity: 1;
+  color: var(--ink-faint);
+}
+
+/* The question most people are answering, given the room to look like it.
+   The weight is in the size of the target and the second line, not in colour -
+   colour is spent on whichever one is chosen. */
+/* ⚠ No justify-content here. The shared rule used to say space-between,
+   which reads as "size to the right" across a row and as "note to the floor"
+   down a column - so Max's second line sat at the bottom of the card while
+   Best's sat under its name. The grid above places both without it. */
+#qualityChips .chip.auto {
+  grid-column: span 3;
+  padding: 11px 14px;
+}
+#qualityChips .chip.auto .chip-name { font-size: 14px; color: var(--ink); }
+#qualityChips .chip.auto .chip-note {
+  font-style: normal;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--ink-faint);
+}
+
+/* A filled pill is fine at pill size and shouts at card size, so the chosen
+   answer is tinted instead - and its own name carries the accent. */
+#qualityChips .chip.auto.is-on {
+  background: rgba(var(--cyan-rgb), .10);
+  border-color: rgba(var(--cyan-rgb), .55);
+  color: var(--ink);
+  box-shadow: none;
+}
+#qualityChips .chip.auto.is-on .chip-name { color: var(--cyan-ink); }
+#qualityChips .chip.auto.is-on .chip-note { color: var(--ink-dim); }
+#qualityChips .chip.is-on .chip-size { color: inherit; }
+
 .chip {
   padding: 7px 14px;
   border: 1px solid var(--line);
@@ -827,6 +902,12 @@ button { font-family: var(--body); }
 .chip.audio.is-on { background: var(--pink); border-color: var(--pink); color: var(--on-pink); box-shadow: 0 6px 18px -10px var(--pink); }
 
 .preview-actions { display: flex; align-items: center; gap: 10px; }
+.rip-summary {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-faint);
+}
+.rip-summary[hidden] { display: none; }
 
 /* --- more options -------------------------------------------------------- */
 

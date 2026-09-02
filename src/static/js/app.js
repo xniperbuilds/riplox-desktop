@@ -19,6 +19,10 @@
 
   var $ = function (id) { return document.getElementById(id); };
 
+  // The sizes from the last analyse, kept so the line beside the button can
+  // be rebuilt on every chip click without re-reading the video.
+  var qualitySizes = {};
+
   function api(path, body) {
     return fetch(path, {
       method: body === undefined ? "GET" : "POST",
@@ -495,18 +499,50 @@
     // Shown before anything is pressed. "Highest" on an 8K video is 3.4 GB,
     // and finding that out from the progress bar is finding out too late.
     var sizes = (info && info.sizes) || {};
+    qualitySizes = sizes;
+
+    // What "Max" and "Best available" actually resolve to, when it can be
+    // known rather than guessed. Both are the same file as one of the rungs
+    // below, and three chips reading the identical size looked like three
+    // different things that happened to weigh the same. Named only when
+    // exactly one rung matches - two matches is ambiguous and says nothing.
+    function resolves(q) {
+      if (!sizes[q]) return "";
+      var hits = options.filter(function (r) {
+        return r !== "best" && r !== "max" && r !== "mp3" && sizes[r] === sizes[q];
+      });
+      return hits.length === 1 ? (labels[hits[0]] || hits[0]) : "";
+    }
+
+    // ⚠ Not "plays anywhere". h264 is a tie-break in the selector, not a
+    // filter (engine.format_args) - so where a height exists only as VP9 or
+    // AV1, Best available hands over VP9 or AV1 like everything else. It
+    // prefers the friendly codec; it cannot promise it.
+    // Both land on the tallest stream the video has; resolves() prints which
+    // one that is. These say only what separates them - the tie-break at that
+    // height - so the line stays short enough not to wrap.
+    var WHY = { max: "the fattest stream", best: "the friendliest codec it can" };
 
     $("qualityChips").innerHTML = options.map(function (q) {
       var from = upscaled[q];
+      var auto = (q === "best" || q === "max");
+      // The note is built from the pieces that exist, so a site with no size
+      // and no matching rung simply gets the short reason and no dangling
+      // separators.
+      var note = auto
+        ? [WHY[q], resolves(q)].filter(Boolean).join(" · ")
+        : "";
       return '<button type="button" class="chip' +
+        (auto ? " auto" : "") +
         (q === "mp3" ? " audio" : "") +
         (from ? " upscaled" : "") +
         (q === quality ? " is-on" : "") +
         '" data-q="' + q + '"' +
         (from ? ' title="YouTube made this with AI from a ' + from + 'p original"' : "") +
-        ">" + esc(labels[q] || q) +
-        (sizes[q] ? '<em class="chip-size"> · ' + esc(sizes[q]) + "</em>" : "") +
-        (from ? '<em> · AI-upscaled from ' + from + "p</em>" : "") +
+        ">" + '<b class="chip-name">' + esc(labels[q] || q) + "</b>" +
+        (sizes[q] ? '<em class="chip-size">' + esc(sizes[q]) + "</em>" : "") +
+        (note ? '<em class="chip-note">' + esc(note) + "</em>" : "") +
+        (from ? '<em class="chip-note">AI-upscaled from ' + from + "p</em>" : "") +
         "</button>";
     }).join("");
 
@@ -551,6 +587,9 @@
       $("downloadBtn").disabled = false;
       ripWhat("Everything");
     }
+    // Outside the branch on purpose: a playlist analysed straight after a
+    // video would otherwise keep the video's line, sizes and all.
+    syncRipSummary();
   }
 
   /* The RIP button is two lines - RIP on top, what it will take underneath -
@@ -559,6 +598,30 @@
   function ripWhat(text) {
     var el = $("ripWhat");
     if (el) el.textContent = text;
+  }
+
+  /* Beside the button: what it will be taken AS, which the button itself
+     never said - it says what (Everything, 3 chapters), never at which
+     quality. The caveat rides here rather than in the queue row, because a
+     size that turns out to be wrong is worth knowing before the decision and
+     merely annoying after it. */
+  function syncRipSummary() {
+    var el = $("ripSummary");
+    if (!el) return;
+    if (!current || quality === "mp3") {
+      el.textContent = quality === "mp3" && current ? "MP3 audio" : "";
+      el.hidden = !el.textContent;
+      return;
+    }
+    var line = labels[quality] || quality;
+    if (qualitySizes[quality]) line += " · about " + qualitySizes[quality];
+    // Only Max. Every other rung is a named height, and the size that comes
+    // back for a named height has been the size that arrived.
+    if (quality === "max" && qualitySizes[quality]) {
+      line += " · exact size only once it finishes";
+    }
+    el.textContent = line;
+    el.hidden = false;
   }
 
   function resetTrim() {
@@ -1257,6 +1320,7 @@
     }
 
     syncAlsoAudio();
+    syncRipSummary();
     refreshCommand();
   });
 
@@ -1745,6 +1809,10 @@
       }
       api("/api/command", body).then(function (res) {
         $("cmdBox").textContent = res.ok ? res.command : (res.error || "—");
+      }).catch(function () {
+        // Not reachable, so what is in the box is a command for the options
+        // as they were - which is worse than no command at all.
+        $("cmdBox").textContent = "—";
       });
     }, 180);
   }

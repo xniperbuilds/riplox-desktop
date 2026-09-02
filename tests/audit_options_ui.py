@@ -85,6 +85,96 @@ with sync_playwright() as pw:
         .map(e => (e.className || e.tagName) + ' ' + e.scrollWidth + '>' + e.clientWidth)""")
     check("no unexpected overflow", not spill, " / ".join(spill) or "clean")
 
+    print("\n-- the two answers lead the rungs " + "-" * 33)
+
+    def quality_geo():
+        return page.evaluate("""() => [...document.querySelectorAll('#qualityChips .chip')]
+            .map(c => { const r = c.getBoundingClientRect();
+                        const n = c.querySelector('.chip-note');
+                        return {
+                q: c.dataset.q, auto: c.classList.contains('auto'),
+                w: Math.round(r.width), top: Math.round(r.top),
+                name: (c.querySelector('.chip-name')||{}).textContent || '',
+                size: (c.querySelector('.chip-size')||{}).textContent || '',
+                note: n ? n.textContent : '',
+                lines: n ? Math.round(n.getBoundingClientRect().height
+                          / parseFloat(getComputedStyle(n).lineHeight)) : 0,
+                gap: n ? Math.round(n.getBoundingClientRect().top
+                        - c.querySelector('.chip-name').getBoundingClientRect().bottom)
+                       : 0 }; })""")
+
+    geo = quality_geo()
+    for g in geo:
+        print("       %-5s %s%4d  %-16s %-10s %s"
+              % (g["q"], "AUTO " if g["auto"] else "     ", g["w"],
+                 g["name"], g["size"], g["note"]))
+    autos = [g for g in geo if g["auto"]]
+    rungs = [g for g in geo if not g["auto"]]
+    check("best and max are the two auto cards",
+          sorted(g["q"] for g in autos) == ["best", "max"],
+          ", ".join(g["q"] for g in autos) or "none")
+    check("an auto card is wider than a rung and sits above it",
+          bool(autos) and bool(rungs)
+          and min(g["w"] for g in autos) > max(g["w"] for g in rungs)
+          and max(g["top"] for g in autos) < min(g["top"] for g in rungs),
+          "auto %dpx, rung %dpx" % (autos[0]["w"], rungs[0]["w"])
+          if autos and rungs else "-")
+
+    # ⚠ Not a hard-coded "2160p". Which rungs YouTube offers changes between
+    # runs - an earlier version of this check passed on nine chips and failed
+    # on four with the app right both times. What holds either way: the rung a
+    # card names exists, and carries that card's own size.
+    def named_rung(g):
+        tail = g["note"].split(" \u00b7 ", 1)[-1] if " \u00b7 " in g["note"] else ""
+        return next((r for r in rungs if r["name"] == tail), None)
+
+    check("each auto card names a real rung that carries its size",
+          bool(autos) and not [g for g in autos
+                               if not named_rung(g)
+                               or named_rung(g)["size"] != g["size"]],
+          " / ".join("%s -> %s" % (g["q"], g["note"]) for g in autos))
+
+    # "Best available" used to say it "plays anywhere". h264 is a tie-break in
+    # the selector and not a filter (engine.format_args, and the warning above
+    # it), so wherever a height exists only as VP9 or AV1 that was a promise
+    # the delivered file did not keep.
+    check("no card promises it plays anywhere",
+          not any("plays anywhere" in g["note"] for g in geo), "clean")
+
+    # The note belongs under its name. The shared .chip rule says
+    # justify-content: space-between, which across a row means "size to the
+    # right" and down a column means "note to the floor" - and a card with its
+    # second line stranded at the bottom passes every other check here.
+    check("each note sits under its own name",
+          bool(autos) and all(0 <= g["gap"] <= 8 for g in autos),
+          "gaps: " + ", ".join(str(g["gap"]) for g in autos))
+
+    print("\n-- the line beside the button " + "-" * 37)
+    lines = []
+    for g in geo:
+        page.click('#qualityChips .chip[data-q="%s"]' % g["q"])
+        page.wait_for_timeout(120)
+        state = page.evaluate("""() => { const e = document.getElementById('ripSummary');
+            const on = document.querySelector('#qualityChips .chip.is-on');
+            return { text: e.textContent.trim(), hidden: e.hidden,
+                     on: on ? on.dataset.q : null }; }""")
+        print("       %-5s -> %r" % (g["q"], state["text"]))
+        lines.append((g["q"], state))
+    # ⚠ Matched against the chip, not merely non-empty. Drop the
+    # syncRipSummary() call from the click handler and the line keeps the
+    # PREVIOUS chip's answer - still non-empty, still with the right chip lit,
+    # and describing a quality nobody chose.
+    named = {g["q"]: g["name"] for g in geo}
+    check("every chip sets itself and rewrites the line to match",
+          all(s["on"] == q and not s["hidden"]
+              and s["text"].startswith(named[q]) for q, s in lines),
+          "%d chips" % len(lines))
+    # Only Max. Every other rung is a named height, and a named height has
+    # come back at the size it was given.
+    check("only Max warns that the size is not final",
+          [q for q, s in lines if "only once it finishes" in s["text"]] == ["max"],
+          ", ".join(q for q, s in lines if "only once it finishes" in s["text"]) or "none")
+
     print("\n-- a narrow window folds to one column " + "-" * 28)
     page.set_viewport_size({"width": 900, "height": 900})
     page.wait_for_timeout(300)
@@ -95,6 +185,14 @@ with sync_playwright() as pw:
                      && !e.className.toString().match(/fmt-wrap|thumb-pick|preview-media/))
         .length""")
     check("still no overflow at 900px", narrow_spill == 0, "columns: " + cols)
+
+    # The cards match heights only while their notes stay on one line. A
+    # narrower column is what would wrap them, so it is checked at the narrow
+    # width rather than assumed from the wide one.
+    narrow = [g for g in quality_geo() if g["auto"]]
+    check("the two cards still match at 900px",
+          bool(narrow) and all(g["lines"] <= 1 for g in narrow),
+          "note lines: " + ", ".join(str(g["lines"]) for g in narrow))
     page.set_viewport_size({"width": 1180, "height": 900})
 
     print("\n-- light theme " + "-" * 52)
