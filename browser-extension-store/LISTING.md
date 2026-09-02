@@ -159,8 +159,18 @@ can dismiss it per site.
 No, I am not using remote code.
 ```
 
-All logic is in the files in this package. Nothing is fetched or evaluated at
-runtime.
+Answering "No" is not the end of it — the form still asks for a justification,
+and "Why can't I submit?" lists it alongside the permission ones. Paste:
+
+```
+No remote code is used. Every line the extension runs is inside the uploaded package: three scripts and a popup page. Nothing is fetched, evaluated or loaded from any server at runtime. The extension makes no network requests of any kind — its only outbound channel is Chrome's native messaging to a program installed on the same computer.
+```
+
+> Note from the first submission: the "Why can't I submit?" list asked for
+> seven justifications and **did not ask for the host-permission one**, because
+> that access is declared optional and is not granted at install. Keep the text
+> above anyway — a field for it may appear once the permission is requested at
+> runtime, and it is the answer either way.
 
 ## Data usage
 
