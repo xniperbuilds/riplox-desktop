@@ -220,3 +220,23 @@ footer p {
   font-size: 11.5px;
   line-height: 1.5;
 }
+
+/* The way out, when Riplox is not here to send anything to. It sits where the
+   state line just said something is wrong, so it reads as the answer to that
+   sentence rather than as an advert. */
+.get {
+  display: block;
+  margin: 0 0 10px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  text-align: center;
+}
+.get:hover { background: var(--line); }
+
+footer a { color: var(--accent); text-decoration: none; }
+footer a:hover { text-decoration: underline; }

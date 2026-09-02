@@ -26,6 +26,14 @@ import time
 from pathlib import Path
 
 APP_NAME = "RiploxDesktop"
+
+# Kept here rather than imported, because this program is built into its own
+# executable from this one file and importing the app would drag the whole
+# application into something whose job is to pass a link along. It is a copy,
+# and tests/test_host_version.py fails the moment it drifts from app.VERSION -
+# the extension reads this number to decide whether to tell somebody their
+# Riplox is too old, so a stale copy here becomes a wrong message there.
+VERSION = "1.5.0"
 MAX_MESSAGE = 1024 * 1024          # a link, not a payload
 INBOX_CAP = 200
 
@@ -212,7 +220,11 @@ def main() -> None:
         # A question rather than a link. Answered without touching the inbox,
         # so asking can never queue anything by accident.
         if message.get("ask") == "status":
-            send_message({"ok": True, "active": running(), **waiting()})
+            # The version travels with the answer so the extension can say
+            # "this needs Riplox 1.6 or newer" instead of failing vaguely.
+            # It costs one field and saves a support thread.
+            send_message({"ok": True, "version": VERSION,
+                          "active": running(), **waiting()})
             continue
 
         url = str(message.get("url") or "").strip()

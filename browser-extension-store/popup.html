@@ -17,6 +17,13 @@
        closed" reads exactly like "nothing happened". -->
   <p class="state" id="state" hidden></p>
 
+  <!-- Shown only when the helper says Riplox is not on this machine at all.
+       An extension whose whole job is handing links to an application it
+       cannot find should say where the application is, rather than leaving
+       somebody to work that out. -->
+  <a class="get" id="get" href="https://xniperbuilds.com/riplox-desktop/"
+     target="_blank" rel="noopener" hidden>Get Riplox for Windows →</a>
+
   <button id="send" class="primary">Send to Riplox</button>
 
   <p class="said" id="said" hidden></p>
@@ -44,6 +51,8 @@
     <p>Riplox must be installed on this PC. The download happens there, not in
       the browser — including the quality, which Riplox uses whatever you have
       set in it.</p>
+    <p><a href="https://xniperbuilds.com/riplox-desktop/" target="_blank"
+      rel="noopener">Riplox and more at xniperbuilds.com</a></p>
   </footer>
 
   <script src="popup.js"></script>

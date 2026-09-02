@@ -46,6 +46,12 @@ const NOT_COLLECTING = 30;
 const count = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
 function describe(status) {
+  if (status && !status.ok && status.reason === "stale") {
+    // Riplox is here. It simply predates this extension, and its helper only
+    // answers extensions it has been told about.
+    return ["Riplox is installed but has not been told about this extension "
+            + "yet. Update Riplox and it will connect.", "warn"];
+  }
   if (!status || !status.ok) {
     // A third state, and its own thing: the extension is fine, Riplox's helper
     // is not answering. Folding it into "not running" would send somebody off

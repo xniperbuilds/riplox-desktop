@@ -539,7 +539,24 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
           oldest: Number(answer.oldest) || 0,
         });
       } catch (e) {
-        reply({ ok: false, noHost: true });
+        /* Two failures wear the same shape here, and they need opposite
+         * answers from the person reading the popup.
+         *
+         * Chrome says "Specified native messaging host not found" when Riplox
+         * is not installed, or its installer never registered the helper. It
+         * says "Access to the specified native messaging host is forbidden"
+         * when the helper is right there and this extension's id is not in its
+         * allowed_origins - which is the ordinary state of every copy
+         * installed from the store until a Riplox build ships carrying that
+         * id. Telling that person "Riplox is not installed here" sends them to
+         * reinstall an application that is already running.
+         */
+        const why = String((e && e.message) || "");
+        reply({
+          ok: false,
+          noHost: true,
+          reason: /forbidden/i.test(why) ? "stale" : "missing",
+        });
       }
     })();
     return true;

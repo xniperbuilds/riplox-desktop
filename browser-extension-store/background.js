@@ -16,8 +16,15 @@
  *   - no site list. The bundled build names the services it is useful on; a
  *     store listing that ships a list of video sites is describing itself as
  *     something the store does not allow.
- *   - no in-page button, so no content script, no scripting permission and no
- *     host access at all. This build cannot see a page even if it wanted to.
+ *   - no media detection. The bundled build's in-page button decides whether to
+ *     appear by looking for a video element big enough to be worth
+ *     downloading. That is a useful trick and the wrong one here: an extension
+ *     that inspects a page, identifies media on it and offers to fetch it is
+ *     describing itself as something the store does not allow. The button is
+ *     still here; it simply never looks at the page.
+ *
+ * That button is off at install and its page access is optional, so installing
+ * this grants no access to any website at all.
  *
  * The bundled build in ../browser-extension keeps all of it. Both talk to the
  * same native host and write into the same inbox.
@@ -336,12 +343,30 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
         if (!answer || !answer.ok) throw new Error("no answer");
         reply({
           ok: true,
+          version: String(answer.version || ""),
           active: Number(answer.active) || 0,
           waiting: Number(answer.waiting) || 0,
           oldest: Number(answer.oldest) || 0,
         });
       } catch (e) {
-        reply({ ok: false, noHost: true });
+        /* Two failures wear the same shape here, and they need opposite
+         * answers from the person reading the popup.
+         *
+         * Chrome says "Specified native messaging host not found" when Riplox
+         * is not installed, or its installer never registered the helper. It
+         * says "Access to the specified native messaging host is forbidden"
+         * when the helper is right there and this extension's id is not in its
+         * allowed_origins - which is the ordinary state of every copy
+         * installed from the store until a Riplox build ships carrying that
+         * id. Telling that person "Riplox is not installed here" sends them to
+         * reinstall an application that is already running.
+         */
+        const why = String((e && e.message) || "");
+        reply({
+          ok: false,
+          noHost: true,
+          reason: /forbidden/i.test(why) ? "stale" : "missing",
+        });
       }
     })();
     return true;
