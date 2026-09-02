@@ -847,15 +847,42 @@ button { font-family: var(--body); }
 .more[open] > summary::before { transform: rotate(45deg) translate(-1px, -1px); }
 .more > summary:hover { color: var(--ink-dim); }
 
+/* Eight unrelated concerns used to sit in one well, separated by hairlines -
+   the exact format table, subtitles, the trim, the file name, sign-in, the
+   player client, three checkboxes and the cover picture. Reported as rushed
+   and confusing, and fairly: nothing said where one ended and the next began.
+   Each is its own block now, two across, because the single column they were
+   stacked in used half the width and left the other half empty. */
 .more-body {
   margin-top: 12px;
-  padding: 14px 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-s);
-  background: var(--well);
+  display: grid;
+  /* ⚠️ minmax(0,...) rather than a bare 1fr, and auto-fit rather than a fixed
+     two. A bare 1fr is minmax(auto, 1fr) and will not shrink below its
+     content, so the format table inside the first block pushed that column to
+     902px inside a 509px panel - measured, and it overflowed. This panel is
+     509px wide beside the thumbnail, which is one block across; a wider window
+     gets two without another rule. */
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
 }
 
-.more-sec + .more-sec { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
+/* No align-items here on purpose: left alone the grid stretches both cells in
+   a row to the taller one, so two blocks side by side end level instead of one
+   stopping short. */
+.more-sec {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--panel);
+}
+
+/* ⚠️ A grid item with a display of its own would out-argue the hidden
+   attribute, and half of these sections are hidden until they apply. This
+   keeps hidden winning whatever else is set below. */
+.more-sec[hidden] { display: none; }
+
+/* The ones that need the width say so rather than being cramped into half. */
+.more-sec.full { grid-column: 1 / -1; }
 
 /* A step with something to press. The button keeps its own width and sits
    against the text rather than under it, so five steps read as five actions
@@ -867,13 +894,24 @@ button { font-family: var(--body); }
 }
 .step-text { flex: 1; min-width: 0; }
 .more-sec.step > .ghost.small { flex: none; margin-top: 2px; }
-.more-sec > label,
+/* ⚠️ These were one rule, and that was the whole of the confusion: a block's
+   heading and a single field's name were both 10px uppercase mono in the
+   faintest ink, so they were indistinguishable and nothing looked like a
+   heading at all.
+   A block's own heading now reads as one. */
+.more-sec > label {
+  display: block;
+  font: 500 13px/1.3 var(--body);
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+
+/* A field's name stays small, because it labels one control rather than a
+   section - but the uppercase and the letter-spacing go. They were doing the
+   work that size and colour should do, and they cost legibility to do it. */
 .more-row > label:not(.more-field) {
   display: block;
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: .16em;
-  text-transform: uppercase;
+  font: 400 11px/1.4 var(--body);
   color: var(--ink-faint);
 }
 
