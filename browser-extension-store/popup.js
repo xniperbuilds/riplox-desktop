@@ -78,15 +78,17 @@ function describe(status) {
             "warn"];
   }
   if (status && !status.ok && status.reason === "stale") {
-    /* Chrome refused the connection because this extension's id is not in the
-     * helper's allowed_origins. In practice there is one reason for that: the
-     * Riplox on this machine predates this extension. Naming the version is
-     * both true and something a person can act on - where the old message,
-     * "Riplox is not installed here", sent them off to reinstall an
-     * application that was already running. */
-    return [`This extension needs Riplox ${MIN_RIPLOX} or newer. The Riplox on `
-            + "this PC is older, so it does not recognise the extension yet.",
-            "warn"];
+    /* Chrome refused the connection: this extension's id is not in the
+     * helper's allowed_origins. Nothing here knows the version - the host
+     * never ran - so this says what it does know.
+     *
+     * It used to name the floor and call that Riplox "older", which is wrong
+     * for exactly the people most likely to see it: everybody holding the
+     * released 1.5.0, who would read that their 1.5.0 is out of date while
+     * looking at 1.5.0 in the app. Their copy is not old. It has never been
+     * told this extension exists. */
+    return ["Riplox is installed, but does not know about this extension yet. "
+            + "Update Riplox and it will connect.", "warn"];
   }
   if (status && status.ok && olderThan(status.version, MIN_RIPLOX)) {
     /* It answered, so Riplox is here and working - it is simply older than
@@ -99,10 +101,15 @@ function describe(status) {
      * unknown version now says it is unknown instead of pretending to a
      * number nobody sent. */
     return [status.version
+              // It told us a number, so the number can be named.
               ? `Riplox ${status.version} is installed, and this extension `
                 + `needs ${MIN_RIPLOX} or newer.`
-              : `An older Riplox is installed. This extension needs `
-                + `${MIN_RIPLOX} or newer.`,
+              // It answered without one, which every Riplox built before that
+              // field does. That is not evidence of age, and saying "older"
+              // here is a guess that is wrong for anyone on the current
+              // release.
+              : "Riplox is installed, but does not know about this extension "
+                + "yet. Update Riplox and it will connect.",
             "warn"];
   }
   if (!status || !status.ok) {

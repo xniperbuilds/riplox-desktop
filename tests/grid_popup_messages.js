@@ -88,9 +88,11 @@ const ok = (v, a, w, o) => ({ ok: true, version: v, active: a, waiting: w, oldes
 console.log("\n-- what it says ------------------------------------------------");
 truth("absent: says not installed", MISSING, ["update riplox", "working on"],
       ["not installed"]);
-truth("refused: does NOT say uninstalled", STALE, ["not installed"], ["1.5.0"]);
-truth("no version field: no blank printed", ok("", 0, 0, 0),
-      ["riplox  is", "undefined"], ["older riplox", "1.5.0"]);
+truth("refused: not uninstalled, and not called old", STALE,
+      ["not installed", "older", "1.5.0"], ["does not know about this extension"]);
+truth("no version field: no blank, and not called old", ok("", 0, 0, 0),
+      ["riplox  is", "undefined", "older", "1.5.0"],
+      ["does not know about this extension"]);
 truth("old version: names what it found", ok("1.4.1", 0, 0, 0), ["not installed"],
       ["1.4.1", "1.5.0"]);
 truth("current + idle: claims neither", ok("1.5.0", 0, 0, 0),
