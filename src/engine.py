@@ -4372,7 +4372,11 @@ class Job:
                  "frag_base_at", "frag_base_bytes",
                  # The size currently on screen, kept so it can stay there
                  # while the estimate behind it wobbles. See _settled_size.
-                 "size_shown")
+                 "size_shown",
+                 # Whether the size beside it is measured or extrapolated. Kept
+                 # apart from the string on purpose - three different readers
+                 # parse that string back into a number.
+                 "size_estimated")
 
     def __init__(self, url, title="", thumbnail="", quality="best", uploader="",
                  batch=False, start="", end="", exact=False, opts=None,
@@ -4458,6 +4462,7 @@ class Job:
         self.frag_base_at = 0.0
         self.frag_base_bytes = 0.0
         self.size_shown = 0.0
+        self.size_estimated = False
         # How many of a cut's parts have arrived. One job, many files.
         self.parts = 0
         # Kept so the user can hand a real error to someone who can read it,
@@ -4492,6 +4497,7 @@ class Job:
             "qualityLabel": self._quality_label(),
             "status": self.status,
             "percent": round(self.percent, 1),
+            "sizeEstimated": self.size_estimated,
             "speed": self.speed,
             "eta": self.eta,
             "size": self.size,
@@ -6290,10 +6296,25 @@ class DownloadManager:
                 # rises, 54 times in one download and once by 174 MB in the
                 # other, which is the 51% overstatement that rule produced
                 # the first time it was tried.
+                job.size_estimated = not exact
                 if exact:
                     job.size = human_bytes(size)
                 else:
                     job.size_shown = _settled_size(size, job.size_shown)
+                    # ⚠️ Marked, because this one is not measured - it is
+                    # yt-dlp's extrapolation and it moves. Measured on two real
+                    # downloads: shown as 550 MB and then 350 MB on a file that
+                    # turned out to be 319.
+                    #
+                    # Hiding it was the alternative and it is worse: the number
+                    # is useful even at 10% out, and it is the only answer to
+                    # "how much longer". Saying it is approximate costs one
+                    # character and stops it reading as a measurement.
+                    #
+                    # Only "Max" ever reaches this on YouTube. Every capped
+                    # rung, 360 through 2160, carries a real filesize and takes
+                    # the branch above - so this mark appears exactly where the
+                    # number really is a guess, and nowhere else.
                     job.size = human_bytes(job.size_shown)
             # ⚠️ Per STREAM, not per file: yt-dlp fetches the video and the
             # audio separately and reports each on its own. The stage beside it

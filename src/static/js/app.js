@@ -2045,7 +2045,8 @@
       var pct = unmeasurable ? 100 : j.percent;
       var left = unmeasurable
         ? esc(j.stage)
-        : j.percent.toFixed(0) + "%" + (j.size ? " · " + esc(j.size) : "");
+        : j.percent.toFixed(0) + "%"
+          + (j.size ? " · " + esc((j.sizeEstimated ? "~" : "") + j.size) : "");
       return '<div class="live-row">' +
         '<div class="live-title" title="' + esc(j.title || "") + '">' +
         esc(j.title || "") + "</div>" +
@@ -2086,8 +2087,19 @@
       }
       // "45.2 MB of 342.0 MB" answers "how much longer on this line" in a way
       // a percentage never does - and on an 8K file that is the whole question.
-      if (j.got && j.size) bits.push(["", j.got + " of " + j.size]);
-      else if (j.size) bits.push(["", j.size]);
+      // ⚠️ The tilde is put on here rather than stored in the size itself.
+      // That string is read back as a number in three places, and one of them
+      // answers 0 rather than raising - a partial size reaching the library
+      // would have sorted as zero with nothing to show why.
+      var total = j.sizeEstimated ? "~" + j.size : j.size;
+      if (j.got && j.size) bits.push(["", j.got + " of " + total]);
+      else if (j.size) bits.push(["", total]);
+      // And the tilde is easy to miss, while the number it marks can be a
+      // third out - 550 MB was shown for a file that finished at 319. Only Max
+      // reaches this: every capped rung gets a real size from the site.
+      if (j.size && j.sizeEstimated) {
+        bits.push(["", "estimated — Max has no exact size until it finishes"]);
+      }
       if (j.speed) bits.push(["", j.speed]);
       if (j.eta) bits.push(["", "ETA " + j.eta]);
       // Worth seeing while it runs, not only once it lands.
