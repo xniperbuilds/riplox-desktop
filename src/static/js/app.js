@@ -466,11 +466,27 @@
     if (!isList && info.extractor) bits.push(esc(info.extractor));
     $("pvMeta").innerHTML = bits.map(function (b) { return "<span>" + b + "</span>"; }).join("");
 
+    // ⚠️ "max" belongs in this fallback. The list was written before that rung
+    // existed and never caught up, and the line below silently replaces any
+    // choice missing from it - so on a playlist, or any link whose analysis
+    // returned no rungs, a chosen Max quietly became Best available. The
+    // download then ran as Best and the Library said so, which is how it was
+    // reported: "max pe kar raha hun, library mein best avail show ho raha".
+    // _available_qualities always offers ["best", "max", ...], so this is only
+    // ever the shape of the fallback, and it must match it.
     var options = (!isList && info.qualities && info.qualities.length)
       ? info.qualities
-      : ["best", "1080", "720", "480", "mp3"];
+      : ["best", "max", "1080", "720", "480", "mp3"];
 
-    if (options.indexOf(quality) === -1) quality = options[0];
+    // And when the choice really cannot be honoured, say so rather than
+    // swapping it behind the user's back. Silently downloading something other
+    // than what was asked for is the thing being fixed, not the swap itself.
+    if (options.indexOf(quality) === -1) {
+      var asked = labels[quality] || quality;
+      quality = options[0];
+      toast("This one has no " + asked + " - using "
+            + (labels[quality] || quality) + ".", "bad");
+    }
 
     // A rung that only exists because YouTube enlarged the video with AI says
     // so on the chip. "1440p" over a 480p source is the app lying about the
