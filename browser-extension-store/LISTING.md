@@ -174,12 +174,32 @@ No remote code is used. Every line the extension runs is inside the uploaded pac
 
 ## Data usage
 
-Tick **nothing**. Then the certifications.
+Tick **Web history**, and nothing else. Then all three certifications.
 
-Google defines collection as transmitting data off the user's device, and this
-extension transmits nothing off the device — the address goes to a program on
-the same computer, over the browser's own native messaging channel. There is no
-server, no analytics and no network request anywhere in the code.
+> This was wrong the first time round, and the mistake is the one the store
+> names as a rejection reason, so it is written out rather than quietly fixed.
+> The assumption was that "collect" means "send off the device". Google's own
+> FAQ says otherwise: *"by 'handle' we mean collecting, transmitting, using, or
+> sharing user data"*, and disclosure is required *"even when data is processed
+> or stored locally on a user's device and is not transmitted to external
+> servers or third parties"*. Web browsing activity is defined as *"any
+> information about the websites or other web resources a user requests or
+> interacts with, including the domains or URLs the browser interacts with"* —
+> which is exactly what this extension hands to Riplox.
+
+**Not** website content: the extension never reads a page's text, markup or
+media — the address arrives from Chrome, not from reading the document.
+**Not** user activity: nothing logs clicks, scrolling or keystrokes.
+
+Declaring it costs nothing, because the policy permits web browsing activity
+*"to the extent required for a user-facing feature described prominently in the
+Product's Chrome Web Store page and in the Product's user interface"* — which
+is the whole of what this extension is, said plainly in both places.
+
+⚠️ The privacy policy has to agree with this box. It opened with "collects
+nothing", which contradicted the disclosure sitting next to it — and *"the
+privacy policy does not talk about user data collection, usage, handling or
+sharing"* is its own named rejection reason. It now describes the handling.
 
 The three certifications are all true and can be ticked:
 - does not sell or transfer user data to third parties outside approved use cases

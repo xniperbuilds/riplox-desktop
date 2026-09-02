@@ -1,24 +1,39 @@
 # Privacy policy — Riplox browser extension
 
-*Last updated: 3 September 2026*
+*Last updated: 4 September 2026*
 
-The Riplox browser extension collects nothing, stores nothing about you, and
-sends nothing anywhere.
+**Nothing this extension touches ever leaves your computer.** There is no
+server behind it, no account, and no network request anywhere in its code.
 
-This is not a promise about intent. It is a description of what the code can
-do, and the extension is small enough that the claim is checkable: the whole of
-it is a few files, and they are published in this repository under
+That is not the same as saying it handles nothing, and this page will not
+pretend otherwise. Chrome counts a web address as browsing activity whether or
+not it is sent anywhere, so the honest description is below rather than a flat
+denial. The extension is small enough that all of it is checkable: the whole
+thing is a few files, published in this repository under
 `browser-extension-store/`.
 
 ## What the extension handles
 
 One thing: **the address of a page or link you choose to send.**
 
-You choose it by clicking the extension's toolbar button, or by using one of
-its two right-click entries. At that moment the extension reads the address of
-that page or link and hands it to the Riplox application on the same computer.
+You choose it by clicking the extension's toolbar button, by using one of its
+two right-click entries, or by pressing the optional in-page button. At that
+moment, and only then, the extension reads the address of that page or link and
+hands it to the Riplox application on the same computer.
 
-That address is not stored, not logged, and not transmitted anywhere else.
+Chrome classifies a web address as *web browsing activity*, so that is what is
+declared on this extension's Chrome Web Store listing, and it is the only
+category declared there.
+
+What happens to that address is the whole of it:
+
+- it goes to Riplox, on your machine, over the browser's own local channel
+- it is not stored by the extension, not written to any log, and not kept in
+  any list
+- it is not sent to the developer, to any server, or to any third party — the
+  extension makes no network requests at all
+- nothing is gathered in the background: no address is read unless you ask for
+  that page to be sent
 
 ## What it cannot see
 
@@ -71,8 +86,9 @@ runs on your computer and its downloads are yours.
 
 ## Children
 
-The extension is not directed at children and collects no data from anyone,
-including children.
+The extension is not directed at children. It handles nothing beyond the page
+address described above, from anyone, children included, and sends that nowhere
+off the machine it runs on.
 
 ## Changes
 
