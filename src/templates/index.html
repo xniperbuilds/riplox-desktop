@@ -375,14 +375,30 @@
               </label>
               <label class="more-field">
                 <span>Player client</span>
+                <!-- Grouped by what each one can actually hand over, because
+                     the bare names hid it: four of the six offered here were
+                     measured (1 Sep 2026) to stop at 360p or 180p however much
+                     was asked for - and the choice is remembered, so picking
+                     one once quietly shrank every download after it. -->
                 <select id="optClient">
                   <option value="">Let Riplox choose</option>
-                  <option value="tv_simply">tv_simply</option>
-                  <option value="web_safari">web_safari</option>
-                  <option value="mweb">mweb</option>
-                  <option value="android_vr">android_vr</option>
-                  <option value="ios">ios</option>
-                  <option value="web">web</option>
+                  <optgroup label="Every quality">
+                    <option value="tv_embedded">tv_embedded</option>
+                    <option value="visionos">visionos &mdash; no kids' videos</option>
+                    <option value="web_embedded">web_embedded &mdash; embeddable only</option>
+                    <option value="android_music">android_music</option>
+                    <option value="ios_music">ios_music</option>
+                  </optgroup>
+                  <optgroup label="Every quality, while signed in">
+                    <option value="tv_simply">tv_simply</option>
+                    <option value="mweb">mweb</option>
+                  </optgroup>
+                  <optgroup label="Small formats only &mdash; 360p or less">
+                    <option value="android_vr">android_vr</option>
+                    <option value="web_safari">web_safari</option>
+                    <option value="ios">ios</option>
+                    <option value="web">web</option>
+                  </optgroup>
                 </select>
               </label>
             </div>
