@@ -716,6 +716,16 @@ button { font-family: var(--body); }
 
 .preview-media { position: relative; }
 
+/* Everything below the quality chips spans the whole card rather than sharing
+   the column beside the thumbnail. That column measures 509px, which fits one
+   block; the card is 830 and fits two, which is the layout these were designed
+   for. The actions row comes with them - left in the column it would sit above
+   the options, and a "download it" button does not belong above the choices it
+   acts on. */
+.preview > #heatBox,
+.preview > #moreBox,
+.preview > .preview-actions { grid-column: 1 / -1; }
+
 .preview-media img {
   width: 100%;
   aspect-ratio: 16 / 9;
@@ -862,7 +872,11 @@ button { font-family: var(--body); }
      902px inside a 509px panel - measured, and it overflowed. This panel is
      509px wide beside the thumbnail, which is one block across; a wider window
      gets two without another rule. */
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  /* 340 rather than 260: the row is 863px wide once these span the whole
+     card, and 260 fitted three columns of 279px, which is narrower than a
+     from/to pair of selects wants. 340 gives the two the design was drawn
+     for, and still folds to one if the window is made small. */
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
   gap: 12px;
 }
 

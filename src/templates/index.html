@@ -236,18 +236,6 @@
                so it can stop arriving with no notice and no error. The line
                below is not decoration: on the day it goes, the app has to say
                so rather than draw an empty box. -->
-          <details class="heatmap" id="heatBox" hidden>
-            <summary id="heatSummary">Most replayed</summary>
-            <div class="heat-graph" id="heatGraph"></div>
-            <ol class="heat-peaks" id="heatPeaks"></ol>
-            <label class="chapter-all" id="clipOnWrap">
-              <input type="checkbox" id="clipOn">
-              <span>Cut these moments into clips</span>
-            </label>
-            <div class="clip-row" id="clipRow" hidden>
-              <div class="chips" id="clipLens"></div>
-            </div>
-          </details>
           <p class="hint" id="clipNote" hidden></p>
           <!-- Cutting a video into parts is ffmpeg's work, and yt-dlp refuses
                outright without it: "You have requested downloading the video
@@ -273,192 +261,207 @@
         <!-- One quiet line, closed on every install and after every link. It
              may add controls; it never changes what the closed state does,
              and everything set here applies to this one download only. -->
-        <details class="more" id="moreBox">
-          <summary>More options</summary>
-          <div class="more-body">
 
-          <div class="more-sec" id="fmtSec">
-            <div class="more-row between">
-              <label>Exact format</label>
-              <span class="more-note" id="fmtPick">Using the quality above.</span>
-            </div>
-            <div class="fmt-wrap"><table class="fmt" id="fmtTable"></table></div>
-          </div>
+      </div>
 
-          <div class="more-sec" id="langSec" hidden>
-            <div class="more-row">
-              <label class="more-field" id="audioLangField" hidden>
-                <span>Audio language</span>
-                <select id="optAudioLang"></select>
-              </label>
-              <label class="more-field" id="optSubField" hidden>
-                <span>Subtitles</span>
-                <select id="optSubLang"></select>
-              </label>
-            </div>
-          </div>
-
-        <div class="trim-block more-sec" id="trimBlock" hidden>
-          <label class="trim-toggle">
-            <input type="checkbox" id="trimOn">
-            <span>Download only part of it</span>
+        <details class="heatmap" id="heatBox" hidden>
+          <summary id="heatSummary">Most replayed</summary>
+          <div class="heat-graph" id="heatGraph"></div>
+          <ol class="heat-peaks" id="heatPeaks"></ol>
+          <label class="chapter-all" id="clipOnWrap">
+            <input type="checkbox" id="clipOn">
+            <span>Cut these moments into clips</span>
           </label>
-
-          <div class="trim-panel" id="trimRow" hidden>
-            <div class="trim-line">
-              <span class="trim-label">Start</span>
-              <span class="stepper">
-                <input type="number" id="startMin" value="0" min="0" max="599"
-                       aria-label="Start minutes">
-                <span class="stepper-unit">min</span>
-              </span>
-              <span class="stepper">
-                <input type="number" id="startSec" value="0" min="-1" max="60"
-                       aria-label="Start seconds">
-                <span class="stepper-unit">sec</span>
-              </span>
-            </div>
-
-            <div class="trim-line">
-              <span class="trim-label">End</span>
-              <span class="stepper">
-                <input type="number" id="endMin" value="0" min="0" max="599"
-                       aria-label="End minutes" disabled>
-                <span class="stepper-unit">min</span>
-              </span>
-              <span class="stepper">
-                <input type="number" id="endSec" value="0" min="-1" max="60"
-                       aria-label="End seconds" disabled>
-                <span class="stepper-unit">sec</span>
-              </span>
-              <label class="trim-check">
-                <input type="checkbox" id="toEnd" checked>
-                <span>to the end</span>
-              </label>
-            </div>
-
-            <div class="trim-line">
-              <label class="trim-check">
-                <input type="checkbox" id="exactCut">
-                <span>Cut on the exact second <em>— slower, re-encodes</em></span>
-              </label>
-            </div>
-
-            <p class="trim-summary" id="trimSummary"></p>
-          </div>
-        </div>
-
-          <div class="more-sec">
-            <div class="more-row">
-              <label class="more-field grow">
-                <span>Save as</span>
-                <input type="text" id="optName" class="text-input"
-                       spellcheck="false" maxlength="160"
-                       placeholder="%(title)s [%(id)s].%(ext)s">
-              </label>
-              <div class="more-field">
-                <span>Into</span>
-                <button type="button" class="ghost small" id="optDir"
-                        data-dir="">Default folder</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="more-sec">
-            <div class="more-row">
-              <label class="more-field">
-                <span>Sign-in for this download</span>
-                <select id="optCookies">
-                  <option value="">Use the saved session</option>
-                  <option value="off">Send no sign-in</option>
-                </select>
-              </label>
-              <label class="more-field">
-                <span>Player client</span>
-                <!-- Grouped by what each one can actually hand over, because
-                     the bare names hid it: four of the six offered here were
-                     measured (1 Sep 2026) to stop at 360p or 180p however much
-                     was asked for - and the choice is remembered, so picking
-                     one once quietly shrank every download after it. -->
-                <select id="optClient">
-                  <option value="">Let Riplox choose</option>
-                  <optgroup label="Every quality">
-                    <option value="tv_embedded">tv_embedded</option>
-                    <option value="visionos">visionos &mdash; no kids' videos</option>
-                    <option value="web_embedded">web_embedded &mdash; embeddable only</option>
-                    <option value="android_music">android_music</option>
-                    <option value="ios_music">ios_music</option>
-                  </optgroup>
-                  <optgroup label="Every quality, while signed in">
-                    <option value="tv_simply">tv_simply</option>
-                    <option value="mweb">mweb</option>
-                  </optgroup>
-                  <optgroup label="Small formats only &mdash; 360p or less">
-                    <option value="android_vr">android_vr</option>
-                    <option value="web_safari">web_safari</option>
-                    <option value="ios">ios</option>
-                    <option value="web">web</option>
-                  </optgroup>
-                </select>
-              </label>
-            </div>
-            <p class="more-note" id="cookieNow"></p>
-          </div>
-
-          <!-- Three things that change what comes out of one download, rather
-               than how it is fetched. Each is cleared for the next link. -->
-          <div class="more-sec">
-            <label class="more-check">
-              <input type="checkbox" id="optSubsOnly">
-              <span>Subtitles only — no video file</span>
-            </label>
-            <label class="more-check">
-              <input type="checkbox" id="optThumbAll">
-              <span>Save every thumbnail the site offers, not just the default</span>
-            </label>
-            <label class="more-check">
-              <input type="checkbox" id="optWriteDesc">
-              <span>Save the video's description as a text file beside it</span>
-            </label>
-            <label class="more-check" id="optLiveWrap">
-              <input type="checkbox" id="optLiveFromStart">
-              <span>Live stream: start from the beginning, not from now</span>
-            </label>
-            <p class="more-note" id="subsOnlyNote" hidden></p>
-          </div>
-
-          <!-- The cover picture. Sites often lead with a poor default, and
-               until now the only answer was to save all of them and sort it
-               out in the folder. Hidden entirely when the site offers one. -->
-          <div class="more-sec" id="thumbSec" hidden>
-            <div class="more-row between">
-              <label>Cover picture</label>
-              <button type="button" class="ghost small" id="thumbClear">Use the default</button>
-            </div>
-            <div class="thumb-pick" id="thumbPick"></div>
-            <p class="more-note" id="thumbNote"></p>
-          </div>
-
-          <div class="more-sec">
-            <div class="more-row between">
-              <label>The command Riplox will run</label>
-              <button type="button" class="ghost small" id="cmdCopy">Copy</button>
-            </div>
-            <pre class="cmd" id="cmdBox">…</pre>
-          </div>
-
+          <div class="clip-row" id="clipRow" hidden>
+            <div class="chips" id="clipLens"></div>
           </div>
         </details>
 
-        <div class="preview-actions">
-          <!-- Two lines: what it does, and what it is about to take. The
-               second line is the only one that ever changes, so writing
-               textContent on the button itself would delete both. -->
-          <button class="primary big rip" id="downloadBtn">
-            <b>RIP</b><em id="ripWhat">Everything</em>
-          </button>
-          <button class="ghost" id="resetBtn">Clear</button>
+      <details class="more" id="moreBox">
+        <summary>More options</summary>
+        <div class="more-body">
+
+        <div class="more-sec" id="fmtSec">
+          <div class="more-row between">
+            <label>Exact format</label>
+            <span class="more-note" id="fmtPick">Using the quality above.</span>
+          </div>
+          <div class="fmt-wrap"><table class="fmt" id="fmtTable"></table></div>
         </div>
+
+        <div class="more-sec" id="langSec" hidden>
+          <div class="more-row">
+            <label class="more-field" id="audioLangField" hidden>
+              <span>Audio language</span>
+              <select id="optAudioLang"></select>
+            </label>
+            <label class="more-field" id="optSubField" hidden>
+              <span>Subtitles</span>
+              <select id="optSubLang"></select>
+            </label>
+          </div>
+        </div>
+
+      <div class="trim-block more-sec" id="trimBlock" hidden>
+        <label class="trim-toggle">
+          <input type="checkbox" id="trimOn">
+          <span>Download only part of it</span>
+        </label>
+
+        <div class="trim-panel" id="trimRow" hidden>
+          <div class="trim-line">
+            <span class="trim-label">Start</span>
+            <span class="stepper">
+              <input type="number" id="startMin" value="0" min="0" max="599"
+                     aria-label="Start minutes">
+              <span class="stepper-unit">min</span>
+            </span>
+            <span class="stepper">
+              <input type="number" id="startSec" value="0" min="-1" max="60"
+                     aria-label="Start seconds">
+              <span class="stepper-unit">sec</span>
+            </span>
+          </div>
+
+          <div class="trim-line">
+            <span class="trim-label">End</span>
+            <span class="stepper">
+              <input type="number" id="endMin" value="0" min="0" max="599"
+                     aria-label="End minutes" disabled>
+              <span class="stepper-unit">min</span>
+            </span>
+            <span class="stepper">
+              <input type="number" id="endSec" value="0" min="-1" max="60"
+                     aria-label="End seconds" disabled>
+              <span class="stepper-unit">sec</span>
+            </span>
+            <label class="trim-check">
+              <input type="checkbox" id="toEnd" checked>
+              <span>to the end</span>
+            </label>
+          </div>
+
+          <div class="trim-line">
+            <label class="trim-check">
+              <input type="checkbox" id="exactCut">
+              <span>Cut on the exact second <em>— slower, re-encodes</em></span>
+            </label>
+          </div>
+
+          <p class="trim-summary" id="trimSummary"></p>
+        </div>
+      </div>
+
+        <div class="more-sec">
+          <div class="more-row">
+            <label class="more-field grow">
+              <span>Save as</span>
+              <input type="text" id="optName" class="text-input"
+                     spellcheck="false" maxlength="160"
+                     placeholder="%(title)s [%(id)s].%(ext)s">
+            </label>
+            <div class="more-field">
+              <span>Into</span>
+              <button type="button" class="ghost small" id="optDir"
+                      data-dir="">Default folder</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="more-sec">
+          <div class="more-row">
+            <label class="more-field">
+              <span>Sign-in for this download</span>
+              <select id="optCookies">
+                <option value="">Use the saved session</option>
+                <option value="off">Send no sign-in</option>
+              </select>
+            </label>
+            <label class="more-field">
+              <span>Player client</span>
+              <!-- Grouped by what each one can actually hand over, because
+                   the bare names hid it: four of the six offered here were
+                   measured (1 Sep 2026) to stop at 360p or 180p however much
+                   was asked for - and the choice is remembered, so picking
+                   one once quietly shrank every download after it. -->
+              <select id="optClient">
+                <option value="">Let Riplox choose</option>
+                <optgroup label="Every quality">
+                  <option value="tv_embedded">tv_embedded</option>
+                  <option value="visionos">visionos &mdash; no kids' videos</option>
+                  <option value="web_embedded">web_embedded &mdash; embeddable only</option>
+                  <option value="android_music">android_music</option>
+                  <option value="ios_music">ios_music</option>
+                </optgroup>
+                <optgroup label="Every quality, while signed in">
+                  <option value="tv_simply">tv_simply</option>
+                  <option value="mweb">mweb</option>
+                </optgroup>
+                <optgroup label="Small formats only &mdash; 360p or less">
+                  <option value="android_vr">android_vr</option>
+                  <option value="web_safari">web_safari</option>
+                  <option value="ios">ios</option>
+                  <option value="web">web</option>
+                </optgroup>
+              </select>
+            </label>
+          </div>
+          <p class="more-note" id="cookieNow"></p>
+        </div>
+
+        <!-- Three things that change what comes out of one download, rather
+             than how it is fetched. Each is cleared for the next link. -->
+        <div class="more-sec">
+          <label class="more-check">
+            <input type="checkbox" id="optSubsOnly">
+            <span>Subtitles only — no video file</span>
+          </label>
+          <label class="more-check">
+            <input type="checkbox" id="optThumbAll">
+            <span>Save every thumbnail the site offers, not just the default</span>
+          </label>
+          <label class="more-check">
+            <input type="checkbox" id="optWriteDesc">
+            <span>Save the video's description as a text file beside it</span>
+          </label>
+          <label class="more-check" id="optLiveWrap">
+            <input type="checkbox" id="optLiveFromStart">
+            <span>Live stream: start from the beginning, not from now</span>
+          </label>
+          <p class="more-note" id="subsOnlyNote" hidden></p>
+        </div>
+
+        <!-- The cover picture. Sites often lead with a poor default, and
+             until now the only answer was to save all of them and sort it
+             out in the folder. Hidden entirely when the site offers one. -->
+        <div class="more-sec" id="thumbSec" hidden>
+          <div class="more-row between">
+            <label>Cover picture</label>
+            <button type="button" class="ghost small" id="thumbClear">Use the default</button>
+          </div>
+          <div class="thumb-pick" id="thumbPick"></div>
+          <p class="more-note" id="thumbNote"></p>
+        </div>
+
+        <div class="more-sec">
+          <div class="more-row between">
+            <label>The command Riplox will run</label>
+            <button type="button" class="ghost small" id="cmdCopy">Copy</button>
+          </div>
+          <pre class="cmd" id="cmdBox">…</pre>
+        </div>
+
+        </div>
+      </details>
+
+      <div class="preview-actions">
+        <!-- Two lines: what it does, and what it is about to take. The
+             second line is the only one that ever changes, so writing
+             textContent on the button itself would delete both. -->
+        <button class="primary big rip" id="downloadBtn">
+          <b>RIP</b><em id="ripWhat">Everything</em>
+        </button>
+        <button class="ghost" id="resetBtn">Clear</button>
       </div>
     </div>
 
