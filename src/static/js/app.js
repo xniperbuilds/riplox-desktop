@@ -3729,12 +3729,34 @@
     // "ready": the LAN line used to be appended here and read "ready ·
     // listening", which is the listener's status, not an address, and told
     // nobody anything.
+    // ⚠ The LAN listener was on neither of these lines. The note above is
+    // right that "ready · listening" told nobody anything - but its FAILURE
+    // was not shown either, so a phone on the same Wi-Fi failed against a PC
+    // reading "ready", and with "home network only" on, a PC nothing could
+    // reach still read "home network only".
+    var lanDown = s.on && s.lan === "unavailable";
+    // "relay only" rather than "ready": links from the phone still arrive
+    // over the internet, but nothing on this Wi-Fi can reach this PC. Green
+    // is reserved for both roads open - a green light above an amber warning
+    // is how this went unnoticed for as long as it did.
     var where = !s.on ? "off"
+      : lanDown && s.lan_only ? "not reachable"
+      : lanDown ? "relay only"
       : s.lan_only ? "home network only"
       : s.relay === "connected" ? "ready"
       : s.relay;
     $("shareState").textContent = where;
-    $("shareState").classList.toggle("on", s.on && (s.relay === "connected" || s.lan_only));
+    $("shareState").classList.toggle("on",
+      s.on && !lanDown && (s.relay === "connected" || s.lan_only));
+
+    // Shown only when something is wrong. A line that is always there is a
+    // line people stop reading, which is how the old status word earned its
+    // removal.
+    var fault = $("shareFault");
+    if (fault) {
+      fault.textContent = lanDown ? (s.lan_error || "") : "";
+      fault.hidden = !lanDown || !s.lan_error;
+    }
 
     $("shareInvite").disabled = !s.on;
 

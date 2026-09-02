@@ -2313,6 +2313,21 @@ button { font-family: var(--body); }
 
 /* --- did anything get lost? ---------------------------------------------- */
 
+/* Only ever seen when the home-network listener is down. Amber rather than
+   red: the relay path may well still be working, so this is one road closed
+   and not the whole feature. */
+.share-fault {
+  margin: 10px 0 0;
+  padding: 9px 13px;
+  border: 1px solid rgba(var(--amber-rgb), .45);
+  border-radius: var(--r-s);
+  background: rgba(var(--amber-rgb), .07);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-dim);
+}
+.share-fault[hidden] { display: none; }
+
 .share-check {
   display: flex;
   align-items: center;
