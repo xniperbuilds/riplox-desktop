@@ -232,6 +232,155 @@ for text, want, why in [
     got = engine.clears_on_its_own(text)
     check("%-5s  %s" % (got, why), got is want, text[:56])
 
+
+print("")
+print("-- the connection going mid-download, from a real user's log --------")
+# Reported as "https wala error", twice, both times with the video half done.
+# Everything below is that job's own stderr. Seventeen fragment workers each
+# lost the name at once, and the line yt-dlp ends on is about joining fragments
+# it never wrote - the consequence, not the cause, and the only line anything
+# here was reading.
+REAL = (
+    "ERROR: \n"
+    "[download] Got error: HTTPSConnection(host='rr1---sn-xcvoxoxu-aixs."
+    "googlevideo.com', port=443): Failed to resolve 'rr1---sn-xcvoxoxu-aixs."
+    "googlevideo.com' ([Errno 11001] getaddrinfo failed). Giving up after 5 "
+    "retries\n"
+    "ERROR: \n"
+    "[download] Got error: HTTPSConnection(host='rr1---sn-xcvoxoxu-aixs."
+    "googlevideo.com', port=443): Failed to resolve 'rr1---sn-xcvoxoxu-aixs."
+    "googlevideo.com' ([Errno 11001] getaddrinfo failed). Giving up after 5 "
+    "retries\n"
+    "ERROR: Unable to download video: [Errno 2] No such file or directory: "
+    "'C:\\Users\\x\\Videos\\Riplox\\Youtube\\M [udVT7MdN8OM] 1078p "
+    "[max] Riplox.f616.mp4.part-Frag3'"
+)
+
+said = engine._clean_error(REAL)
+check("⭐ the user is told something, at all",
+      said.strip() != "", repr(said))
+check("⭐ ...and it is the connection, not the fragment it could not join",
+      "connection" in said.lower() and "frag" not in said.lower(), said)
+check("...and it says what is kept, because that is the worry",
+      "kept" in said.lower(), said)
+
+print("")
+print("-- a bare 'ERROR:' line must not eat the message --------------------")
+# The empty ERROR: line came first, so the loop stopped on it and returned "".
+# The Failed page then said "No reason was recorded." over a recorded reason.
+check("⭐ an empty ERROR: is stepped over, not returned",
+      engine._clean_error("ERROR: \nERROR: Video unavailable")
+      == "This video is unavailable or was removed.",
+      engine._clean_error("ERROR: \nERROR: Video unavailable"))
+check("...and a lone empty one still says something",
+      engine._clean_error("ERROR: ").strip() != "")
+
+print("")
+print("-- ⚠ what counts as the network leaving, and what does NOT ----------")
+for text, want, why in [
+    ("[Errno 11001] getaddrinfo failed", True, "the name would not resolve"),
+    ("Failed to resolve 'rr1---sn-x.googlevideo.com'", True, "same, in words"),
+    ("[Errno 101] Network is unreachable", True, "no network to use"),
+    ("Failed to establish a new connection", True, "never got out"),
+    ("OSError: [WinError 10051] A socket operation was attempted to an "
+     "unreachable network", True, "Windows' way of saying it"),
+    # ⚠️ The dangerous half. Each of these is something a SITE does to a
+    # request it is refusing, and every one of them appears in a download that
+    # is genuinely dead. Counting them as an outage would requeue it forty
+    # times and call that patience.
+    ("Giving up after 5 retries", False, "a site can refuse five times too"),
+    ("Max retries exceeded with url", False, "same - urllib3 says this at 403"),
+    ("[Errno 104] Connection reset by peer", False,
+     "a refusal, and _TRANSIENT already gives it another rung"),
+    ("ERROR: unable to download video data: HTTP Error 403: Forbidden",
+     False, "the stale-URL case - clears_on_its_own owns that one"),
+    ("ERROR: Video unavailable", False, "gone is gone"),
+    ("", False, "nothing said is not an outage"),
+]:
+    got = engine.network_lost(text)
+    check("%-5s  %s" % (got, why), got is want, text[:56])
+
+print("")
+print("-- ⭐ the probe is green, the Wi-Fi is the same, and it STILL waits --")
+# The whole reason this came back. By the time an attempt fails the connection
+# is usually back, so the probe says yes and the address is unchanged - both of
+# the old signals miss it, and the job went to Failed for ever.
+real_settings_fn = engine.load_settings
+try:
+    engine.network_ok = lambda force=False: True          # network is back
+    engine.here_now = lambda: "192.168.1.10"              # same Wi-Fi
+    engine.load_settings = lambda *a, **k: {}             # going out directly
+
+    job = a_job(log=REAL)
+    check("⭐ the log is believed over the probe",
+          MANAGER._network_went(job) is True and job.status == "queued",
+          job.status)
+    check("...with no error text, because nothing went wrong",
+          job.error == "", job.error)
+
+    job = a_job(log="ERROR: Video unavailable")
+    check("⭐ and a real failure with the network up still fails",
+          MANAGER._network_went(job) is False, job.status)
+
+    # ⚠️ A proxy hostname that will not resolve says exactly what a lost
+    # connection says. Waiting that one out would hide the only thing the user
+    # can actually fix, and would spend forty attempts doing it.
+    engine.load_settings = lambda *a, **k: {"proxy": "http://badproxy.lan:8080"}
+    job = a_job(log=REAL)
+    check("⭐ with a proxy set, the same lines are NOT called an outage",
+          MANAGER._network_went(job) is False, job.status)
+    check("...so the job fails and says so, instead of waiting",
+          job.status == "downloading" and job.net_waits == 0,
+          "%s / %s" % (job.status, job.net_waits))
+finally:
+    engine.network_ok, engine.here_now = REAL_NET, REAL_HERE
+    engine.load_settings = real_settings_fn
+
+print("")
+print("-- ⭐ and nothing runs on top of a job that was put back ------------")
+# _run_engine returning False means "not downloaded", and _run_job could not
+# tell the two reasons apart: refused by the site, or waiting for the network.
+# So the second door ran over a waiting job and set its own status - failing
+# the job a few seconds after the wait had saved it.
+opened = []
+real_engine = engine.DownloadManager._run_engine
+real_door = engine.DownloadManager._second_door
+real_space, real_settings = engine.free_space, engine.load_settings
+try:
+    engine.free_space = lambda *_: 10 ** 12
+    engine.load_settings = lambda *a, **k: {"download_dir": ""}
+    engine.DownloadManager._second_door = \
+        lambda self, job, settings: opened.append(job.id)
+
+    def requeued(self, job, settings):
+        job.status = "queued"            # what _network_went does
+        return False
+
+    engine.DownloadManager._run_engine = requeued
+    job = a_job(status="downloading")
+    MANAGER._run_job(job)
+    check("⭐ the second door is not opened over a waiting job",
+          opened == [], opened)
+    check("⭐ ...and the job is still queued, not failed",
+          job.status == "queued", job.status)
+
+    def refused(self, job, settings):
+        job.status = "error"             # what a real refusal does
+        job.error = "This video is unavailable or was removed."
+        return False
+
+    engine.DownloadManager._run_engine = refused
+    opened.clear()
+    job = a_job(status="downloading")
+    MANAGER._run_job(job)
+    check("⭐ but a genuinely refused job still gets the second door",
+          opened == [job.id], opened)
+finally:
+    engine.DownloadManager._run_engine = real_engine
+    engine.DownloadManager._second_door = real_door
+    engine.free_space, engine.load_settings = real_space, real_settings
+    shutil.rmtree(SANDBOX, ignore_errors=True)
+
 print("\n" + "=" * 68)
 print("  " + str(len(PASS)) + " passed, " + str(len(FAIL)) + " failed")
 for name in FAIL:
