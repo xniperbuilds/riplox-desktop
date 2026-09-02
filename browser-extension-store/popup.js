@@ -9,6 +9,12 @@ const sendEl = document.getElementById("send");
 const saidEl = document.getElementById("said");
 const stateEl = document.getElementById("state");
 const badgeEl = document.getElementById("showBadge");
+const inPageEl = document.getElementById("inPageButton");
+const permNoteEl = document.getElementById("permNote");
+
+// The same pattern the background registers the script for. One place, so the
+// two cannot drift into asking for one thing and injecting into another.
+const BUTTON_ORIGINS = ["*://*/*"];
 
 let current = "";
 
@@ -95,13 +101,42 @@ async function fill() {
 }
 
 async function fillOptions() {
-  const saved = await chrome.storage.sync.get({ showBadge: true });
+  const saved = await chrome.storage.sync.get({
+    showBadge: true, inPageButton: false,
+  });
   badgeEl.checked = !!saved.showBadge;
+  inPageEl.checked = !!saved.inPageButton;
 }
 
 badgeEl.addEventListener("change", async () => {
   await chrome.storage.sync.set({ showBadge: badgeEl.checked });
   chrome.runtime.sendMessage({ kind: "sync" });
+});
+
+/* The permission is asked for at the moment it is turned on, and given back
+ * the moment it is turned off. If the browser says no, the tick goes back —
+ * a switch left on while the thing it controls cannot run is a lie. */
+inPageEl.addEventListener("change", async () => {
+  if (inPageEl.checked) {
+    const granted = await chrome.permissions.request({ origins: BUTTON_ORIGINS })
+      .catch(() => false);
+    if (!granted) {
+      inPageEl.checked = false;
+      permNoteEl.textContent = "The browser did not grant access, so the "
+        + "button stays off.";
+      return;
+    }
+  } else {
+    await chrome.permissions.remove({ origins: BUTTON_ORIGINS }).catch(() => {});
+  }
+  await chrome.storage.sync.set({ inPageButton: inPageEl.checked });
+  chrome.runtime.sendMessage({ kind: "sync" });
+  permNoteEl.textContent = inPageEl.checked
+    ? "A button now appears on pages. Drag it anywhere, or dismiss it on a "
+      + "site with its cross. Turning this off gives the access back."
+    : "Turning this on asks the browser for access to pages. Turning it off "
+      + "gives that access back. The button can be dragged anywhere, and "
+      + "dismissed per site.";
 });
 
 sendEl.addEventListener("click", async () => {

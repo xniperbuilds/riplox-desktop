@@ -26,7 +26,7 @@
 const SCHEME = "riplox://add";
 const HOST = "com.xniperbuilds.riplox";
 
-const DEFAULTS = { showBadge: true };
+const DEFAULTS = { showBadge: true, inPageButton: false };
 
 // Long enough to answer "Open Riplox?" in the tab the question appears in.
 const TAB_LINGER = 12000;
@@ -138,6 +138,62 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   await note(via === "host" ? "Sent to Riplox."
                             : "Allow Riplox in the tab that opened.");
 });
+
+/* -------------------------------------------------------------------------
+ * The in-page button
+ *
+ * Off at install, and the access it needs is declared optional - so installing
+ * this extension grants it nothing. Ticking the box is what makes the browser
+ * ask, unticking hands the access back, and if the browser says no the tick
+ * goes back to off: a switch that is on while its work cannot happen is a lie.
+ *
+ * Registration is the browser's job rather than a manifest entry, because a
+ * content script declared in the manifest would need the host permission at
+ * install time, which is exactly what this avoids.
+ * ---------------------------------------------------------------------- */
+
+const SCRIPT_ID = "riplox-in-page";
+const BUTTON_ORIGINS = ["*://*/*"];
+
+async function syncInPageButton() {
+  const { inPageButton } = await settings();
+  const granted = inPageButton
+    && await chrome.permissions.contains({ origins: BUTTON_ORIGINS })
+      .catch(() => false);
+
+  const existing = await chrome.scripting.getRegisteredContentScripts({
+    ids: [SCRIPT_ID],
+  }).catch(() => []);
+
+  if (!granted) {
+    if (existing.length) {
+      await chrome.scripting.unregisterContentScripts({ ids: [SCRIPT_ID] })
+        .catch(() => {});
+    }
+    return;
+  }
+  if (existing.length) return;              // already where it should be
+
+  await chrome.scripting.registerContentScripts([{
+    id: SCRIPT_ID,
+    js: ["content.js"],
+    matches: BUTTON_ORIGINS,
+    runAt: "document_idle",
+    // The top frame only. Injecting into every frame would put a button inside
+    // small embedded players, which is worse than not having one there.
+    allFrames: false,
+  }]).catch(() => {});
+}
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "sync" && changes.inPageButton) syncInPageButton();
+});
+chrome.runtime.onStartup.addListener(syncInPageButton);
+chrome.runtime.onInstalled.addListener(syncInPageButton);
+// Access taken away from outside this extension - through Chrome's own
+// settings - must switch the button off too, not leave a tick pointing at
+// nothing.
+chrome.permissions.onRemoved.addListener(syncInPageButton);
 
 /* -------------------------------------------------------------------------
  * The badge
@@ -261,6 +317,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
 
   if (msg?.kind === "sync") {
     (async () => {
+      await syncInPageButton();
       await refreshBadge();
       reply({ ok: true });
     })();

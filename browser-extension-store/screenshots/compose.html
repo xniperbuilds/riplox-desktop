@@ -97,14 +97,15 @@ const SHOTS = {
   },
   3: {
     kicker: "What it is allowed to see",
-    head: ['It cannot read ', 'your pages', '.'],
-    lead: "No host permissions, and no content script. The only address it ever "
-        + "handles is the one you choose to send, at the moment you send it.",
-    points: [["No website access — not even optional.", true],
-             ["One setting stored: show the count, or don't.", false],
-             ["Talks only to Riplox, on your own machine.", false],
+    head: ['Access is ', 'off', ' until you ask.'],
+    lead: "Installing it grants no access to any website. Switching on the "
+        + "in‑page button is what makes the browser ask — and switching it "
+        + "off hands that access straight back.",
+    points: [["It does not read the pages you visit.", true],
+             ["The in‑page button sends one thing: that page's address.", false],
+             ["Drag it anywhere; dismiss it per site.", false],
              ["Collects nothing. Sends nothing anywhere.", false]],
-    height: 404,
+    height: 470,
   },
 };
 

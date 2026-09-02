@@ -15,6 +15,7 @@ OUT = HERE / "dist" / "riplox-extension.zip"
 SHIP = [
     "manifest.json",
     "background.js",
+    "content.js",
     "popup.html",
     "popup.css",
     "popup.js",

@@ -42,13 +42,21 @@ WHAT IT DOES
 • Toolbar button — sends the page you are looking at
 • Right-click a page — "Send this page to Riplox"
 • Right-click a link — "Send this link to Riplox"
+• An optional button on the page itself, which you can drag anywhere and
+  dismiss on any site you do not want it
 • A count on the icon showing how many downloads Riplox has on the go
 
 WHAT IT DOES NOT DO
 • It does not download anything itself
-• It does not read the pages you visit — it holds no access to any website
+• It does not read the pages you visit. The optional in-page button draws
+  itself and sends the address of the page it is on — nothing more
 • It does not talk to the internet at all
 • It does not collect, store or send any data anywhere
+
+ACCESS TO PAGES IS OFF UNTIL YOU ASK FOR IT
+Installing this grants no access to any website. That access is optional, and
+turning on the in-page button is what makes the browser ask you for it.
+Turning the button off hands it straight back.
 
 HOW IT REACHES RIPLOX
 Riplox's installer registers a small program with your browser, and the
@@ -128,9 +136,25 @@ Schedules the periodic check that refreshes the download count on the toolbar
 icon.
 ```
 
-**Host permissions**
+**scripting**
 ```
-None are requested. The extension holds no access to any website.
+Registers the optional in-page button, and only while the user has switched it
+on. The button is off by default; switching it off unregisters the script
+again. Nothing is injected into any page until the user asks for it.
+```
+
+**Host permissions (optional, "*://*/*")**
+```
+Requested only at the moment the user switches on the optional in-page button,
+never at install. The button is drawn by the extension and does nothing to the
+page it sits on: when clicked it reads the address of that page and passes it
+to Riplox, which is the same thing the toolbar button does. It does not read
+page content, does not search the page for anything, and sends nothing but that
+address. Switching the button off removes the permission.
+
+The pattern is broad because the button is a general shortcut rather than
+something aimed at particular sites — the user decides where they want it, and
+can dismiss it per site.
 ```
 
 ## Remote code
