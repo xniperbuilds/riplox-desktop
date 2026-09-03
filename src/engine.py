@@ -6183,9 +6183,6 @@ class DownloadManager:
         exact = _num(total) if not _num(frag_of) else 0.0
         size = _num(total) or _num(total_est)
 
-        index = min(job.streams, len(self._STREAM_BANDS) - 1)
-        low, high = self._STREAM_BANDS[index]
-
         # ⚠️⚠️ Two things are true here at once, and getting either one wrong
         # produces a bar somebody reports. Both were measured on real
         # downloads, after three wrong tries that were reasoned about instead.
@@ -6238,6 +6235,14 @@ class DownloadManager:
                 # The size is reported per stream, so the number held for the
                 # video half must not anchor the audio half's.
                 job.size_shown = 0.0
+                # ⚠️ And the band moves here too. It used to move only on a
+                # "finished" line, which is not guaranteed: one real capture
+                # in tests/fixtures has 1,438 lines, two streams and no
+                # "finished" at all, so the audio half was drawn in the video
+                # half's band and the bar fell from 92% to 0%. A falling
+                # fragment index is the signal that cannot go missing - this
+                # branch already trusts it for everything else.
+                job.streams += 1
             if at > job.frag_base_at:
                 job.frag_base_at = at
                 job.frag_base_bytes = downloaded
@@ -6255,6 +6260,12 @@ class DownloadManager:
             pct = min(1.0, downloaded / size)
         else:
             pct = None
+
+        # ⚠️ Worked out HERE, not at the top of the function: the block above
+        # is what discovers that a new stream has started, and a band chosen
+        # before that discovery describes the stream that just ended.
+        index = min(job.streams, len(self._STREAM_BANDS) - 1)
+        low, high = self._STREAM_BANDS[index]
 
         if pct is not None:
             # ⚠️ No furthest-reached guard any more, deliberately: holding the

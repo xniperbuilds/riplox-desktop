@@ -1311,11 +1311,12 @@
     if (note) {
       note.hidden = quality !== "max";
       if (quality === "max") {
-        note.textContent = "Biggest file, chosen to survive being uploaded "
-          + "again rather than to play everywhere - it may need a codec your "
-          + "player does not have. Most of the time it is the same file as "
-          + "Best available, and it ignores “Skip files I already have” "
-          + "so a copy you saved at a lower quality is not mistaken for this one.";
+        note.textContent = "The heaviest stream at the highest resolution, "
+          + "chosen to survive being uploaded again. Most of the time it is "
+          + "exactly the same file as Best available; where the two differ, "
+          + "this one may need a codec your player does not have. It also "
+          + "ignores “Skip files I already have”, so a copy you saved at "
+          + "a lower quality is not mistaken for this one.";
       }
     }
 

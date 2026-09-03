@@ -63,10 +63,16 @@ def replay(path):
         if len(parts) < 8:
             continue
         at = float(parts[6]) if parts[6] not in ("", "NA") else 0.0
+        # ⚠️ This used to do `job.streams += 1` here, "because the engine moves
+        # band here too". It did not: the band moved only on a "finished"
+        # line, and progress-C has none in 1,438 lines across two streams. The
+        # helper was performing the transition the engine was missing, which
+        # hid a bar that fell from 92% to 0% at the boundary. It only splits
+        # the runs for reporting now; whether the band moves is the engine's
+        # answer to give.
         if at < last_at:
             runs.append(rows)
             rows = []
-            job.streams += 1            # the engine moves band here too
         last_at = at
 
         engine.DownloadManager._apply_progress(manager, job, line)
@@ -75,6 +81,19 @@ def replay(path):
     if rows:
         runs.append(rows)
     return runs
+
+
+def whole_run(path):
+    """Every reading in order, streams included - the join is the point."""
+    manager = engine.DownloadManager.__new__(engine.DownloadManager)
+    job = a_job()
+    out = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if len(line.split("|")) < 8:
+            continue
+        engine.DownloadManager._apply_progress(manager, job, line)
+        out.append(job.percent)
+    return out
 
 
 PASS, FAIL = [], []
@@ -129,6 +148,22 @@ for fixture in sorted(HERE.glob("fixtures/progress-*.txt")):
         # still reported as "size aage peeche ho raha hai".
         check("the size does not flicker", changes <= 20,
               "%d changes across %d readings" % (changes, len(sizes)))
+
+# ⚠️ Across the whole download, not per stream. The loop above judges each
+# stream separately, so a bar that reaches 92% on the video and restarts at 0%
+# on the audio passes every check in it - which is exactly what happened.
+for fixture in sorted(HERE.glob("fixtures/progress-*.txt")):
+    pcts = whole_run(fixture)
+    if len(pcts) < 20:
+        continue
+    drops = [(a, b) for a, b in zip(pcts, pcts[1:]) if b < a - 1e-9]
+    worst = max((a - b for a, b in drops), default=0.0)
+    print("\n-- %s, the whole download %s" % (fixture.stem, "-" * 24))
+    check("never goes backwards across the stream boundary either", not drops,
+          "%d drops, worst %.2f%%" % (len(drops), worst) if drops
+          else "%d readings, ends at %.1f%%" % (len(pcts), pcts[-1]))
+    check("reaches the end of its band", pcts[-1] >= 98.0,
+          "ends at %.1f%%" % pcts[-1])
 
 print("\n" + "=" * 68)
 print("  %d passed, %d failed" % (len(PASS), len(FAIL)))
