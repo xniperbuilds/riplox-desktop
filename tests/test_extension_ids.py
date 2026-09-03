@@ -78,6 +78,30 @@ check("the app and the installer allow exactly the same set",
       from_iss == set(app.EXTENSION_IDS),
       "app %s / installer %s" % (sorted(app.EXTENSION_IDS), sorted(from_iss)))
 
+print("\n-- What's next does not still promise it " + "-" * 28)
+# ⚠️ The roadmap listed "The extension in the Chrome Web Store" under "being
+# worked on" for the whole day it was live. That panel's only job is to be
+# evidence the app is still being made; an entry that already shipped is
+# evidence of the opposite, and it is the kind of staleness nobody notices
+# because nothing breaks.
+markup = (ROOT / "src" / "templates" / "index.html").read_text(encoding="utf-8")
+# ⚠️ Comments stripped first. The note explaining why the entry was removed
+# says "Chrome Web Store" itself, so the first version of this check read that
+# and reported the entry still present - a check failing on its own fix, for
+# the second time today. What matters is what renders.
+markup = re.sub(r"\{#.*?#\}", " ", markup, flags=re.S)
+markup = re.sub(r"<!--.*?-->", " ", markup, flags=re.S)
+start = markup.find('id="roadmap"')
+roadmap = markup[start:markup.find("</ul>", start)] if start > 0 else ""
+check("the roadmap exists", bool(roadmap))
+check("and no longer lists the store extension as upcoming",
+      "Chrome Web Store" not in roadmap,
+      "still there" if "Chrome Web Store" in roadmap else "gone")
+# It is in the release notes instead, which is where a shipped thing belongs.
+check("What's new claims it instead",
+      "Chrome Web Store" in (ROOT / "src" / "whatsnew.json")
+      .read_text(encoding="utf-8"))
+
 print("\n-- the finish page offers the button " + "-" * 32)
 check("there is a task for it", 'Name: "extension"' in iss)
 check("and it opens the listing", defines.get("StoreUrl", "").endswith(STORE),
