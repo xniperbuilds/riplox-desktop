@@ -35,6 +35,60 @@
   /* The words live in their own element rather than on the button.
    * The click handler rewrites them to say what happened, and doing that with
    * button.textContent would delete the dismiss cross sitting beside them. */
+  /* The mark.
+   *
+   * Riplox's own arrow, drawn rather than typed. A text arrow is whatever
+   * glyph the page's font happens to have and looks like punctuation; this is
+   * the same shape as the app icon and the installer, so what lands on the
+   * page is recognisably this product instead of the grey pill every extension
+   * on the web already puts there.
+   *
+   * Built with createElementNS and attributes, never innerHTML: sites that
+   * enforce Trusted Types - YouTube among them, which is the page this button
+   * exists for - refuse innerHTML outright, and the button would simply never
+   * appear on the one site that matters most.
+   */
+  const NS = "http://www.w3.org/2000/svg";
+
+  function stroke(d) {
+    const path = document.createElementNS(NS, "path");
+    path.setAttribute("d", d);
+    path.setAttribute("fill", "none");
+    // Dark on a bright tile, not white on a dim one. Measured: white strokes
+    // hit 2.3:1 against the light end of a vivid cyan and vanished; this is
+    // 10.8:1 there and 7.1:1 at the dark end.
+    path.setAttribute("stroke", "#05202B");
+    path.setAttribute("stroke-width", "1.8");
+    path.setAttribute("stroke-linecap", "round");
+    path.setAttribute("stroke-linejoin", "round");
+    return path;
+  }
+
+  const glyph = document.createElementNS(NS, "svg");
+  glyph.setAttribute("viewBox", "0 0 16 16");
+  glyph.setAttribute("width", "15");
+  glyph.setAttribute("height", "15");
+  glyph.setAttribute("aria-hidden", "true");
+  glyph.append(stroke("M8 2.6V9.6"), stroke("M4.7 6.6 8 9.9l3.3-3.3"),
+               stroke("M3.4 13.1h9.2"));
+
+  const mark = document.createElement("span");
+  mark.appendChild(glyph);
+  Object.assign(mark.style, {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flex: "0 0 auto",
+    width: "24px",
+    height: "24px",
+    // Follows the body's odd corner, one step tighter. The two shapes reading
+    // as one object is the whole reason the silhouette is memorable.
+    borderRadius: "8px 8px 8px 3px",
+    background: "linear-gradient(160deg, #5BE1F5 0%, #22B8CF 100%)",
+    boxShadow: "inset 0 -1px 0 rgba(3,25,35,.22)",
+  });
+  button.appendChild(mark);
+
   const label = document.createElement("span");
   label.textContent = "Send to Riplox";
   button.appendChild(label);
@@ -43,28 +97,65 @@
 
   // All of it inline: a page's own stylesheet must not be able to make this
   // look like part of the site, and this must not leak style into the page.
+  const QUIET = "#9FB3C8";      // ~8:1 on the body. Quiet, not faint.
+  const LOUD = "#E8F6F8";       // ~16:1
+
+  /* Why this stays readable on a white article and on a black video frame.
+   *
+   * It used to be a flat panel at opacity 0.55, and a half-transparent thing
+   * has no colour of its own - it becomes whatever is behind it. On a bright
+   * page it washed out to unreadable, and there is no value of that number
+   * that could have been right for every page on the web.
+   *
+   * So it is fully opaque, and the separation comes from two rings: a white
+   * hairline immediately outside the dark body, and a dark halo outside that.
+   * Against black the white ring cuts it out; against white the dark halo
+   * does. Neither ring has to know what is behind it - which is the point,
+   * because this lands on pages nobody has seen.
+   *
+   * Being unobtrusive is now the label colour's job rather than the whole
+   * control's. Dimming text costs nothing legibility needs; dimming the
+   * control costs exactly that.
+   *
+   * The one square corner is deliberate. Every floating button on the web is
+   * an evenly rounded pill, and evenly rounded is the shape that disappears
+   * into whatever site it is sitting on. Breaking one corner is the cheapest
+   * thing that makes a silhouette somebody recognises a second time.
+   */
   Object.assign(button.style, {
     position: "fixed",
     right: "18px",
     bottom: "18px",
     zIndex: "2147483647",
-    padding: "9px 15px",
-    border: "1px solid rgba(255,255,255,.18)",
-    borderRadius: "9px",
-    background: "#0f1720",
-    color: "#dff7f5",
-    font: "600 13px/1.2 system-ui, sans-serif",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "5px 12px 5px 5px",
+    border: "0",
+    borderRadius: "12px 12px 12px 4px",
+    background: "linear-gradient(180deg, #16202E 0%, #0B1220 100%)",
+    color: QUIET,
+    font: "500 13px/1 ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+    letterSpacing: ".01em",
     cursor: "grab",
-    boxShadow: "0 8px 24px -10px rgba(0,0,0,.7)",
-    opacity: "0.55",
-    transition: "opacity .15s ease",
+    boxShadow: "0 0 0 1px rgba(255,255,255,.92), 0 0 0 3px rgba(3,10,20,.55),"
+             + " inset 0 1px 0 rgba(255,255,255,.08),"
+             + " 0 10px 24px -12px rgba(0,0,0,.85)",
+    opacity: "1",
+    transition: "color .15s ease, transform .15s ease",
     touchAction: "none",
     userSelect: "none",
+    WebkitFontSmoothing: "antialiased",
   });
 
-  button.addEventListener("mouseenter", () => { button.style.opacity = "1"; });
+  button.addEventListener("mouseenter", () => {
+    button.style.color = LOUD;
+    button.style.transform = "translateY(-1px)";
+  });
   button.addEventListener("mouseleave", () => {
-    if (!dragging) button.style.opacity = "0.55";
+    if (dragging) return;
+    button.style.color = QUIET;
+    button.style.transform = "none";
   });
 
   /* ---------------------------------------------------------------- moving */
@@ -130,7 +221,7 @@
     moved = false;
     button.setPointerCapture(event.pointerId);
     button.style.cursor = "grabbing";
-    button.style.opacity = "1";
+    button.style.color = LOUD;
     button.style.transition = "none";
   });
 
@@ -147,7 +238,7 @@
     if (!dragging) return;
     dragging = false;
     button.style.cursor = "grab";
-    button.style.transition = "opacity .15s ease";
+    button.style.transition = "color .15s ease, transform .15s ease";
     try {
       button.releasePointerCapture(event.pointerId);
     } catch (e) { /* already released */ }
@@ -192,7 +283,16 @@
         : answer.ok ? (answer.via === "host" ? "Sent" : "Allow it in the new tab")
         : (answer.error || "Could not send");
     } catch (e) {
-      label.textContent = "Riplox is not reachable";
+      // Two very different things arrive here, and calling both of them
+      // "Riplox is not reachable" sends somebody to check an app that is
+      // running perfectly. When the extension is reloaded or updated, every
+      // content script already on a page is orphaned - its chrome.runtime is
+      // dead and chrome.runtime.id is gone. Nothing is wrong with Riplox; the
+      // page simply has to be loaded again.
+      const orphaned = !(chrome.runtime && chrome.runtime.id);
+      label.textContent = orphaned
+        ? "Riplox updated — reload this page"
+        : "Riplox is not reachable";
     }
     setTimeout(() => { label.textContent = original; busy = false; }, 2600);
   });
@@ -218,6 +318,7 @@
    */
 
   const MIN_SIDE = 200;            // below this it is a thumbnail, not a video
+  const MEDIA_EVENTS = ["loadedmetadata", "durationchange", "play", "emptied"];
 
   function worthIt(media) {
     // Something to play: a source of some kind, and either loaded metadata or
@@ -264,15 +365,33 @@
 
   let pending = 0;
   function reviewSoon() {
-    clearTimeout(pending);
-    pending = setTimeout(review, 300);        // pages mutate in bursts
+    // Already queued, so the rest of this burst is free. It used to clear and
+    // remake the timer on every single mutation record - and on a video site
+    // that is thousands of pairs a minute, spent to arrive at the same review
+    // at the same moment. A measured study of 72 extensions found they cost
+    // page-load energy even on pages they have nothing to do with; this was
+    // this extension's share of that.
+    if (pending) return;
+    pending = setTimeout(() => { pending = 0; review(); }, 300);
   }
 
-  new MutationObserver(reviewSoon)
-    .observe(document.documentElement, { childList: true, subtree: true });
+  const watcher = new MutationObserver(reviewSoon);
+  watcher.observe(document.documentElement, { childList: true, subtree: true });
+
+  /* Nothing left to watch for. On a site that has been dismissed the button can
+   * never appear again, so keeping an observer on every DOM change is a cost
+   * with no possible payoff. */
+  function stopWatching() {
+    watcher.disconnect();
+    clearTimeout(pending);
+    pending = 0;
+    for (const name of MEDIA_EVENTS) {
+      document.removeEventListener(name, reviewSoon, true);
+    }
+  }
 
   // Captured at the document, because none of these bubble.
-  for (const name of ["loadedmetadata", "durationchange", "play", "emptied"]) {
+  for (const name of MEDIA_EVENTS) {
     document.addEventListener(name, reviewSoon, true);
   }
 
@@ -288,8 +407,14 @@
   dismiss.setAttribute("role", "button");
   dismiss.setAttribute("aria-label", "Do not show this button on this site");
   Object.assign(dismiss.style, {
-    marginLeft: "9px", opacity: "0.6", fontWeight: "700", cursor: "pointer",
+    marginLeft: "2px",
+    color: "#64798F",
+    fontWeight: "700",
+    lineHeight: "1",
+    cursor: "pointer",
   });
+  dismiss.addEventListener("mouseenter", () => { dismiss.style.color = LOUD; });
+  dismiss.addEventListener("mouseleave", () => { dismiss.style.color = "#64798F"; });
   // The thing it sits on is a drag handle. Without this, dismissing it would
   // start a drag instead.
   dismiss.addEventListener("pointerdown", (event) => event.stopPropagation());
@@ -298,6 +423,7 @@
     event.preventDefault();
     refused = true;
     hide();
+    stopWatching();
     try {
       chrome.storage.sync.get({ neverSites: [] }, (saved) => {
         const list = Array.isArray(saved.neverSites) ? saved.neverSites : [];
@@ -315,6 +441,7 @@
     chrome.storage.sync.get({ neverSites: [] }, (saved) => {
       const list = Array.isArray(saved.neverSites) ? saved.neverSites : [];
       refused = list.includes(location.hostname);
+      if (refused) { stopWatching(); return; }
       review();
     });
   } catch (e) {

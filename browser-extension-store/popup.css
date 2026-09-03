@@ -1,0 +1,262 @@
+/* A popup is 320px of someone's attention. It holds one job, so it shows one
+   button, and the only sentence in it is the one that is easy to get wrong:
+   where the download actually happens. */
+
+:root {
+  --bg: #0f1117;
+  --card: #171a23;
+  --line: #262b38;
+  --text: #e7e9ee;
+  --dim: #9aa1b1;
+  --accent: #6366f1;
+  --accent-hot: #7c7ff5;
+  --ok: #22c55e;
+  --bad: #f87171;
+  --warn: #f59e0b;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --warn: #b45309;
+    --bg: #ffffff;
+    --card: #f6f7fa;
+    --line: #e3e6ee;
+    --text: #14161c;
+    --dim: #5c6474;
+    --accent: #4f46e5;
+    --accent-hot: #4338ca;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  width: 320px;
+  margin: 0;
+  padding: 16px;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 system-ui, "Segoe UI", sans-serif;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 650;
+  font-size: 15px;
+  margin-bottom: 12px;
+}
+
+/* Riplox's own mark, not a drawing of it - the app, the installer and this
+   share one image so they cannot drift apart. */
+.mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: block;
+}
+
+/* The address, clamped to two lines. A long URL must not push the button off
+   the bottom of a popup that cannot scroll into view. */
+.page {
+  margin: 0 0 14px;
+  padding: 9px 11px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--dim);
+  font-size: 12px;
+  line-height: 1.4;
+  word-break: break-all;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.page.blocked { color: var(--bad); }
+
+.field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.field > span { color: var(--dim); font-size: 13px; }
+
+select {
+  flex: 1;
+  max-width: 180px;
+  padding: 7px 9px;
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+}
+
+select:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.primary {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--accent);
+  color: #fff;
+  border: 0;
+  border-radius: 9px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .12s ease;
+}
+
+.primary:hover:not(:disabled) { background: var(--accent-hot); }
+
+.primary:disabled {
+  background: var(--line);
+  color: var(--dim);
+  cursor: not-allowed;
+}
+
+.said {
+  margin: 11px 0 0;
+  font-size: 13px;
+  font-weight: 550;
+  text-align: center;
+}
+
+.said.ok { color: var(--ok); }
+.said.bad { color: var(--bad); }
+
+/* What Riplox is doing with what it already has. Quiet by default - it is
+   context, not the answer to anything the person is doing right now - and it
+   only raises its voice when something is actually waiting. */
+.state {
+  margin: 9px 0 0;
+  padding: 7px 9px;
+  font-size: 12px;
+  line-height: 1.35;
+  border-radius: 7px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--dim);
+}
+
+.state.ok { color: var(--ok); }
+.state.bad { color: var(--bad); }
+.state.warn {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+.state.plain { color: var(--dim); }
+
+/* Folded away by default. The popup's one job is still the button above; all
+   of this is for the second visit, and it must not push that button down. */
+.more {
+  margin-top: 13px;
+  padding-top: 11px;
+  border-top: 1px solid var(--line);
+}
+
+.more > summary {
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--dim);
+  list-style: none;
+}
+.more > summary::-webkit-details-marker { display: none; }
+.more > summary::before { content: "\25B8  "; }
+.more[open] > summary::before { content: "\25BE  "; }
+
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 11px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.check input { margin-top: 2px; flex: none; }
+
+.fine {
+  margin: 7px 0 0;
+  color: var(--dim);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.sites {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 12px;
+  margin-top: 8px;
+}
+
+.site {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+footer {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+footer p {
+  margin: 0;
+  color: var(--dim);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+/* The way out, when Riplox is not here to send anything to. It sits where the
+   state line just said something is wrong, so it reads as the answer to that
+   sentence rather than as an advert. */
+/* The hidden attribute is honoured by a UA rule this class would otherwise
+   outrank, so the link showed in every state - including the healthy ones,
+   where offering a download is nonsense. Both of these say it explicitly. */
+.get[hidden], .back[hidden] { display: none; }
+
+.get {
+  display: block;
+  margin: 0 0 10px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  text-align: center;
+}
+.get:hover { background: var(--line); }
+
+.back {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.back:hover { background: var(--card); }
+
+footer a { color: var(--accent); text-decoration: none; }
+footer a:hover { text-decoration: underline; }

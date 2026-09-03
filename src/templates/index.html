@@ -88,7 +88,30 @@
     </button>
   </nav>
 
+  <!-- What is downloading, in the corner of the rail, so the question a
+       downloader asks constantly is answerable from any room instead of only
+       from Queue. Nothing is fetched for it: the queue poll already carries
+       the title, the percent, the size and the speed. Two rows at most - it
+       is a glance, and the full list is one click away. Hidden entirely when
+       nothing is running, because a panel that says "nothing" is a panel you
+       learn to ignore. -->
+  <div class="rail-live" id="railLive" hidden>
+    <div class="live-head"><span>Downloading</span><em id="liveCount"></em></div>
+    <div id="liveRows"></div>
+  </div>
+
   <div class="side-foot">
+    <!-- Leaves Riplox, so it is here rather than among the rooms above. -->
+    <button type="button" class="side-link" id="getExtension"
+            title="Send links to Riplox from Chrome, Edge or Brave">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 8.5h7.5a2.5 2.5 0 0 1 0 5H9"/>
+        <path d="M4 5.5h16v13H4z"/>
+        <path d="M15 11.5v5M12.6 14.1 15 16.5l2.4-2.4"/>
+      </svg>
+      <span>Browser extension</span>
+    </button>
     <div class="theme-pick" id="themePick" role="group" aria-label="Appearance">
       <button type="button" data-theme="auto"><b>A</b><span>Auto</span></button>
       <button type="button" data-theme="light"><b>L</b><span>Light</span></button>
@@ -103,20 +126,46 @@
 <div class="stage">
 
 {% if not has_ffmpeg %}
+<!-- Both halves, because one of them was the whole message and it read like
+     the app was broken. Most of Riplox does not need the media tool at all,
+     and somebody who has just been told "limited mode" has no way to know
+     which half they are in. -->
 <div class="alert" id="ffmpegAlert">
   <strong>Limited mode.</strong>
-  ffmpeg is missing, so 1080p+ merging and MP3 conversion are unavailable.
-  Reinstall Riplox to restore them.
+  <span>The media tool is missing. Reinstalling Riplox restores it.</span>
+  <div class="alert-cols">
+    <div>
+      <label>Still works</label>
+      <p>Downloads up to 720p · MP3 where the site already offers it ·
+        playlists and whole pages · watching channels · links sent from a
+        phone · your library</p>
+    </div>
+    <div>
+      <label>Needs the tool</label>
+      <p>1080p and above · converting to MP3 · trimming · clips ·
+        splitting a video by chapter</p>
+    </div>
+  </div>
 </div>
 {% endif %}
 
 <main>
 
+  <!-- ⚠️ Here, not inside a view. This lived in the Queue screen, which is the
+       one room a person who is not downloading anything never opens - so the
+       fact that a new Riplox exists was shown only to people already busy. -->
+  <div class="update-bar" id="updateBar" hidden>
+    <b id="updateText"></b>
+    <button class="primary small" id="updateOpen">Open the release page</button>
+    <button class="ghost small" id="updateLater" title="Hide until the next start">Later</button>
+  </div>
+
+
   <!-- ============================ CAPTURE ============================ -->
   <section class="view is-active" id="view-capture">
 
     <div class="capture-head reveal" style="--d:0ms">
-      <h1>Paste a link.<br><span>Keep the video.</span></h1>
+      <h1>Paste a link.<br><span>Rip Everything.</span></h1>
       <!-- The claim and the proof in one place: the app says "a thousand
            more", so the phrase itself opens the list and shows them. -->
       <p class="sub">YouTube · TikTok · Instagram · Facebook · X · Reddit —
@@ -178,172 +227,265 @@
             <input type="checkbox" id="alsoAudio">
             <span>Also save the audio as MP3</span>
           </label>
+
+          <!-- The video's own chapters. A <details> because fifteen titles
+               standing between the quality chips and the Download button
+               would push the button off the screen on exactly the videos
+               this is for - and because the browser already knows how to
+               open and close one.
+
+               Absent, not greyed out, when a video has none: a control that
+               is visible but never usable teaches people to ignore the whole
+               area. The line below it is what stops that absence from
+               reading as broken. -->
+          <details class="chapters" id="chapterBox" hidden>
+            <summary id="chapterCount"></summary>
+            <label class="chapter-all" id="chapterAllWrap">
+              <input type="checkbox" id="chapterAll">
+              <span>All chapters</span>
+            </label>
+            <ol class="chapter-list" id="chapterList"></ol>
+            <p class="hint" id="chapterPicked" hidden></p>
+          </details>
+          <p class="hint" id="chapterNote" hidden>This video has no chapters.</p>
+
+          <!-- What people actually went back to. YouTube publishes it, and
+               Riplox has been fetching it on every analyse since long before
+               anything looked at it.
+
+               The field is undocumented - it is not in yt-dlp's help at all -
+               so it can stop arriving with no notice and no error. The line
+               below is not decoration: on the day it goes, the app has to say
+               so rather than draw an empty box. -->
+          <p class="hint" id="clipNote" hidden></p>
+          <!-- Cutting a video into parts is ffmpeg's work, and yt-dlp refuses
+               outright without it: "You have requested downloading the video
+               partially, but ffmpeg is not installed. Aborting" - measured.
+               The trim block is hidden for the same reason a few lines up;
+               these are shown but not offered, because the list itself is
+               still worth reading. -->
+          <!-- Off by default, and the trim has always made the same offer for
+               the same reason: cutting on the mark means re-encoding the part,
+               measured at roughly twice the time. -->
+          <label class="chapter-all" id="cutExactWrap" hidden
+                 title="Parts are cut on the video's own keyframes, so a moment of whatever came before can appear at the start. Cutting exactly removes it, but the part has to be re-encoded - measured at about twice as long.">
+            <input type="checkbox" id="cutExact">
+            <span>Cut exactly at the mark - slower, but no tail of the part before</span>
+          </label>
+          <p class="hint warn" id="cutNoFf" hidden>Chapters and moments can be
+            shown but not downloaded separately: cutting a video needs the
+            media tool, which is missing from this install. Reinstall Riplox
+            to get it back.</p>
+          <p class="hint" id="heatNote" hidden>YouTube has no most-replayed data for this video.</p>
         </div>
 
         <!-- One quiet line, closed on every install and after every link. It
              may add controls; it never changes what the closed state does,
              and everything set here applies to this one download only. -->
-        <details class="more" id="moreBox">
-          <summary>More options</summary>
-          <div class="more-body">
 
-          <div class="more-sec" id="fmtSec">
-            <div class="more-row between">
-              <label>Exact format</label>
-              <span class="more-note" id="fmtPick">Using the quality above.</span>
-            </div>
-            <div class="fmt-wrap"><table class="fmt" id="fmtTable"></table></div>
-          </div>
+      </div>
 
-          <div class="more-sec" id="langSec" hidden>
-            <div class="more-row">
-              <label class="more-field" id="audioLangField" hidden>
-                <span>Audio language</span>
-                <select id="optAudioLang"></select>
-              </label>
-              <label class="more-field" id="optSubField" hidden>
-                <span>Subtitles</span>
-                <select id="optSubLang"></select>
-              </label>
-            </div>
-          </div>
-
-        <div class="trim-block more-sec" id="trimBlock" hidden>
-          <label class="trim-toggle">
-            <input type="checkbox" id="trimOn">
-            <span>Download only part of it</span>
+        <details class="heatmap" id="heatBox" hidden>
+          <summary id="heatSummary">Most replayed</summary>
+          <div class="heat-graph" id="heatGraph"></div>
+          <ol class="heat-peaks" id="heatPeaks"></ol>
+          <label class="chapter-all" id="clipOnWrap">
+            <input type="checkbox" id="clipOn">
+            <span>Cut these moments into clips</span>
           </label>
-
-          <div class="trim-panel" id="trimRow" hidden>
-            <div class="trim-line">
-              <span class="trim-label">Start</span>
-              <span class="stepper">
-                <input type="number" id="startMin" value="0" min="0" max="599"
-                       aria-label="Start minutes">
-                <span class="stepper-unit">min</span>
-              </span>
-              <span class="stepper">
-                <input type="number" id="startSec" value="0" min="-1" max="60"
-                       aria-label="Start seconds">
-                <span class="stepper-unit">sec</span>
-              </span>
-            </div>
-
-            <div class="trim-line">
-              <span class="trim-label">End</span>
-              <span class="stepper">
-                <input type="number" id="endMin" value="0" min="0" max="599"
-                       aria-label="End minutes" disabled>
-                <span class="stepper-unit">min</span>
-              </span>
-              <span class="stepper">
-                <input type="number" id="endSec" value="0" min="-1" max="60"
-                       aria-label="End seconds" disabled>
-                <span class="stepper-unit">sec</span>
-              </span>
-              <label class="trim-check">
-                <input type="checkbox" id="toEnd" checked>
-                <span>to the end</span>
-              </label>
-            </div>
-
-            <div class="trim-line">
-              <label class="trim-check">
-                <input type="checkbox" id="exactCut">
-                <span>Cut on the exact second <em>— slower, re-encodes</em></span>
-              </label>
-            </div>
-
-            <p class="trim-summary" id="trimSummary"></p>
-          </div>
-        </div>
-
-          <div class="more-sec">
-            <div class="more-row">
-              <label class="more-field grow">
-                <span>Save as</span>
-                <input type="text" id="optName" class="text-input"
-                       spellcheck="false" maxlength="160"
-                       placeholder="%(title)s [%(id)s].%(ext)s">
-              </label>
-              <div class="more-field">
-                <span>Into</span>
-                <button type="button" class="ghost small" id="optDir"
-                        data-dir="">Default folder</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="more-sec">
-            <div class="more-row">
-              <label class="more-field">
-                <span>Sign-in for this download</span>
-                <select id="optCookies">
-                  <option value="">Use the saved session</option>
-                  <option value="off">Send no sign-in</option>
-                </select>
-              </label>
-              <label class="more-field">
-                <span>Player client</span>
-                <select id="optClient">
-                  <option value="">Let Riplox choose</option>
-                  <option value="tv_simply">tv_simply</option>
-                  <option value="web_safari">web_safari</option>
-                  <option value="mweb">mweb</option>
-                  <option value="android_vr">android_vr</option>
-                  <option value="ios">ios</option>
-                  <option value="web">web</option>
-                </select>
-              </label>
-            </div>
-            <p class="more-note" id="cookieNow"></p>
-          </div>
-
-          <!-- Three things that change what comes out of one download, rather
-               than how it is fetched. Each is cleared for the next link. -->
-          <div class="more-sec">
-            <label class="more-check">
-              <input type="checkbox" id="optSubsOnly">
-              <span>Subtitles only — no video file</span>
-            </label>
-            <label class="more-check">
-              <input type="checkbox" id="optThumbAll">
-              <span>Save every thumbnail the site offers, not just the default</span>
-            </label>
-            <label class="more-check" id="optLiveWrap">
-              <input type="checkbox" id="optLiveFromStart">
-              <span>Live stream: start from the beginning, not from now</span>
-            </label>
-            <p class="more-note" id="subsOnlyNote" hidden></p>
-          </div>
-
-          <!-- The cover picture. Sites often lead with a poor default, and
-               until now the only answer was to save all of them and sort it
-               out in the folder. Hidden entirely when the site offers one. -->
-          <div class="more-sec" id="thumbSec" hidden>
-            <div class="more-row between">
-              <label>Cover picture</label>
-              <button type="button" class="ghost small" id="thumbClear">Use the default</button>
-            </div>
-            <div class="thumb-pick" id="thumbPick"></div>
-            <p class="more-note" id="thumbNote"></p>
-          </div>
-
-          <div class="more-sec">
-            <div class="more-row between">
-              <label>The command Riplox will run</label>
-              <button type="button" class="ghost small" id="cmdCopy">Copy</button>
-            </div>
-            <pre class="cmd" id="cmdBox">…</pre>
-          </div>
-
+          <div class="clip-row" id="clipRow" hidden>
+            <div class="chips" id="clipLens"></div>
           </div>
         </details>
 
-        <div class="preview-actions">
-          <button class="primary big" id="downloadBtn">Download</button>
-          <button class="ghost" id="resetBtn">Clear</button>
+      <details class="more" id="moreBox">
+        <summary>More options</summary>
+        <div class="more-body">
+
+        <div class="more-sec adv" id="fmtSec">
+          <div class="more-row between">
+            <label>Exact format</label>
+            <span class="more-note" id="fmtPick">Using the quality above.</span>
+          </div>
+          <div class="fmt-wrap"><table class="fmt" id="fmtTable"></table></div>
         </div>
+
+        <div class="more-sec adv" id="langSec" hidden>
+          <div class="more-row">
+            <label class="more-field" id="audioLangField" hidden>
+              <span>Audio language</span>
+              <select id="optAudioLang"></select>
+            </label>
+            <label class="more-field" id="optSubField" hidden>
+              <span>Subtitles</span>
+              <select id="optSubLang"></select>
+            </label>
+          </div>
+        </div>
+
+      <div class="trim-block more-sec" id="trimBlock" hidden>
+        <label class="trim-toggle">
+          <input type="checkbox" id="trimOn">
+          <span>Download only part of it</span>
+        </label>
+
+        <div class="trim-panel" id="trimRow" hidden>
+          <div class="trim-line">
+            <span class="trim-label">Start</span>
+            <span class="stepper">
+              <input type="number" id="startMin" value="0" min="0" max="599"
+                     aria-label="Start minutes">
+              <span class="stepper-unit">min</span>
+            </span>
+            <span class="stepper">
+              <input type="number" id="startSec" value="0" min="-1" max="60"
+                     aria-label="Start seconds">
+              <span class="stepper-unit">sec</span>
+            </span>
+          </div>
+
+          <div class="trim-line">
+            <span class="trim-label">End</span>
+            <span class="stepper">
+              <input type="number" id="endMin" value="0" min="0" max="599"
+                     aria-label="End minutes" disabled>
+              <span class="stepper-unit">min</span>
+            </span>
+            <span class="stepper">
+              <input type="number" id="endSec" value="0" min="-1" max="60"
+                     aria-label="End seconds" disabled>
+              <span class="stepper-unit">sec</span>
+            </span>
+            <label class="trim-check">
+              <input type="checkbox" id="toEnd" checked>
+              <span>to the end</span>
+            </label>
+          </div>
+
+          <div class="trim-line">
+            <label class="trim-check">
+              <input type="checkbox" id="exactCut">
+              <span>Cut on the exact second <em>— slower, re-encodes</em></span>
+            </label>
+          </div>
+
+          <p class="trim-summary" id="trimSummary"></p>
+        </div>
+      </div>
+
+        <div class="more-sec">
+          <div class="more-row">
+            <label class="more-field grow">
+              <span>Save as</span>
+              <input type="text" id="optName" class="text-input"
+                     spellcheck="false" maxlength="160"
+                     placeholder="%(title)s [%(id)s].%(ext)s">
+            </label>
+            <div class="more-field">
+              <span>Into</span>
+              <button type="button" class="ghost small" id="optDir"
+                      data-dir="">Default folder</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="more-sec adv">
+          <div class="more-row">
+            <label class="more-field">
+              <span>Sign-in for this download</span>
+              <select id="optCookies">
+                <option value="">Use the saved session</option>
+                <option value="off">Send no sign-in</option>
+              </select>
+            </label>
+            <label class="more-field">
+              <span>Player client</span>
+              <!-- Grouped by what each one can actually hand over, because
+                   the bare names hid it: four of the six offered here were
+                   measured (1 Sep 2026) to stop at 360p or 180p however much
+                   was asked for - and the choice is remembered, so picking
+                   one once quietly shrank every download after it. -->
+              <select id="optClient">
+                <option value="">Let Riplox choose</option>
+                <optgroup label="Every quality">
+                  <option value="tv_embedded">tv_embedded</option>
+                  <option value="visionos">visionos &mdash; no kids' videos</option>
+                  <option value="web_embedded">web_embedded &mdash; embeddable only</option>
+                  <option value="android_music">android_music</option>
+                  <option value="ios_music">ios_music</option>
+                </optgroup>
+                <optgroup label="Every quality, while signed in">
+                  <option value="tv_simply">tv_simply</option>
+                  <option value="mweb">mweb</option>
+                </optgroup>
+                <optgroup label="Small formats only &mdash; 360p or less">
+                  <option value="android_vr">android_vr</option>
+                  <option value="web_safari">web_safari</option>
+                  <option value="ios">ios</option>
+                  <option value="web">web</option>
+                </optgroup>
+              </select>
+            </label>
+          </div>
+          <p class="more-note" id="cookieNow"></p>
+        </div>
+
+        <!-- Three things that change what comes out of one download, rather
+             than how it is fetched. Each is cleared for the next link. -->
+        <div class="more-sec">
+          <label class="more-check">
+            <input type="checkbox" id="optSubsOnly">
+            <span>Subtitles only — no video file</span>
+          </label>
+          <label class="more-check">
+            <input type="checkbox" id="optThumbAll">
+            <span>Save every thumbnail the site offers, not just the default</span>
+          </label>
+          <label class="more-check">
+            <input type="checkbox" id="optWriteDesc">
+            <span>Save the video's description as a text file beside it</span>
+          </label>
+          <label class="more-check" id="optLiveWrap">
+            <input type="checkbox" id="optLiveFromStart">
+            <span>Live stream: start from the beginning, not from now</span>
+          </label>
+          <p class="more-note" id="subsOnlyNote" hidden></p>
+        </div>
+
+        <!-- The cover picture. Sites often lead with a poor default, and
+             until now the only answer was to save all of them and sort it
+             out in the folder. Hidden entirely when the site offers one. -->
+        <div class="more-sec" id="thumbSec" hidden>
+          <div class="more-row between">
+            <label>Cover picture</label>
+            <button type="button" class="ghost small" id="thumbClear">Use the default</button>
+          </div>
+          <div class="thumb-pick" id="thumbPick"></div>
+          <p class="more-note" id="thumbNote"></p>
+        </div>
+
+        <div class="more-sec adv">
+          <div class="more-row between">
+            <label>The command Riplox will run</label>
+            <button type="button" class="ghost small" id="cmdCopy">Copy</button>
+          </div>
+          <pre class="cmd" id="cmdBox">…</pre>
+        </div>
+
+        </div>
+      </details>
+
+      <div class="preview-actions">
+        <!-- Two lines: what it does, and what it is about to take. The
+             second line is the only one that ever changes, so writing
+             textContent on the button itself would delete both. -->
+        <button class="primary big rip" id="downloadBtn">
+          <b>RIP</b><em id="ripWhat">Everything</em>
+        </button>
+        <button class="ghost" id="resetBtn">Clear</button>
+        <!-- The dead space beside the button, spent on the one thing the
+             button does not say: which quality is about to be taken. -->
+        <span class="rip-summary" id="ripSummary" hidden></span>
       </div>
     </div>
 
@@ -378,8 +520,17 @@
         <button type="button" class="ghost small" id="plInvert">Invert</button>
         <span class="pl-count" id="plCount"></span>
       </div>
+      <!-- What a page read left out, and why. Four reasons said as four
+           different things: "48 left out" would be true and useless. Only
+           shown for a grabbed page - a playlist leaves nothing out. -->
+      <div class="grab-chips" id="grabChips" hidden></div>
+
       <ul class="playlist" id="playlistBox"></ul>
+      <div class="grab-left" id="grabLeftOut" hidden></div>
       <p class="pl-note" id="plNote" hidden></p>
+      <p class="grab-foot" id="grabFoot" hidden>Reading a page costs one
+        request. Nothing is fetched from any of these until you pick and press
+        RIP.</p>
     </div>
   </section>
 
@@ -404,10 +555,6 @@
              spellcheck="false" placeholder="Search the queue…">
       <span class="queue-found" id="queueFound"></span>
     </div>
-    <div class="resume-bar update-bar" id="updateBar" hidden>
-      <span id="updateText"></span>
-      <button class="ghost small" id="updateOpen">Open the release page</button>
-    </div>
     <div class="resume-bar" id="resumeBar" hidden>
       <span id="resumeText"></span>
       <button class="primary small" id="resumeAll">Resume</button>
@@ -431,6 +578,9 @@
     <div class="view-head">
       <h2>Library</h2>
       <div class="row-gap">
+        <!-- Opened from here rather than from a room of its own: every number
+             behind it is counted from this list, so it belongs beside it. -->
+        <button class="ghost small" id="openInsights">Insights</button>
         <button class="ghost small" id="openFolder">Open folder</button>
         <button class="ghost small danger" id="clearHistory">Clear history</button>
       </div>
@@ -444,7 +594,21 @@
         <option value="name">By name</option>
         <option value="big">Biggest first</option>
       </select>
+      <!-- What the file is, worked out from the quality and the name the
+           engine gave it - nothing new is recorded for this. A select rather
+           than a second row of chips: the chips below already filter by site,
+           and two rows of them would be two things to keep in step. -->
+      <select id="libKind" title="What kind of file">
+        <option value="all">Everything</option>
+        <option value="video">Video</option>
+        <option value="audio">Audio</option>
+        <option value="clip">Clips</option>
+      </select>
       <span class="lib-count" id="libCount"></span>
+      <!-- Named for what it writes. It is every finished download, not the
+           filtered view above, and the two would be easy to confuse. -->
+      <button class="ghost small" data-export="csv"
+              title="Every finished download as a spreadsheet — not just what the filters above are showing">Export library</button>
       <button class="ghost small" id="showAccounts">Accounts</button>
       <div class="chips lib-chips" id="libChips"></div>
     </div>
@@ -587,6 +751,22 @@
       <p>Nothing being watched.</p>
       <span>Paste a channel or playlist link above.</span>
     </div>
+    <!-- Everything new from everything watched, in one list. Per-channel lists
+         meant reading down the page to find out whether there was anything at
+         all, and deciding what to take out of five separate places. The
+         channel each one came from is on its own row. -->
+    <div class="watch-new" id="watchNew" hidden>
+      <div class="wn-head">
+        <label>New since you last looked</label>
+        <div class="row-gap">
+          <span class="wn-count" id="watchNewCount"></span>
+          <button class="ghost small" id="watchGetAll">Download all</button>
+          <button class="ghost small" id="watchClearAll">Clear all</button>
+        </div>
+      </div>
+      <div id="watchNewList"></div>
+    </div>
+
     <div id="watchList"></div>
 
     <details class="more" id="watchHelp">
@@ -595,34 +775,51 @@
         <p class="more-note">This is the one thing watching can cause. It is
           usually temporary and it does not break anything — ordinary downloads
           keep working. In order:</p>
-        <div class="more-sec">
-          <label>1 · Slow it down</label>
-          <p class="more-note">Set <b>Check every</b> to 24 hours or 2 days, and
-            remove any channel you do not really follow. Every watched item is
-            another request.</p>
+        <!-- Each step is a control rather than a route to memorise. The three
+             that live in Settings still say where they are, because knowing
+             that is worth as much as arriving there. -->
+        <div class="more-sec step">
+          <div class="step-text">
+            <label>1 · Slow it down</label>
+            <p class="more-note">Check every 24 hours instead. Every watched
+              item is another request, so fewer and slower is the whole fix.</p>
+          </div>
+          <button class="ghost small" id="botSlow">Check every 24 h</button>
         </div>
-        <div class="more-sec">
-          <label>2 · Wait it out</label>
-          <p class="more-note">Turn Watch off for a day. These blocks lift on
-            their own far more often than not.</p>
+        <div class="more-sec step">
+          <div class="step-text">
+            <label>2 · Wait it out</label>
+            <p class="more-note">Turn Watch off for a day. These blocks lift on
+              their own far more often than not.</p>
+          </div>
+          <button class="ghost small" id="botPause">Turn Watch off</button>
         </div>
-        <div class="more-sec">
-          <label>3 · Sign in</label>
-          <p class="more-note"><b>Settings → Sign-in → Sign in to YouTube</b>.
-            A signed-in request is rarely challenged. Use an account you do not
-            mind losing — heavy automated use can get the account itself
-            limited, and that is a real risk, not a formality.</p>
+        <div class="more-sec step">
+          <div class="step-text">
+            <label>3 · Sign in</label>
+            <p class="more-note"><b>Settings → Sign-in</b>. A signed-in request
+              is rarely challenged. Use an account you do not mind losing —
+              heavy automated use can get the account itself limited, and that
+              is a real risk, not a formality.</p>
+          </div>
+          <button class="ghost small" id="botSignIn">Open Sign-in</button>
         </div>
-        <div class="more-sec">
-          <label>4 · Turn on the helper</label>
-          <p class="more-note"><b>Settings → YouTube → proof-of-origin
-            helper</b>. It answers the check YouTube is making, which is exactly
-            what this failure is.</p>
+        <div class="more-sec step">
+          <div class="step-text">
+            <label>4 · Turn on the helper</label>
+            <p class="more-note"><b>Settings → YouTube</b>. The proof-of-origin
+              helper answers the check YouTube is making, which is exactly what
+              this failure is.</p>
+          </div>
+          <button class="ghost small" id="botHelper">Turn the helper on</button>
         </div>
-        <div class="more-sec">
-          <label>5 · Update the engine</label>
-          <p class="more-note"><b>Settings → Advanced → Update engine</b>. When
-            YouTube changes something, the fix usually arrives there first.</p>
+        <div class="more-sec step">
+          <div class="step-text">
+            <label>5 · Update the engine</label>
+            <p class="more-note"><b>Settings → Advanced</b>. When YouTube
+              changes something, the fix usually arrives there first.</p>
+          </div>
+          <button class="ghost small" id="botUpdate">Update the engine</button>
         </div>
       </div>
     </details>
@@ -642,6 +839,10 @@
     <p class="conv-note">Share a link from your phone — it downloads on this
       PC. Only the link travels, and nothing on the internet can reach this
       computer.</p>
+
+    <!-- Empty and hidden until the LAN listener actually fails. Until now
+         that failure had nowhere to appear at all. -->
+    <p class="share-fault" id="shareFault" hidden></p>
 
     <!-- Asked the practical way round. A PC cannot reliably wake a phone to
          ask it anything, but the relay already holds undelivered links for
@@ -858,6 +1059,18 @@
           <button class="toggle {% if settings.schedule_on %}on{% endif %}"
                   id="setSchedule" role="switch"><i></i></button>
         </div>
+      </div>
+
+      <!-- The same window, drawn. 23:00 to 06:00 is two numbers that have to
+           be turned into a picture before it is obvious they run through the
+           night rather than being an empty seven hours - and that is exactly
+           the schedule most people want. -->
+      <div class="sched-bar" id="schedBar" hidden>
+        <div class="sched-track"><i id="schedFill"></i><i id="schedFill2"></i></div>
+        <div class="sched-ticks">
+          <span>00</span><span>06</span><span>12</span><span>18</span><span>24</span>
+        </div>
+        <p class="sched-say" id="schedSay"></p>
       </div>
 
       <!-- The number is not a guess: two maintained downloaders allow about
@@ -1177,6 +1390,10 @@
                 quality before sending. <b>You do not need it</b> if the
                 shortcut above suits you.</span>
           <span class="hint" id="extPath"></span>
+          <!-- Which browser, not "a browser". The ordinary PC has two
+               installed and one of them connected, and the app has always
+               known which - it just returned true and threw the name away. -->
+          <span class="hint" id="extBrowsers"></span>
         </div>
         <button class="ghost small" id="openExtFolder">Open its folder</button>
       </div>
@@ -1440,8 +1657,11 @@
         <li><b>An installer Windows does not warn about</b> — a signing
           certificate, so setup stops looking like something to be careful
           of.</li>
-        <li><b>The extension in the Chrome Web Store</b>, so adding it is one
-          click instead of four steps and a folder.</li>
+        {#- The Chrome Web Store extension was here until 3 Sep 2026, when the
+            listing went live. A roadmap that still lists a shipped thing as
+            "being worked on" is the one way this panel can do harm: its whole
+            job is to be evidence that the app is maintained, and a stale entry
+            is evidence of the opposite. It is in What's new below now. -#}
         <li><b>Riplox's own route to more of the sites that matter</b>, so a
           bad day for the engine is not a bad day for the app.</li>
       </ul>
@@ -1651,6 +1871,118 @@
   </div>
 </div>
 
+<!-- What the library already knows, counted. Nothing here is fetched and no
+     new file is written: every figure comes from history.json and failed.json,
+     which the app has had all along and had never shown back. -->
+<div class="scrim" id="insights" hidden>
+  <div class="dlg dlg-wide" role="dialog" aria-modal="true"
+       aria-labelledby="insightsTitle">
+    <h3 id="insightsTitle">Insights</h3>
+    <p class="dlg-msg" id="insSub"></p>
+
+    <div class="ins-tiles">
+      <div class="ins-tile">
+        <label>Downloaded</label><b id="insFiles">—</b><span id="insSize"></span>
+      </div>
+      <div class="ins-tile">
+        <label>This week</label><b id="insWeek">—</b><span id="insWeekSize"></span>
+      </div>
+      <div class="ins-tile">
+        <label>Worked first try</label><b id="insFirst">—</b><span id="insFirstOf"></span>
+      </div>
+      <div class="ins-tile">
+        <label>Most from</label><b id="insTop">—</b><span id="insTopShare"></span>
+      </div>
+    </div>
+
+    <div class="ins-where">
+      <label>Where it comes from, and how often it works</label>
+      <div class="ins-sites" id="insSites"></div>
+    </div>
+
+    <div class="dlg-foot">
+      <!-- Named for the file it writes, not for the screen it sits on: what
+           comes out is the library - one row per finished download - and not
+           the figures above, which have no columns of their own. -->
+      <button class="ghost small ins-export" data-export="csv"
+              title="One row per finished download — the list these figures are counted from">Export the library as CSV</button>
+      <button class="primary" id="insightsClose">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Asked once, on a new install. Where files go is a choice worth making
+     before the first download rather than discovering afterwards - and the
+     other two are the things people go looking for in Settings on day one.
+     Each control saves the moment it is used, exactly as it does in Settings,
+     so Skip never means "nothing you touched was kept". -->
+<div class="scrim" id="firstRun" hidden>
+  <div class="dlg dlg-wide" role="dialog" aria-modal="true"
+       aria-labelledby="firstRunTitle">
+    <h3 id="firstRunTitle">Welcome to Riplox</h3>
+    <p class="dlg-msg">Three things, then it is out of your way.</p>
+
+    <div class="fr-card">
+      <label>Where should downloads go?</label>
+      <div class="fr-dir">
+        <code id="frDirText">{{ settings.download_dir }}</code>
+        <button class="ghost small" id="frDirPick">Change</button>
+      </div>
+      <label class="fr-check">
+        <input type="checkbox" id="frPerSite"
+               {% if settings.subfolder_per_site %}checked{% endif %}>
+        <span>Keep a folder per site — YouTube, TikTok and Instagram get their own</span>
+      </label>
+    </div>
+
+    <div class="fr-card">
+      <label>Should Riplox watch your clipboard?</label>
+      <span>Copy a link anywhere and Riplox offers to take it, even while it is
+        in the background.</span>
+      <label class="fr-check">
+        <input type="checkbox" id="frClip"
+               {% if settings.auto_paste %}checked{% endif %}>
+        <span>Watch the clipboard</span>
+      </label>
+    </div>
+
+    <div class="fr-card">
+      <label>Media tool <em class="tag" id="frToolState"></em></label>
+      <span id="frToolWhy"></span>
+    </div>
+
+    <div class="dlg-foot">
+      <span class="fr-note">Everything here can be changed later, in Settings.</span>
+      <button class="ghost" id="frSkip">Skip</button>
+      <button class="primary" id="frDone">Start using Riplox</button>
+    </div>
+  </div>
+</div>
+
+<!-- One way in. The app spans eight rooms and fourteen settings groups and had
+     four separate search boxes - the queue, the library, settings, the site
+     list - each of which searches one room and nothing else. Finding a setting
+     meant first knowing it was a setting.
+
+     Everything here is already on the page, so opening it fetches nothing. -->
+<div class="scrim scrim-top" id="palette" hidden>
+  <div class="dlg dlg-pal" role="dialog" aria-modal="true" aria-label="Search Riplox">
+    <div class="pal-omni">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+           stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+      <input type="text" id="paletteInput" autocomplete="off" spellcheck="false"
+             placeholder="Search, or paste a link…">
+      <kbd>esc</kbd>
+    </div>
+    <div class="pal-body" id="paletteList"></div>
+    <div class="pal-foot">
+      <span><kbd>↑</kbd><kbd>↓</kbd> move</span>
+      <span><kbd>↵</kbd> run</span>
+      <span class="pal-tip">Paste a link here and it is read straight away</span>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast" hidden></div>
 
 <script>
@@ -1660,7 +1992,8 @@
     settings: {{ settings | tojson }},
     hasFfmpeg: {{ has_ffmpeg | tojson }},
     labels: {{ quality_labels | tojson }},
-    sites: {{ sites | tojson }}
+    sites: {{ sites | tojson }},
+    storeUrl: {{ store_url | tojson }}
   };
 </script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <img class="mark" src="icons/icon48.png" alt="" width="22" height="22">
+    <span>Riplox</span>
+  </header>
+
+  <p class="page" id="page" title="">Reading this tab…</p>
+
+  <!-- What Riplox is doing with what it already has. Without this the popup
+       could say "sent" and nothing more, and "sent to something that is
+       closed" reads exactly like "nothing happened". -->
+  <p class="state" id="state" hidden></p>
+
+  <!-- Shown only when the helper says Riplox is not on this machine at all.
+       An extension whose whole job is handing links to an application it
+       cannot find should say where the application is, rather than leaving
+       somebody to work that out. -->
+  <a class="get" id="get" href="https://xniperbuilds.com/riplox-desktop/"
+     target="_blank" rel="noopener" hidden>Get Riplox for Windows →</a>
+
+  <button id="send" class="primary">Send to Riplox</button>
+
+  <p class="said" id="said" hidden></p>
+
+  <details class="more">
+    <summary>Options</summary>
+    <label class="check">
+      <input type="checkbox" id="showBadge">
+      <span>Show how many downloads are running</span>
+    </label>
+
+    <!-- Off, and it stays off until the browser is asked. Ticking it is what
+         gives this extension any sight of a page at all — before that it can
+         only see the tab you deliberately send. -->
+    <label class="check">
+      <input type="checkbox" id="inPageButton">
+      <span>Show a button on every page</span>
+    </label>
+    <p class="fine" id="permNote">Turning this on asks the browser for access
+      to pages. Turning it off gives that access back. The button can be
+      dragged anywhere, and dismissed per site.</p>
+
+    <!-- Only on a site whose button has been dismissed. The cross used to be
+         a one-way door; this is the way back through it. -->
+    <button type="button" class="back" id="back" hidden></button>
+  </details>
+
+  <footer>
+    <p>Riplox must be installed on this PC. The download happens there, not in
+      the browser — including the quality, which Riplox uses whatever you have
+      set in it.</p>
+    <p><a href="https://xniperbuilds.com/riplox-desktop/" target="_blank"
+      rel="noopener">Riplox and more at xniperbuilds.com</a></p>
+  </footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>

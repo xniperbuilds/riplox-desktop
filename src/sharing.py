@@ -118,7 +118,14 @@ _sink = None                     # set by app.py; queues the download
 _started = False
 _lan_server = None
 _stop = threading.Event()
-_status = {"relay": "off", "lan": "off", "error": ""}
+# ⚠ "lan_error" is separate from "error" on purpose: the relay clears
+# _status["error"] on every successful connect, which used to wipe the LAN's
+# explanation of itself moments after it was written.
+_status = {"relay": "off", "lan": "off", "error": "", "lan_error": ""}
+
+# How long before a busy port is tried again. The usual cause is a second copy
+# of Riplox, which is a thing that goes away - so waiting beats giving up.
+LAN_RETRY = 30.0
 
 
 # --------------------------------------------------------------------------
@@ -1157,23 +1164,69 @@ class _LanHandler(BaseHTTPRequestHandler):
             self._json(200, {"ok": verdict in ("queued", "paired"), "why": verdict})
 
 
-def _serve_lan() -> None:
-    global _lan_server
-    try:
-        _lan_server = ThreadingHTTPServer(("0.0.0.0", LAN_PORT), _LanHandler)
-    except OSError as exc:
-        _status["lan"] = "unavailable"
-        _status["error"] = f"LAN port {LAN_PORT} is in use ({exc.errno})."
-        return
+class _LanServer(ThreadingHTTPServer):
+    """The listener, with Windows' port-stealing turned off.
 
-    _lan_server.daemon_threads = True
-    _status["lan"] = "listening"
-    try:
-        _lan_server.serve_forever(poll_interval=0.5)
-    except Exception:
-        pass
-    finally:
-        _status["lan"] = "off"
+    ⚠ Measured on Windows 11: HTTPServer sets allow_reuse_address = 1, and
+    there SO_REUSEADDR lets a second process bind a port that is already live
+    and take its connections. Two copies of Riplox both reported "listening"
+    on this port while a phone reached whichever one Windows picked - and
+    neither copy could report a problem, because as far as each knew there
+    was none.
+    """
+
+    # This one line is the whole fix, and it works in both directions: a
+    # socket bound without SO_REUSEADDR cannot be taken by one that sets it,
+    # so not asking for reuse stops us stealing a live port AND stops an older
+    # copy stealing ours. Measured on Windows 11 - SO_EXCLUSIVEADDRUSE was
+    # tried here as well and defended against nothing this machine could
+    # produce, while making the bind fail outright if reuse were ever switched
+    # back on.
+    allow_reuse_address = False
+
+
+def _serve_lan() -> None:
+    """Hold the LAN port for as long as sharing is on.
+
+    ⚠ The port is FIXED - a paired phone has to be able to find it again - so
+    anything else holding it is not a rare accident, it is what happens when a
+    second copy of Riplox is open. This used to bind once and return, which
+    ended LAN sharing for the whole run: start() could not undo it either,
+    because _started was already True by then.
+    """
+    global _lan_server
+    while not _stop.is_set():
+        try:
+            _lan_server = _LanServer(("0.0.0.0", LAN_PORT), _LanHandler)
+        except OSError as exc:
+            _status["lan"] = "unavailable"
+            _status["lan_error"] = (
+                f"Nothing on your home network can reach this PC right now: "
+                f"port {LAN_PORT} is already being used, almost always by a "
+                f"second copy of Riplox that is still open ({exc.errno}). Close "
+                f"the other one and this will pick it up by itself — it tries "
+                f"again every {int(LAN_RETRY)} seconds.")
+            # Waits on the event rather than sleeping, so switching sharing off
+            # stops this at once instead of up to half a minute later.
+            _stop.wait(LAN_RETRY)
+            continue
+
+        _lan_server.daemon_threads = True
+        _status["lan"] = "listening"
+        _status["lan_error"] = ""
+        try:
+            _lan_server.serve_forever(poll_interval=0.5)
+        except Exception:
+            pass
+        finally:
+            _status["lan"] = "off"
+
+        # serve_forever returning because stop() shut it down means we are
+        # meant to be finished. Anything else killed the listener on its own,
+        # and it should come back.
+        if _stop.is_set():
+            break
+        _stop.wait(LAN_RETRY)
 
 
 # --------------------------------------------------------------------------
@@ -1595,6 +1648,7 @@ def stop() -> None:
             pass
         _lan_server = None
     _status["lan"] = _status["relay"] = "off"
+    _status["lan_error"] = ""
 
 
 def apply_setting(on: bool) -> None:
@@ -1620,6 +1674,7 @@ def state() -> dict:
         "lan_ip": lan_ip(),
         "lan_port": LAN_PORT,
         "error": _status["error"],
+        "lan_error": _status["lan_error"],
         "invite_live": bool(invite and invite.get("expires", 0) > time.time()),
         "invite_life": INVITE_LIFE,
         "qualities": [{"id": q, "label": engine.QUALITY_LABELS[q]}

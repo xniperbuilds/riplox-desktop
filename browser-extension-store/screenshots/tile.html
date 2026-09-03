@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Riplox — small promo tile</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    width: 440px; height: 280px; overflow: hidden;
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 0 30px;
+    background:
+      radial-gradient(340px 240px at 88% 8%, rgba(14,116,144,.40) 0%, transparent 64%),
+      radial-gradient(300px 220px at 2% 100%, rgba(34,184,207,.18) 0%, transparent 62%),
+      linear-gradient(160deg, #0D1522 0%, #070B12 100%);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: #E8F1F5;
+  }
+  /* At 440x280 this is read at a glance and often shrunk further, so it holds
+     one idea: the mark, the name, and what it is for. Anything more becomes
+     grey texture at the size it is actually seen. */
+  .mark {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 46px; height: 46px; margin-bottom: 20px;
+    border-radius: 14px 14px 14px 5px;
+    background: linear-gradient(160deg, #5BE1F5 0%, #22B8CF 100%);
+    box-shadow: 0 10px 22px -12px rgba(34,184,207,.9),
+                inset 0 1px 0 rgba(255,255,255,.45);
+  }
+  h1 {
+    margin: 0 0 10px; font-size: 34px; line-height: 1.05;
+    font-weight: 600; letter-spacing: -.02em;
+  }
+  h1 em { font-style: normal; color: #5BE1F5; }
+  p { margin: 0; font-size: 15px; line-height: 1.45; color: #A8BCCB; }
+</style>
+</head>
+<body>
+  <span class="mark">
+    <svg viewBox="0 0 16 16" width="26" height="26" aria-hidden="true">
+      <path d="M8 2.6V9.6" fill="none" stroke="#05202B" stroke-width="1.9"
+            stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M4.7 6.6 8 9.9l3.3-3.3" fill="none" stroke="#05202B"
+            stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M3.4 13.1h9.2" fill="none" stroke="#05202B" stroke-width="1.9"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </span>
+  <h1>Send it to <em>Riplox</em>.</h1>
+  <p>The page you are on — straight to the download manager on your PC.</p>
+</body>
+</html>

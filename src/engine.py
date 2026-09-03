@@ -470,6 +470,10 @@ DEAD_RELAYS = ("wss://relay.riplox.workers.dev", "")
 # written down beside them - a default with no reason attached drifts.
 DEFAULT_SETTINGS = {
     "download_dir": str(default_download_dir()),
+    # Whether the three opening questions have been answered. False on a fresh
+    # install; set once, whether they are answered or skipped, because asking
+    # twice is worse than not asking.
+    "first_run_done": False,
     "default_quality": "best",
     # Two at once, not four: a home line shared between four downloads makes
     # all four slow and none of them finish, and YouTube notices the fifth.
@@ -497,11 +501,23 @@ DEFAULT_SETTINGS = {
     # site actually refuses is separate - that one is not optional.
     "pace_sites": True,
     "engine_channel": "stable",      # stable | nightly
+    # On: fetch a newer engine when one is published, rather than only
+    # reporting that one exists. Checking without fetching is what left
+    # installs running an engine months old - the single most common reason a
+    # site "stops working" - because the fetch was a button nobody knew about.
+    # It never runs while anything is downloading; see api_check_engine.
+    "engine_auto": True,
     # On: when the engine is refused, let Riplox try its own way in. It only
     # ever runs on a link that has already failed, so the cost of leaving it on
     # is nothing, and the day the engine is walled it is the whole difference.
     "second_door": True,
-    "potoken": False,                # opt-in: fetch the proof-of-origin helper
+    # On. It is what answers YouTube's "prove you are not a bot", and a
+    # machine found with it switched off was hitting that wall repeatedly.
+    # ⚠️ The helper is a separate 44 MB download: this flag being true does not
+    # install it - ensure_running() returns "" and a download still works
+    # without it. app.py fetches it in the background when it is on and
+    # missing, which is what makes the default mean anything.
+    "potoken": True,
     # On: pacing costs a second or two and is the difference between YouTube
     # answering and YouTube asking to confirm you are not a bot.
     "polite_mode": True,
@@ -523,10 +539,14 @@ DEFAULT_SETTINGS = {
     "embed_chapters": False,         # chapter marks players can jump between
     "sponsorblock": False,           # cut sponsor segments out of YouTube
     "skip_existing": False,          # remember what has been downloaded
-    # Four pieces of the same file at once. This is where the real speed comes
-    # from on fragmented video, and it is also why aria2c was not needed.
-    # Higher looks faster on a fast line and starts being refused on a slow one.
-    "fragments": 4,
+    # Sixteen pieces of the same file at once. This is where the real speed
+    # comes from on fragmented video, and it is also why aria2c was not needed.
+    # ⚠️ It was four, and four is where the repeated https failures were found:
+    # on a second machine, raising this alongside the engine and the helper was
+    # what made the downloads run. Higher looks faster on a fast line and
+    # starts being refused on a slow one, so this is a ceiling rather than a
+    # promise - the setting is still there for anyone it does not suit.
+    "fragments": 16,
     "speed_limit": 0,                # KB/s ceiling; 0 means no limit
     # Empty means a direct connection. A site that answers a different line
     # but not this one is the case this exists for - and it is not rare: a
@@ -604,11 +624,23 @@ def settings_file() -> Path:
 
 def load_settings() -> dict:
     s = dict(DEFAULT_SETTINGS)
+    saved = {}
     try:
         with open(settings_file(), "r", encoding="utf-8") as fh:
-            s.update(json.load(fh))
+            saved = json.load(fh)
+            s.update(saved)
     except (OSError, ValueError):
         pass
+
+    # Somebody already using Riplox is not on their first run, whatever a flag
+    # added later says. A settings file that predates the flag means the three
+    # opening questions were answered by using the app, and asking them on an
+    # upgrade would be the app forgetting who it is talking to.
+    #
+    # Asked of the saved file, not of `s` - the defaults have already put the
+    # key there, so `"first_run_done" not in s` is never true.
+    if saved and "first_run_done" not in saved:
+        s["first_run_done"] = True
     # Never trust a stale path from a previous machine.
     try:
         Path(s["download_dir"]).mkdir(parents=True, exist_ok=True)
@@ -782,6 +814,116 @@ def record_failure(entry: dict) -> None:
         entry["tries"] = 1
         items.insert(0, entry)
         _write_failed(items)
+
+
+_SIZE_UNITS = {"B": 1, "KB": 1024, "MB": 1024 ** 2, "GB": 1024 ** 3, "TB": 1024 ** 4}
+
+
+def _bytes_of(size: str) -> int:
+    """"412 MB" as a number. The library stores sizes the way it shows them."""
+    try:
+        number, unit = str(size).split()
+        return int(float(number) * _SIZE_UNITS[unit.upper()])
+    except (ValueError, KeyError, AttributeError):
+        return 0
+
+
+def _pretty(total: int) -> str:
+    for unit in ("TB", "GB", "MB", "KB"):
+        step = _SIZE_UNITS[unit]
+        if total >= step:
+            return f"{total / step:.1f} {unit}"
+    return f"{total} B"
+
+
+def insights() -> dict:
+    """
+    What the library already knows, counted.
+
+    Reads history.json and failed.json and nothing else - no request, no new
+    file, no new permission. Every number here is one the app already had and
+    had never shown back.
+    """
+    import time
+
+    history = load_history()
+    failed = load_failed()
+
+    done_by_site: dict = {}
+    bytes_by_site: dict = {}
+    total_bytes = 0
+    week = 0
+    week_bytes = 0
+    earliest = ""
+    cutoff = time.time() - 7 * 86400
+
+    for item in history:
+        site = site_of(item.get("url", "")) or "elsewhere"
+        done_by_site[site] = done_by_site.get(site, 0) + 1
+        size = _bytes_of(item.get("size", ""))
+        bytes_by_site[site] = bytes_by_site.get(site, 0) + size
+        total_bytes += size
+
+        when = str(item.get("when", ""))
+        if when and (not earliest or when < earliest):
+            earliest = when
+        try:
+            stamp = time.mktime(time.strptime(when[:19], "%Y-%m-%dT%H:%M:%S"))
+            if stamp >= cutoff:
+                week += 1
+                week_bytes += size
+        except (ValueError, TypeError):
+            pass
+
+    # A failure that was later fixed still failed the first time, which is the
+    # thing being measured: how often this site works first go.
+    failed_by_site: dict = {}
+    for item in failed:
+        site = site_of(item.get("url", "")) or "elsewhere"
+        failed_by_site[site] = failed_by_site.get(site, 0) + 1
+
+    sites = []
+    for site in sorted(set(done_by_site) | set(failed_by_site),
+                       key=lambda s: -(done_by_site.get(s, 0))):
+        ok = done_by_site.get(site, 0)
+        bad = failed_by_site.get(site, 0)
+        sites.append({
+            "site": site,
+            "done": ok,
+            "failed": bad,
+            "size": _pretty(bytes_by_site.get(site, 0)),
+            # Out of everything tried on that site, not out of what worked.
+            "rate": round(100.0 * bad / (ok + bad), 1) if (ok + bad) else 0.0,
+        })
+
+    total_failed = sum(failed_by_site.values())
+    tried = len(history) + total_failed
+    top = sites[0]["site"] if sites and sites[0]["done"] else ""
+
+    # The library keeps the last HISTORY_LIMIT downloads and drops the rest, so
+    # "since <date>" would read as "this is when you started" when it actually
+    # means "this is the oldest one still kept". Said plainly instead - a
+    # number that quietly means something else is the thing this app treats as
+    # a real bug, not a rounding error.
+    capped = len(history) >= HISTORY_LIMIT
+
+    return {
+        "ok": True,
+        "files": len(history),
+        "capped": capped,
+        "kept": HISTORY_LIMIT,
+        "size": _pretty(total_bytes),
+        "since": earliest[:10],
+        "week": week,
+        "week_size": _pretty(week_bytes),
+        "first_try": round(100.0 * len(history) / tried, 1) if tried else 0.0,
+        "first_try_of": tried,
+        "failed": total_failed,
+        "top": top,
+        "top_share": round(100.0 * sites[0]["done"] / len(history), 1)
+                     if (sites and len(history)) else 0.0,
+        "sites": sites[:8],
+    }
 
 
 def note_failure_fixed(url: str, quality: str) -> None:
@@ -1468,7 +1610,7 @@ QUALITY_LABELS = {
     # Deliberately not called "best" anything. It is not better for watching -
     # it is a bigger, less playable file that survives being uploaded again,
     # and the name has to carry that or it will be picked by mistake.
-    "max": "Highest - for re-uploading",
+    "max": "Max",
     "2160": "4K · 2160p",
     "1440": "2K · 1440p",
     "1080": "Full HD · 1080p",
@@ -1495,16 +1637,35 @@ NO_UPSCALE = "[format_id!*=-sr]"
 
 # Which player client "More options" is allowed to ask for. Anything else the
 # browser sends is dropped rather than passed through to the command line.
-PLAYER_CLIENTS = ("", "tv_simply", "web_safari", "mweb", "android_vr", "ios", "web")
+#
+# ⚠️ The first five after "" are the ones measured (1 Sep 2026) to offer every
+# format with no proof-of-origin token at all; the rest are kept because the
+# whole point of this control is working around a refusal, and a refused
+# download at 360p still beats no download. What changed is that the dropdown
+# now SAYS which is which - four of the six it used to list stop at 360p or
+# 180p however much quality was asked for, and it said nothing.
+PLAYER_CLIENTS = ("", "tv_embedded", "visionos", "web_embedded",
+                  "android_music", "ios_music",
+                  "tv_simply", "mweb",
+                  "web_safari", "android_vr", "ios", "web")
 
 _OPT_KEYS = ("format_id", "audio_lang", "sub_langs", "outtmpl", "dest_dir",
              "player_client", "no_cookies", "max_mb",
              # One download's shape, not a setting: wanting only the subtitles
              # of this video says nothing about the next one.
              "subs_only", "live_from_start", "thumb_all",
+             # The text under the video, saved beside it. Asked for on the
+             # biggest competitor and never answered there.
+             "write_desc",
              # Which cover picture to keep, chosen from the ones the site
              # offers. An address, so it is checked like one - see safe_image.
-             "thumb_url")
+             "thumb_url",
+             # The chapters ticked on the list, and the tick that means all of
+             # them. Two keys rather than one, because "all" is a single
+             # pattern to the engine and a list of two hundred titles is not.
+             "chapters", "chapters_all", "parts_expected",
+             # The most-replayed moments to cut out, as ranges in seconds.
+             "clips")
 
 
 def safe_image(raw: str) -> str:
@@ -1578,8 +1739,49 @@ def clean_opts(opts) -> dict:
             path = Path(str(value)).expanduser()
             if path.is_dir():
                 out[key] = str(path)
-        elif key in ("no_cookies", "subs_only", "live_from_start", "thumb_all"):
+        elif key in ("no_cookies", "subs_only", "live_from_start", "thumb_all",
+                     "chapters_all", "write_desc"):
             out[key] = True
+        elif key == "chapters":
+            # Chapter titles ticked on the list. Each becomes an anchored
+            # regex where it is used, so nothing here trusts their contents;
+            # what this has to stop is a value that is not a list of titles.
+            # How long the whole selection is gets checked by the caller,
+            # which can say so out loud - dropping it quietly here would turn
+            # "these three chapters" into "the entire video".
+            titles = []
+            for item in value if isinstance(value, list) else []:
+                text = str(item or "").strip()
+                if text and text not in titles:
+                    titles.append(text)
+            if titles:
+                out[key] = titles[:500]
+        elif key == "parts_expected":
+            # How many files the screen believes it asked for. It knows things
+            # this does not - that two chapters share a title and so arrive as
+            # two files from one pattern - so it says the number rather than
+            # having it guessed here.
+            try:
+                out[key] = max(1, min(int(value), 500))
+            except (TypeError, ValueError):
+                pass
+        elif key == "clips":
+            # Time ranges in seconds, as the screen worked them out. Checked
+            # rather than trusted: these go straight onto a command line, and
+            # a pair that is not two numbers would become a pattern yt-dlp
+            # reads as a chapter name.
+            spans = []
+            for span in value if isinstance(value, list) else []:
+                if not isinstance(span, dict):
+                    continue
+                try:
+                    start, end = int(span.get("start")), int(span.get("end"))
+                except (TypeError, ValueError):
+                    continue
+                if 0 <= start < end:
+                    spans.append({"start": start, "end": end})
+            if spans:
+                out[key] = spans[:50]
         elif key == "thumb_url":
             address = safe_image(value)
             if address:
@@ -1799,10 +2001,17 @@ HOME_PAGE = "https://xniperbuilds.com"
 ISSUES_PAGE = "https://github.com/xniperbuilds/riplox-desktop/issues/new/choose"
 _UPDATE_GAP = 24 * 3600
 
+# The extension's listing. Here rather than in app.py because this is the file
+# that owns the addresses, and because a URL the app hands to a browser has to
+# be on the list below - which is what the Browser extension button fell over:
+# it asked, and was refused, and nothing said so.
+STORE_PAGE = ("https://chromewebstore.google.com/detail/"
+              "riplox-%E2%80%94-send-to-your-dow/hacbllnggmnnajhobdgcklhdmaoddnnh")
+
 # The only addresses Riplox will ever hand to the real browser. An allowlist
 # rather than a check on the string, so a page that talked its way past the
 # token still cannot use the app as a launcher for anything it likes.
-OPENABLE = (RELEASES_PAGE, HOME_PAGE, ISSUES_PAGE)
+OPENABLE = (RELEASES_PAGE, HOME_PAGE, ISSUES_PAGE, STORE_PAGE)
 
 
 def _version_tuple(text: str) -> tuple:
@@ -1891,6 +2100,52 @@ def section_arg(start: str, end: str, exact: bool = False) -> list:
     return args
 
 
+# yt-dlp takes --download-sections as a REGEX, never as a literal title. A
+# chapter called "C++ (part 1)" is not a string to it, it is a pattern - and
+# a broken one: measured on the bundled 2026.07.04 binary it refuses to start,
+# with `invalid --download-sections regex "C++ (part 1)" - multiple repeat at
+# position 2`. The titles that compile are the dangerous ones, because they
+# compile into a pattern that is not the title the user ticked.
+def chapter_regex(title: str) -> str:
+    """One chapter title as a pattern matching that title and nothing else."""
+    title = (title or "").strip()
+    if not title:
+        return ""
+    # Anchoring is not tidiness here, it is the point. yt-dlp searches the
+    # pattern anywhere inside a chapter title, so an unanchored "Data Types"
+    # also selects "Data Types (List, Tuple, Set, Dictionary)" - measured on
+    # a real video: one ticked box, two sections back, the second twenty
+    # minutes long and never asked for. ^...$ is also what stops a title that
+    # begins with * from being read as a time range instead of a chapter.
+    return "^" + re.escape(title) + "$"
+
+
+def chapter_args(titles: list, every: bool = False,
+                 exact: bool = False) -> list:
+    """--download-sections once per wanted chapter, or nothing."""
+    # Every chapter is one pattern, not two hundred. A title runs to eighty
+    # characters once escaped, and Windows takes 32767 in a whole command -
+    # so "split all of it" on a long video is the one selection that could
+    # not fit. It still matches on the title, so a video with no chapters
+    # selects nothing rather than quietly selecting the whole video.
+    if every:
+        return ["--no-quiet", "--download-sections", ".*"] + _exact_cut(exact)
+    args, seen = [], set()
+    for title in titles or []:
+        pattern = chapter_regex(title)
+        # A chapter ticked twice would be fetched and written twice.
+        if not pattern or pattern in seen:
+            continue
+        seen.add(pattern)
+        args += ["--download-sections", pattern]
+    if not args:
+        return []
+    # Sections are cut by ffmpeg, and --print turns --quiet on implicitly,
+    # which silences ffmpeg completely - the same silence that left the queue
+    # reading 0.0% for three and a half minutes on trimmed downloads.
+    return ["--no-quiet"] + args + _exact_cut(exact)
+
+
 def needs_ffmpeg(settings: dict, quality: str) -> list:
     """
     Which switched-on options cannot be honoured without ffmpeg.
@@ -1964,7 +2219,13 @@ def extra_args(settings: dict, quality: str, trimmed: bool = False) -> list:
             if settings.get("embed_subs"):
                 args.append("--embed-subs")
 
-    if settings.get("embed_chapters") and not audio_only and have_ff:
+    # Not on a piece of a video. The marks describe the WHOLE video, and
+    # embedding them in a cut writes every one of them into it - measured on a
+    # 17-second chapter of a 20-minute upload: 63 chapter marks, the last of
+    # them ending at 1214 seconds. Players read that track and show the length
+    # of the original, so a seventeen-second file reports twenty minutes.
+    if settings.get("embed_chapters") and not audio_only and have_ff \
+            and not trimmed:
         args.append("--embed-chapters")
 
     if settings.get("sponsorblock") and have_ff:
@@ -2018,7 +2279,8 @@ def analyze(url: str, settings: dict) -> dict:
         close_cookies(cookie_path, temp_cookie)
 
     if out is None or out.returncode != 0 or not (out.stdout or "").strip():
-        raise RuntimeError(_clean_error(out.stderr if out is not None else ""))
+        raise RuntimeError(
+            _clean_error(out.stderr if out is not None else "", during="reading"))
 
     try:
         info = json.loads(out.stdout)
@@ -2074,6 +2336,8 @@ def analyze(url: str, settings: dict) -> dict:
         }
 
     rungs = _available_qualities(info, settings)
+    heat = _heatmap_rows(info)
+    peaks = heatmap_peaks(heat)
     return {
         "kind": "video",
         "url": info.get("webpage_url") or url,
@@ -2090,12 +2354,31 @@ def analyze(url: str, settings: dict) -> dict:
         # choice is offered at all - a checkbox on every ordinary video is
         # clutter on the one screen that has to stay simple.
         "is_live": bool(info.get("is_live")),
+        # The video's own chapters. Read-only here: the screen can say
+        # "15 chapters" and list them, which is worth having on its own
+        # and is the list the ticking will hang off next.
+        "chapters": _chapter_rows(info),
+        # What people actually rewatched. Riplox has been fetching this on
+        # every YouTube analyse since long before anything looked at it, and
+        # throwing it away. An empty list is the ordinary answer, not a
+        # failure - see _heatmap_rows.
+        "heatmap": heat,
+        "peaks": peaks,
+        # The ranges each offered length would cut, worked out here rather
+        # than in the browser: the screen then shows exactly what it is about
+        # to ask for, and there is only one copy of the merging rule.
+        "clips": {str(n): peak_clips(peaks, n, info.get("duration") or 0)
+                  for n in CLIP_LENGTHS},
         # Everything below feeds "More options". The closed screen never shows
         # any of it, so it costs nothing to carry.
         "formats": _format_rows(info),
         "audio_langs": _audio_langs(info),
         "sub_langs": _sub_langs(info),
         "thumbs": _thumb_rows(info),
+        # Whether there is one, not what it says. The screen only needs to
+        # offer "save the description", and a description can run to thousands
+        # of characters that nothing on this side would ever read.
+        "has_description": bool((info.get("description") or "").strip()),
     }
 
 
@@ -2176,6 +2459,7 @@ def grab(url: str, settings: dict) -> dict:
                        "Chrome/124.0 Safari/537.36"),
         "Accept": "text/html,application/xhtml+xml",
     })
+    started = time.time()
     try:
         with urllib.request.urlopen(request, timeout=25) as response:
             kind = (response.headers.get_content_type() or "").lower()
@@ -2196,7 +2480,22 @@ def grab(url: str, settings: dict) -> dict:
     except Exception:
         pass                      # a half-read page still yields what it had
 
+    # Counted rather than discarded in silence. A page with sixty links that
+    # comes back with twelve owes the reader an account of the other
+    # forty-eight, and the three reasons are genuinely different: a repeat, a
+    # site we have no extractor for, and simply too many.
+    read_ms = int((time.time() - started) * 1000)
+
     entries, seen = [], {page.rstrip("/")}
+    skipped = {"duplicates": 0, "unsupported": 0, "capped": 0}
+    # The links themselves, not only how many. A count can be printed; a list
+    # can be looked at, which is the difference between "48 left out" and
+    # being able to see that the one you wanted is among them. Capped
+    # separately from the entries - a page of navigation must not send back
+    # four hundred rows nobody asked for - and the counts above stay true
+    # whatever this cap does.
+    LEFT_CAP = 40
+    left_out = {"duplicates": [], "unsupported": []}
     for raw, title in parser.found:
         raw = (raw or "").strip()
         if not raw or raw.lower().startswith(_SKIP_SCHEME):
@@ -2207,6 +2506,10 @@ def grab(url: str, settings: dict) -> dict:
 
         bare = full.split("#")[0].rstrip("/")
         if bare in seen:
+            skipped["duplicates"] += 1
+            if len(left_out["duplicates"]) < LEFT_CAP:
+                left_out["duplicates"].append(
+                    {"url": full, "title": title[:120], "site": site_of(full)})
             continue
 
         path = urlsplit(full).path.lower()
@@ -2215,6 +2518,15 @@ def grab(url: str, settings: dict) -> dict:
         # address is plainly a media file. Everything else on a page is
         # navigation.
         if not (path.endswith(_MEDIA_EXT) or site in known_sites()):
+            # A page's own navigation was never a candidate, so it is not
+            # something that was "left out" - counting it would put "48 from
+            # sites Riplox has no reader for" under every page and make the
+            # line worth ignoring. Only links that leave the site count.
+            if site != site_of(page):
+                skipped["unsupported"] += 1
+                if len(left_out["unsupported"]) < LEFT_CAP:
+                    left_out["unsupported"].append(
+                        {"url": full, "title": title[:120], "site": site})
             continue
 
         seen.add(bare)
@@ -2224,8 +2536,12 @@ def grab(url: str, settings: dict) -> dict:
             "duration": None,
             "thumbnail": "",
             "timestamp": None,
+            # Where it came from. site_of() has already been called to decide
+            # whether to keep it at all, so this is free.
+            "site": site,
         })
         if len(entries) >= _GRAB_CAP:
+            skipped["capped"] = 1
             break
 
     if not entries:
@@ -2241,6 +2557,12 @@ def grab(url: str, settings: dict) -> dict:
         "count": len(entries),
         "thumbnail": "",
         "entries": entries,
+        "skipped": skipped,
+        "left_out": left_out,
+        # The address that was actually read, after any redirect - which is
+        # not always the one that was pasted.
+        "page": page,
+        "read_ms": read_ms,
     }
 
 
@@ -2268,7 +2590,7 @@ def peek(url: str, settings: dict, limit: int = 30) -> dict:
         close_cookies(cookie_path, temp_cookie)
 
     if out.returncode != 0 or not (out.stdout or "").strip():
-        raise RuntimeError(_clean_error(out.stderr))
+        raise RuntimeError(_clean_error(out.stderr, during="reading"))
 
     try:
         info = json.loads(out.stdout)
@@ -2436,6 +2758,214 @@ def _thumb_rows(info: dict) -> list:
         if len(rows) >= 8:
             break
     return rows
+
+
+def _chapter_rows(info: dict) -> list:
+    """
+    The video's own chapters, as the screen needs them.
+
+    Most videos have none, and a site can say so in two ways - by leaving the
+    field out, or by setting it to null - so both have to arrive here as the
+    same empty list. A chapter carrying no title is dropped rather than shown
+    as a blank row: it cannot be read, and it cannot be asked for by name.
+
+    Not capped, deliberately. Eight thumbnails out of forty is a tidier
+    screen; eight chapters out of forty is the app quietly deciding which
+    parts of the video exist.
+    """
+    entries = info.get("chapters")
+    if not isinstance(entries, list):
+        return []
+
+    rows = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        title = str(entry.get("title") or "").strip()
+        if not title:
+            continue
+        start, end = entry.get("start_time"), entry.get("end_time")
+        rows.append({
+            "title": title,
+            # A time is shown only when there really is one. Sites have sent
+            # strings and nulls here, and "0:00" invented from a missing
+            # start would be a claim about the video, not a blank.
+            "start": start if isinstance(start, (int, float)) else None,
+            "end": end if isinstance(end, (int, float)) else None,
+        })
+    return rows
+
+
+def written_bytes(path) -> int:
+    """
+    What a finished download actually left on the disk.
+
+    A chapter download produces a folder rather than a file, and .stat() on a
+    directory does not raise. It succeeds, and answers with the size of the
+    directory entry - a few kilobytes - so a 500 MB folder of chapters was
+    recorded, shown and counted against the allowance as about 4 KB, with
+    nothing anywhere saying it was wrong. The except clause around the caller
+    made it worse: it is written to swallow a failure, and there was no
+    failure to swallow.
+    """
+    target = Path(path)
+    if target.is_dir():
+        return sum(f.stat().st_size for f in target.rglob("*") if f.is_file())
+    return target.stat().st_size
+
+
+def _heatmap_rows(info: dict) -> list:
+    """
+    The rewatch curve, when YouTube has one.
+
+    ⚠️ `heatmap` does not appear in `yt-dlp --help` at all. It is not a
+    documented field, so no deprecation applies to it and it can stop
+    arriving the day YouTube changes the shape of its answer - with no error
+    anywhere, because the field simply becomes absent. So "missing" is the
+    ordinary case here, not the exceptional one, and everything above this
+    has to be able to say so out loud.
+
+    Measured on real videos: YouTube always sends exactly 100 buckets
+    covering the whole video, so a bucket is a hundredth of the duration -
+    2.5 seconds on a four-minute video and 73 seconds on a two-hour one. It
+    is not a fixed window, and nothing here may assume one.
+    """
+    points = info.get("heatmap")
+    if not isinstance(points, list):
+        return []
+
+    rows = []
+    for point in points:
+        if not isinstance(point, dict):
+            continue
+        start = point.get("start_time")
+        end = point.get("end_time")
+        value = point.get("value")
+        if not all(isinstance(n, (int, float)) for n in (start, end, value)):
+            continue
+        if end <= start:
+            continue
+        rows.append({
+            "start": float(start),
+            "end": float(end),
+            # Sent as 0-1 with the busiest bucket at 1.0. Clamped rather than
+            # trusted: the graph's height is drawn straight from this.
+            "value": max(0.0, min(1.0, float(value))),
+        })
+    return rows
+
+
+def heatmap_peaks(rows: list, want: int = 5) -> list:
+    """The moments people went back to, most replayed first."""
+    if not rows or max(r["value"] for r in rows) <= 0:
+        # A curve that is flat at zero has no moments in it. Marking five of
+        # them anyway would be the app inventing a claim about the video.
+        return []
+
+    order = sorted(range(len(rows)), key=lambda i: rows[i]["value"], reverse=True)
+    taken = []
+    for i in order:
+        if len(taken) >= want:
+            break
+        # One hump is several buckets wide and its shoulders are not separate
+        # moments. Without this, "the five most replayed" came back as one
+        # peak and the four buckets leaning against it.
+        if any(abs(i - j) < 3 for j in taken):
+            continue
+        taken.append(i)
+    return [dict(rows[i], rank=n + 1) for n, i in enumerate(taken)]
+
+
+# How long a cut-out moment is. YouTube's own buckets cannot be used as clips:
+# it always sends exactly 100 of them, so a bucket is a hundredth of the video
+# - two and a half seconds on a four-minute upload and seventy-three on a
+# two-hour one. Neither is a clip. These are lengths a person would actually
+# post, and the moment sits in the middle of one.
+CLIP_LENGTHS = (15, 30, 60)
+
+
+def peak_clips(peaks: list, seconds: int, duration: float = 0) -> list:
+    """
+    Clip ranges around the most replayed moments, in order, merged where they
+    would overlap.
+
+    Two moments can be seconds apart - the peaks are only required to be three
+    buckets from each other, and on a short video three buckets is under ten
+    seconds. Cutting both would hand back two clips of nearly the same footage
+    and call them different moments. Where the windows touch they become one
+    longer clip instead, which is what a person would have done by hand.
+    """
+    try:
+        seconds = int(seconds)
+    except (TypeError, ValueError):
+        return []
+    if seconds <= 0 or not peaks:
+        return []
+
+    limit = float(duration or 0)
+    spans = []
+    for peak in peaks:
+        try:
+            middle = (float(peak["start"]) + float(peak["end"])) / 2
+        except (KeyError, TypeError, ValueError):
+            continue
+        # A clip that runs off either end of the video is pulled back inside
+        # it rather than shortened: a moment near the start is still worth the
+        # full length, it just cannot begin before the video does.
+        start = middle - seconds / 2
+        if limit and start + seconds > limit:
+            start = limit - seconds
+        start = int(max(0, start))
+        # The end is measured from the whole-second start rather than rounded
+        # on its own. Rounding the two independently made a "60 second clip"
+        # that was sixty-one, which is the kind of small lie that turns up
+        # later as an off-by-one somewhere it matters.
+        end = start + seconds
+        if limit and end > limit:
+            end = int(limit)
+        if end > start:
+            spans.append((start, end))
+
+    spans.sort()
+    merged = []
+    for start, end in spans:
+        if merged and start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+    return [{"start": s, "end": e} for s, e in merged]
+
+
+def _exact_cut(exact: bool) -> list:
+    """
+    Cut on the mark rather than on the video's own keyframes.
+
+    Without this ffmpeg copies the streams, so it has to start at the keyframe
+    before the mark and a moment of whatever came before appears at the start -
+    reported from real use as about half a second. Removing it means
+    re-encoding the part, which measured 218s against 94s for the same
+    two-minute clip. So it is offered rather than assumed, the same way the
+    trim has offered it all along.
+    """
+    return ["--force-keyframes-at-cuts"] if exact else []
+
+
+def clip_args(clips: list, exact: bool = False) -> list:
+    """--download-sections once per wanted moment, or nothing."""
+    args = []
+    for span in clips or []:
+        try:
+            start, end = int(span["start"]), int(span["end"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if end <= start:
+            continue
+        args += ["--download-sections", f"*{start}-{end}"]
+    if not args:
+        return []
+    # Same reason as a trim and a chapter: ffmpeg does the cutting, and --print
+    # turns --quiet on implicitly, which silences its progress completely.
+    return ["--no-quiet"] + args + _exact_cut(exact)
 
 
 def _is_upscale(f: dict) -> bool:
@@ -2620,13 +3150,88 @@ def _door_verdict(engine_error: str, door_error: str,
             "is gone.")
 
 
-def _clean_error(stderr: str) -> str:
-    """Turn a yt-dlp stack of ERROR lines into one human sentence."""
+# The connection itself going away, told apart from a site saying no.
+#
+# ⚠️ Deliberately narrow: only failures that cannot be a site's own answer. A
+# name that will not resolve, and a network with no route, are nobody's verdict
+# on the video. "giving up after N retries", "max retries exceeded",
+# "connection reset" and "timed out" are all things a site does to a request it
+# is refusing, so they are NOT here - reading those as an outage would put a
+# genuinely dead download back on the queue forty times over, which is the
+# failure this whole area exists to avoid.
+_NETWORK_LOST = (
+    "getaddrinfo failed", "failed to resolve", "errno 11001",
+    "name resolution", "network is unreachable", "no route to host",
+    "failed to establish a new connection",
+    "winerror 10051",                    # network is unreachable
+    "winerror 10065",                    # no route to host
+)
+
+
+def network_lost(text: str) -> bool:
+    """Does this say the connection went, rather than the site refusing?"""
+    low = (text or "").lower()
+    return any(sign in low for sign in _NETWORK_LOST)
+
+
+def _site_name(text: str) -> str:
+    """The site, from the engine's own [extractor] tag, or a plain word."""
+    tag = re.match(r"\s*\[([a-z0-9_]+)", (text or "").lower())
+    known = {"youtube": "YouTube", "instagram": "Instagram", "tiktok": "TikTok",
+             "facebook": "Facebook", "twitter": "X", "reddit": "Reddit"}
+    return known.get(tag.group(1) if tag else "", "The site")
+
+
+def _plain_line(line: str) -> str:
+    """Strip the engine's own prefix off a line before a person reads it.
+
+    yt-dlp writes "[youtube] dQw4w9WgXcQ: message". The tag is which extractor
+    ran and the token after it is the video id - neither is an explanation,
+    and both used to reach the screen whenever no branch above matched.
+    """
+    out = re.sub(r"^\[[^\]]{1,40}\]\s*", "", (line or "").strip())
+    # Only an id-shaped token, so a real sentence that happens to contain a
+    # colon keeps all of itself.
+    out = re.sub(r"^[A-Za-z0-9_-]{1,24}:\s+", "", out)
+    # ⚠️ And never the part in brackets. yt-dlp appends "(caused by <HTTPError
+    # 404: Not Found ...>)", which is the library's exception repr - it is cut
+    # off by the length limit and leaves the sentence ending on an unclosed
+    # bracket, which is what a reader was being shown.
+    out = out.split("(caused by")[0].strip()
+    return out.strip()
+
+
+def _clean_error(stderr: str, during: str = "download") -> str:
+    """Turn a yt-dlp stack of ERROR lines into one human sentence.
+
+    ⚠️ `during` exists because the same failures are shown in two very
+    different moments. "reading" is someone pasting a link or checking a
+    playlist - nothing has been fetched, so nothing may be described as
+    partly done. "download" is a job that really was moving bytes. The
+    default is the download wording, which is what it was written for.
+    """
     text = (stderr or "").strip()
     if not text:
         return "That link could not be opened."
 
     low_all = text.lower()
+
+    # Before any reading of what the site said: a name that would not resolve
+    # means nothing was reached, so nothing after it is the site's opinion of
+    # anything. And what comes after it is loud - yt-dlp goes on to join
+    # fragments it never wrote and reports THAT, "[Errno 2] No such file or
+    # directory: ...part-Frag3", which is the consequence rather than the
+    # cause, and was what the user was being shown.
+    if network_lost(low_all):
+        if during == "reading":
+            # Nothing was being fetched yet, so there is nothing kept and
+            # nothing to carry on from - saying otherwise sends someone
+            # looking for a half-finished file that does not exist.
+            return ("No connection, so that link could not be read. Check the "
+                    "connection and try again.")
+        return ("The connection dropped while this was downloading. What "
+                "already arrived is kept, so carrying on continues from "
+                "there rather than starting again.")
 
     # Chrome-family cookie stores cannot be decrypted by anything but the
     # browser itself, and this is the error that says so. Riplox no longer
@@ -2735,15 +3340,56 @@ def _clean_error(stderr: str) -> str:
         if line.startswith("ERROR:"):
             msg = line[6:].strip()
             msg = msg.split(";")[0].strip()
+            # yt-dlp puts the word on one stream and the reason on another when
+            # the download itself fails, so stderr can carry a bare "ERROR:"
+            # with nothing after it. Returning that emptied the message
+            # altogether and the Failed page said "No reason was recorded."
+            # over a reason that was plainly recorded - measured on a real job,
+            # where seventeen of these stood ahead of the only useful line.
+            if not msg:
+                continue
             low = msg.lower()
             if "unsupported url" in low:
                 return "This site is not supported."
+            # ⚠️ Read BEFORE the word-matching branches below. "Service
+            # Unavailable" contains "unavailable", so a 503 was being reported as
+            # the uploader having removed the video - one of those clears by
+            # itself and the other never does.
+            #
+            # The status code, not the engine's sentence. Measured: a 404
+            # came back as "Unable to download webpage: HTTP Error 404: Not
+            # Found (caused by <HTTPError 404: Not Found" - cut mid-bracket -
+            # and on a long URL the message was the URL itself, because the
+            # leading token in that line is a piece of what was just pasted.
+            status = re.search(r"http error (\d{3})", low)
+            if status:
+                code = status.group(1)
+                if code == "404":
+                    return "There is nothing at that link - check it and try again."
+                if code in ("401", "403"):
+                    return ("The site would not open that one for this "
+                            "computer. Signing in with your browser in "
+                            "Settings sometimes helps.")
+                if code == "429":
+                    return ("The site is asking this computer to slow down. "
+                            "Wait a few minutes before trying again.")
+                if code.startswith("5"):
+                    return ("The site is having trouble at its end (%s). It is "
+                            "worth trying again shortly." % code)
+                return "The site answered with an error (%s)." % code
+            if "unable to download webpage" in low:
+                return "That page could not be opened."
+            if "no host supplied" in low or "invalid url" in low:
+                return "That link has no site in it."
             if "not a bot" in low or "login_required" in low:
                 # Usually a passing IP-level check: Riplox already retries on
                 # its own, so by the time this is shown the retries are spent.
-                return ("YouTube asked for proof you are a real viewer and kept "
+                # ⚠️ The site comes from the line, not from a guess. This said
+                # "YouTube" for every site, so an Instagram post that wanted a
+                # login sent the reader somewhere they had never been.
+                return ("%s asked for proof you are a real viewer and kept "
                         "asking. Wait a few minutes, or sign in with your "
-                        "browser in Settings.")
+                        "browser in Settings." % _site_name(msg))
             if "private" in low or "login" in low or "sign in" in low:
                 return "This video is private - sign in with your browser in Settings."
             if "unavailable" in low or "removed" in low:
@@ -2755,9 +3401,9 @@ def _clean_error(stderr: str) -> str:
             if "requested format is not available" in low:
                 return ("YouTube did not offer this quality for that video. "
                         "Try 'Best available'.")
-            return msg[:200]
+            return _plain_line(msg)[:200] or msg[:200]
 
-    return text.splitlines()[-1][:200]
+    return _plain_line(text.splitlines()[-1])[:200] or text.splitlines()[-1][:200]
 
 
 # --------------------------------------------------------------------------
@@ -2774,7 +3420,37 @@ THUMB_TAG = "@@RPXTHUMB@@"
 
 # First attempt uses whatever yt-dlp picks. The next two ask YouTube through a
 # different player client, which is what usually clears a bot check.
-_RETRY_CLIENTS = ["", "tv_simply,web_safari", "mweb,android_vr"]
+#
+# ⚠️⚠️ Every client here was MEASURED on 1 Sep 2026 (yt-dlp 2026.08.19, three
+# videos), because the previous list quietly cost the user their quality:
+#
+#     client        no PO token   with PO token
+#     tv_simply         360p          2160p
+#     mweb              360p          2160p
+#     web_safari        180p           180p     <- was on rung 2
+#     android_vr        360p           360p     <- was on rung 3
+#     tv_embedded      2160p          2160p
+#     visionos         2160p          2160p
+#
+# Two separate faults were in one line. `web_safari` and `android_vr` are
+# capped EVEN WITH a token, so they could never contribute a good format -
+# they were pure downside. And `tv_simply`/`mweb` are only whole while a
+# proof-of-origin token can be minted, which is exactly what a network outage
+# takes away - so the ladder collapsed to 360p at the precise moment it ran.
+# Reported by a user as a full-quality request arriving as a 360p file.
+#
+# So each rung now pairs its token-dependent client with one measured to give
+# every format WITHOUT a token. `tv_embedded` and `visionos` were both checked
+# by actually fetching bytes at 1080p+, not merely by listing formats.
+# ⚠️ `visionos` does not serve "Made for kids" videos (yt-dlp's own note), the
+# same limitation the `android_vr` it replaces already had.
+#
+# ⚠️ This list ages. yt-dlp adds and retires clients every few weeks
+# (`tv_downgraded` is newer than the engine shipped here, which does not know
+# it). That is why _quality_short below checks the RESULT rather than trusting
+# any list - a name that is right today will be wrong, and the outcome check
+# does not care which client let the user down.
+_RETRY_CLIENTS = ["", "tv_simply,tv_embedded", "mweb,visionos"]
 
 # How long an engine may say NOTHING before Riplox stops waiting for it.
 #
@@ -3671,6 +4347,50 @@ def _is_transient(text: str) -> bool:
     return any(marker in low for marker in _TRANSIENT)
 
 
+# The height each named quality is asking for. "best" and "max" name no
+# number - they ask for whatever the site has - which is why they are absent,
+# and why the check below has to go and look rather than compare.
+_ASKED_HEIGHT = {"2160": 2160, "1440": 1440, "1080": 1080,
+                 "720": 720, "480": 480, "360": 360}
+
+# Above this a fallback route's answer is not worth questioning. Measured
+# 1 Sep 2026: the clients Riplox falls back to top out at exactly 360p when no
+# proof-of-origin token can be minted, so anything taller did not come from a
+# degraded route and needs no second look.
+_FALLBACK_CEILING = 360
+
+
+def best_height(url: str, settings: dict, cookie_path=None) -> int:
+    """
+    The tallest video the MAIN route can see for this link. 0 when it cannot
+    be asked - and 0 deliberately means "do not complain", so a link that
+    cannot be re-read never produces a warning about a file that is fine.
+
+    This exists for one question: a small file is either a small video or a
+    download that went wrong, and those need opposite answers. Without asking,
+    the honest message would have to say "may be", and a maybe-warning on a
+    video that only ever had 360p is exactly the kind of misleading line that
+    teaches people to ignore warnings.
+
+    The default client on purpose: it is the one measured to see every format,
+    and the question being asked is "was there a better one we missed".
+    """
+    args = _base_args(settings, cookie_path)
+    args += ["-J", "--no-playlist", "--no-progress", url]
+    try:
+        out = _run(args, timeout=90)
+    except (subprocess.TimeoutExpired, OSError):
+        return 0
+    if out.returncode != 0 or not (out.stdout or "").strip():
+        return 0
+    try:
+        info = json.loads(out.stdout)
+    except ValueError:
+        return 0
+    return max((int(f.get("height") or 0)
+                for f in (info.get("formats") or [])), default=0)
+
+
 # The one failure a proof-of-origin token actually helps with. Kept separate
 # from _TRANSIENT, which is far broader.
 _BOTCHECK = ("not a bot", "login_required", "sign in to confirm")
@@ -3736,12 +4456,24 @@ class Job:
                  "speed", "eta", "size", "got", "filepath", "error", "created", "proc",
                  "cancelled", "uploader", "batch", "log", "attempt",
                  "start", "end", "exact", "stage", "paused", "kind", "conv",
-                 "opts", "origin", "streams", "sent_cookies", "tried_signed_in",
+                 "opts", "origin", "streams", "parts", "sent_cookies", "tried_signed_in",
                  "account", "retry_at", "auto_retries", "height", "started_on",
                  "net_waits",
                  # When the engine last said ANYTHING, and whether it went
                  # quiet for so long that we gave up on it. See _SILENCE_LIMIT.
-                 "heard", "went_quiet")
+                 "heard", "went_quiet",
+                 # Where the current fragment began: its index, and the byte
+                 # count when it started. That pair is what lets the bar
+                 # measure its way across a fragment instead of dividing by an
+                 # estimate that moves. See _apply_progress.
+                 "frag_base_at", "frag_base_bytes",
+                 # The size currently on screen, kept so it can stay there
+                 # while the estimate behind it wobbles. See _settled_size.
+                 "size_shown",
+                 # Whether the size beside it is measured or extrapolated. Kept
+                 # apart from the string on purpose - three different readers
+                 # parse that string back into a number.
+                 "size_estimated")
 
     def __init__(self, url, title="", thumbnail="", quality="best", uploader="",
                  batch=False, start="", end="", exact=False, opts=None,
@@ -3824,6 +4556,12 @@ class Job:
         # How many streams have finished. A merged download is video then
         # audio, and the one progress bar has to cover both.
         self.streams = 0
+        self.frag_base_at = 0.0
+        self.frag_base_bytes = 0.0
+        self.size_shown = 0.0
+        self.size_estimated = False
+        # How many of a cut's parts have arrived. One job, many files.
+        self.parts = 0
         # Kept so the user can hand a real error to someone who can read it,
         # instead of the one friendly sentence the UI shows.
         self.log = ""
@@ -3856,6 +4594,7 @@ class Job:
             "qualityLabel": self._quality_label(),
             "status": self.status,
             "percent": round(self.percent, 1),
+            "sizeEstimated": self.size_estimated,
             "speed": self.speed,
             "eta": self.eta,
             "size": self.size,
@@ -3876,6 +4615,44 @@ class Job:
             # retry is coming is the app keeping a secret.
             "retryIn": max(0, int(self.retry_at - time.time())) if self.retry_at else 0,
         }
+
+
+# How far the truth must move before the number on screen is worth changing.
+# 25% was measured: it takes the changes over a whole download from 89 to 7,
+# and the error at the halfway mark does not move at all - 8% either way,
+# because the underlying estimate is already wrong by more than the band.
+_SIZE_BAND = 0.25
+
+
+def _settled_size(byte_count: float, held: float = 0.0) -> float:
+    """A size to read, not a size to watch.
+
+    yt-dlp's total is an extrapolation - the average fragment so far times how
+    many there are - and it moves the whole way through a download: 147 MB to
+    353 MB on one measured run, and 174 MB downwards on another. Showing every
+    reading made it change 484 times, and rounding alone still left 89.
+
+    So the number already on screen stays there until the truth has left a band
+    around it. Nothing is held back and nothing is smoothed: when the estimate
+    genuinely moves, this follows it in one step.
+
+    ⚠️ Deliberately NOT one-directional. Holding the maximum scores better on
+    the two downloads measured here - 2 changes instead of 7 - and both of them
+    happen to have estimates that climb. One that FELL, 88 MB to 37 MB on a
+    37.3 MB file, was measured earlier and reported: holding the maximum showed
+    88 for the entire download. A band recovers from that by itself.
+    """
+    mb = byte_count / 1048576.0
+    # Below this, rounding costs more than it buys - and rounding a 100-byte
+    # file to the nearest megabyte reports zero, which is how this was caught.
+    if mb < 10:
+        return byte_count
+    step = 5.0 if mb < 200 else 25.0
+    rounded = round(mb / step) * step * 1048576.0
+
+    if held and abs(byte_count - held) / held < _SIZE_BAND:
+        return held
+    return rounded
 
 
 class DownloadManager:
@@ -3912,7 +4689,14 @@ class DownloadManager:
                      # size ceiling chosen for this one download, and origin
                      # is the device whose allowance it counts against. A
                      # restored job used to quietly lose both.
-                     "opts": j.opts, "origin": j.origin}
+                     "opts": j.opts, "origin": j.origin,
+                     # Written for the browser extension, which reads this file
+                     # to put a count on its toolbar icon. It was looking for a
+                     # status that was never saved here, so it read every queue
+                     # as empty and the badge could never show anything at all.
+                     # restore() does not consult it - it deliberately brings
+                     # everything back paused - so nothing here changes.
+                     "status": j.status}
                     for j in (self._jobs.get(i) for i in self._order)
                     if j is not None and j.status in self.ACTIVE
                 ]
@@ -4310,6 +5094,37 @@ class DownloadManager:
         # already here: extra_args deliberately keeps max out of the archive.
         pick = " [max]" if job.quality == "max" else ""
 
+        if opts.get("clips") and not (opts.get("chapters")
+                                      or opts.get("chapters_all")):
+            # One folder per video, holding one file per moment.
+            #
+            # Named by the second it starts at, zero-padded so the folder
+            # sorts in the order the moments happen. It cannot be named after
+            # the moment itself: measured on the bundled binary, a time range
+            # comes back with section_title AND section_number both NA - those
+            # only exist when the section was picked by chapter name.
+            stamp = " [mp3]" if job.quality == "mp3" else " %(height)sp"
+            folder = f"%(title).100B [%(id)s]{stamp}{pick}{dub}"
+            return str(root / "Clips" / folder /
+                       "%(section_start)05ds-%(section_end)05ds.%(ext)s")
+
+        if opts.get("chapters") or opts.get("chapters_all"):
+            # One folder per video, holding one file per chapter.
+            #
+            # The id is in the folder name because two different videos can
+            # share a title, and the quality is there for the same reason it
+            # is in an ordinary file name: the same chapters at 720p and at
+            # 1080p are different files, and without it the second run finds
+            # the first already downloaded and stops with nothing said.
+            #
+            # Numbered from one. yt-dlp counts sections from zero, and a
+            # folder that starts at "00 - Intro" reads as a fault; the
+            # template can do the arithmetic - measured, not assumed.
+            stamp = " [mp3]" if job.quality == "mp3" else " %(height)sp"
+            folder = f"%(title).100B [%(id)s]{stamp}{pick}{dub}"
+            return str(root / "Chapters" / folder /
+                       "%(section_number+1)02d - %(section_title)s.%(ext)s")
+
         # The app's own name, at the end.
         #
         # At the END and not the front on purpose: a folder of downloads still
@@ -4358,6 +5173,17 @@ class DownloadManager:
                 note_health(job.url, HEALTH_OK)
             return
 
+        # ⚠️ Put back on the queue to wait for the network - not failed, and so
+        # not finished with. Going on from here undid that entirely: the second
+        # door below sets a status of its own whatever it finds, so a job that
+        # was safely waiting became a failed one seconds later and the wait
+        # counted for nothing. The engine never got a fair attempt, so nothing
+        # has been ruled out and there is nothing yet for a fallback to fall
+        # back from. This is the one route out of _run_engine that is not an
+        # answer about the video.
+        if job.status in self.ACTIVE:
+            return
+
         # A refusal aimed at the session rather than at the video: worth one
         # more go with the session left out, before anything more elaborate.
         if self._signed_out_retry(job, settings) or job.cancelled:
@@ -4403,7 +5229,25 @@ class DownloadManager:
         if job.cancelled:
             return False
 
-        gone = not network_ok(force=True)
+        # ⚠️ The LOG is asked before the probe. The probe answers "is there a
+        # network NOW", and by the time an attempt has failed the answer is
+        # usually yes again - the connection came back while yt-dlp was still
+        # spending its retries. Measured on a real job: seventeen "getaddrinfo
+        # failed" lines, the network back before the process exited, the probe
+        # green and the same Wi-Fi as before, so both of the old signals said
+        # "not our problem" and the job went to Failed for ever over an outage
+        # that had already ended. What happened was written down; it does not
+        # have to be guessed at afterwards.
+        #
+        # ⚠️ But not while a proxy is in play. A proxy hostname that will not
+        # resolve produces these very same lines, and that is a setting to
+        # correct rather than an outage to wait out - waiting would hide the
+        # one thing the user has to change. The log is believed only when
+        # Riplox is going out directly, where the name that failed can only
+        # have been the site's own.
+        by_log = network_lost(job.log) and not clean_proxy(
+            load_settings().get("proxy"))
+        gone = by_log or not network_ok(force=True)
         moved = bool(job.started_on) and here_now() not in ("", job.started_on)
         if not (gone or moved):
             return False
@@ -4464,6 +5308,57 @@ class DownloadManager:
                 time.sleep(0.2)
 
         return False
+
+    def _quality_short(self, job: Job, settings: dict) -> str:
+        """
+        Did a fallback route quietly hand over a far smaller video?
+        Returns the sentence to show, or "" when there is nothing wrong.
+
+        Exiting 0 is not the same as doing what was asked. When the main route
+        is refused, Riplox asks YouTube as a different player client - and some
+        of those are only ever offered small formats. The download then
+        succeeds, the row goes green, and a request for 4K is answered with a
+        360p file whose name still says [max]. Reported from real use.
+
+        ⚠️ The check is on the RESULT, not on a list of client names. Which
+        clients are degraded changes every few weeks; that a 4K request came
+        back at 360p does not.
+        """
+        # The main route's answer IS the truth about this video - if it says
+        # 360p, 360p is what there is. Only a fallback's answer is suspect.
+        if job.attempt <= 1 or job.kind != "download":
+            return ""
+        # A folder of chapters or clips, an audio extraction, subtitles only:
+        # no single height to judge, and the parts check above owns those.
+        if (job.opts.get("chapters") or job.opts.get("chapters_all")
+                or job.opts.get("clips") or job.opts.get("subs_only")):
+            return ""
+
+        height = int(getattr(job, "height", 0) or 0)
+        if not height or height > _FALLBACK_CEILING:
+            return ""
+
+        asked = _ASKED_HEIGHT.get(job.quality, 0)
+        if asked and height >= asked:
+            return ""            # they asked for small and got small
+
+        # Now, and only now, is it worth a request: ask the main route what
+        # this video actually has. Costs one listing, on a path that should be
+        # rare, and buys a message that is true rather than hedged.
+        cookie_path, temp_cookie, _account = open_cookies(settings, job.url)
+        try:
+            available = best_height(job.url, settings, cookie_path)
+        finally:
+            close_cookies(cookie_path, temp_cookie)
+
+        # Could not ask, or there really is nothing better: say nothing.
+        if available <= height:
+            return ""
+
+        return (f"This came back at {height}p, but the video has "
+                f"{available}p. Riplox's usual way in was refused, and the "
+                f"way round it only carries small formats. The {height}p file "
+                f"is saved - press Retry to ask again for the full one.")
 
     # A site turning a request down flat, rather than the download going wrong.
     _AUTH_REFUSED = ("http error 400", "http error 401", "http error 403",
@@ -4929,7 +5824,15 @@ class DownloadManager:
         else:
             args += format_args(job.quality, settings, opts.get("audio_lang", ""))
 
-        trimmed = bool(job.start or job.end)
+        # Chapters and a trim both speak through --download-sections, and
+        # yt-dlp unions everything it is given - so asking for both would hand
+        # back the chapters AND the trimmed range. They are exclusive here,
+        # and the screen hides the trim while chapters are ticked.
+        wants_chapters = bool(opts.get("chapters") or opts.get("chapters_all"))
+        wants_clips = bool(opts.get("clips")) and not wants_chapters
+        # Either way this is part of a video rather than the video, so it stays
+        # out of the download archive for the same reason a trim does.
+        trimmed = bool(job.start or job.end) or wants_chapters or wants_clips
         args += extra_args(settings, job.quality, trimmed)
 
         # A site that has actually refused gets the strict treatment: a real
@@ -4946,7 +5849,14 @@ class DownloadManager:
         if opts.get("sub_langs"):
             args += ["--write-subs", "--write-auto-subs",
                      "--sub-langs", opts["sub_langs"]]
-        args += section_arg(job.start, job.end, job.exact)
+        if wants_chapters:
+            args += chapter_args(opts.get("chapters"),
+                                 every=bool(opts.get("chapters_all")),
+                                 exact=job.exact)
+        elif wants_clips:
+            args += clip_args(opts["clips"], exact=job.exact)
+        else:
+            args += section_arg(job.start, job.end, job.exact)
         args += [
             "--newline",
             # --print implies --quiet, which would swallow every progress line.
@@ -4955,11 +5865,29 @@ class DownloadManager:
             "--windows-filenames",
             "--retries", "5",
             "--fragment-retries", "10",
+            # ⚠️⚠️ The engine's own default is to SKIP a fragment it cannot
+            # get, merge what it has with the complete audio track, exit 0 and
+            # call that a download. Measured on this machine after one network
+            # drop: a 2160p file whose video runs 36 seconds against 390
+            # seconds of audio, and a 1080p one at 85 against 197 - both marked
+            # done, both with twenty abandoned .part-Frag files beside them. A
+            # file that plays for a few seconds and then goes to a still frame
+            # is worse than a failure, because nothing anywhere says so. Now it
+            # fails, which puts it back on the queue to resume from what it
+            # already has.
+            #
+            # The cost, stated: a site with a fragment that is permanently gone
+            # will now fail instead of handing over a partial video. That is
+            # the right way round - a partial video that claims to be whole is
+            # the one outcome nobody can act on.
+            "--abort-on-unavailable-fragments",
             "-o", self._outtmpl(settings, job),
             "--progress-template",
             (PROGRESS_TAG + "%(progress.status)s|%(progress.downloaded_bytes)s|"
              "%(progress.total_bytes)s|%(progress.total_bytes_estimate)s|"
-             "%(progress.speed)s|%(progress.eta)s"),
+             "%(progress.speed)s|%(progress.eta)s|"
+             # Counted, unlike the byte totals below - see _apply_progress.
+             "%(progress.fragment_index)s|%(progress.fragment_count)s"),
             "--progress-template",
             "postprocess:" + POST_TAG + "%(progress.status)s|%(progress.postprocessor)s",
             "--print", "after_move:" + PATH_TAG + "%(filepath)s|%(height)s",
@@ -4973,6 +5901,12 @@ class DownloadManager:
         # has is one (the default) or all of them. So "choose the thumbnail"
         # means saving the set and letting a person pick, which is what the
         # request actually wanted: sites often serve a poor default.
+        if opts.get("write_desc"):
+            # yt-dlp writes nothing when a site gives no description, and says
+            # nothing about it either. That is the site's answer rather than a
+            # failure, so it is not claimed as one - but it is why the label
+            # promises the description and not a file.
+            args.append("--write-description")
         if opts.get("thumb_all"):
             args.append("--write-all-thumbnails")
         elif settings.get("write_thumbnail"):
@@ -5005,6 +5939,10 @@ class DownloadManager:
         # A retry starts the streams again from the top, so the bar's idea of
         # which one is running has to start again too.
         job.streams = 0
+        # And so does the count of parts that arrived: a retry re-lists every
+        # one of them, so carrying the previous attempt's count forward would
+        # make a short folder add up to a full one.
+        job.parts = 0
         # Working out which streams to cut takes half a minute before ffmpeg
         # says anything, and a blank row for half a minute reads as broken.
         job.stage = "preparing" if (job.start or job.end) else ""
@@ -5109,6 +6047,18 @@ class DownloadManager:
                 else:
                     # An older engine, or a format with no height at all.
                     job.filepath = rest
+                # A chapter download writes this line once per chapter, so the
+                # last one would win and the job would point at whichever
+                # chapter happened to finish last. What it produced is the
+                # folder, so that is what it remembers - Play opens it, the
+                # Library names it, and the size below adds it up.
+                if (job.opts.get("chapters") or job.opts.get("chapters_all")
+                        or job.opts.get("clips")):
+                    # Counted before the path is turned into its folder, because
+                    # afterwards there is nothing left to count: one job, many
+                    # files, and this line is the only place each one is seen.
+                    job.parts = getattr(job, "parts", 0) + 1
+                    job.filepath = str(Path(job.filepath).parent)
             elif line.startswith(THUMB_TAG):
                 # Only fills gaps. A link analysed on this PC already carries
                 # the picture and the title the user saw before pressing
@@ -5120,6 +6070,12 @@ class DownloadManager:
                 if title and title != "NA" and job.title in (job.url, ""):
                     job.title = title
             elif "has already been downloaded" in line:
+                # A part that was already on disk is a part the user has, even
+                # though this run did not write it. Counted, or a second run
+                # over the same folder would look like a run that lost things.
+                if (job.opts.get("chapters") or job.opts.get("chapters_all")
+                        or job.opts.get("clips")):
+                    job.parts = getattr(job, "parts", 0) + 1
                 # Nothing moves, so after_move never fires - take the path here
                 # or the Play button would have nothing to open.
                 existing = line.split("] ", 1)[-1]
@@ -5173,6 +6129,35 @@ class DownloadManager:
             return True          # a rule was applied; retrying changes nothing
 
         if proc.returncode == 0:
+            # One job, many files - so "it exited 0" is not the same as "you
+            # got what you ticked". Every section is fetched on its own, and a
+            # site can refuse one of them while handing over the rest; without
+            # this the job goes green over a folder that is short, and the only
+            # way to notice is to count the files by hand. Reported by Nazim
+            # after ticking five chapters and finding three.
+            wanted = int(job.opts.get("parts_expected") or 0)
+            if wanted and getattr(job, "parts", 0) < wanted:
+                job.status = "error"
+                job.error = (
+                    f"Only {job.parts} of the {wanted} parts you asked for "
+                    f"arrived. The rest were refused by the site or could not "
+                    f"be cut. What did arrive is in the folder; Retry fetches "
+                    f"the missing ones without downloading these again.")
+                job.speed = job.eta = ""
+                return True
+
+            # And the second way exiting 0 is not the same as doing the job:
+            # the right file at the wrong quality, because the main route was
+            # refused and the way round it only carries small formats. Same
+            # shape as the parts check above - the file is kept, the row says
+            # what happened, and Retry means something.
+            undersized = self._quality_short(job, settings)
+            if undersized:
+                job.status = "error"
+                job.error = undersized
+                job.speed = job.eta = ""
+                return True          # it downloaded; it just downloaded small
+
             job.status = "done"
             job.percent = 100.0
             job.speed = job.eta = ""
@@ -5191,7 +6176,7 @@ class DownloadManager:
             # only the last stream. The finished file on disk is the truth.
             written = 0
             try:
-                written = Path(job.filepath).stat().st_size
+                written = written_bytes(job.filepath)
                 job.size = human_bytes(written)
             except (OSError, ValueError):
                 pass
@@ -5274,19 +6259,171 @@ class DownloadManager:
         if len(parts) < 6:
             return
         status, done, total, total_est, speed, eta = parts[:6]
+        # An older engine does not send these, and an unfragmented download
+        # sends "NA". Both read as "no fragments", which is the safe way round.
+        frag_at, frag_of = (parts[6], parts[7]) if len(parts) >= 8 else ("", "")
 
         downloaded = _num(done)
+        # Told apart deliberately. total_bytes is measured; total_bytes_estimate
+        # is yt-dlp's own extrapolation and moves all through a download. On the
+        # two downloads measured here, total_bytes arrived on 14 lines out of
+        # 1453 - so nearly everything below is running on the estimate, and the
+        # difference decides both how the bar is worked out and whether the
+        # size shown is blurred.
+        # ⚠️ NOT the file's size when the download is fragmented: there,
+        # total_bytes is the CURRENT FRAGMENT's size, and its opening line
+        # reads 1024 of 1024. That is why the bar below asks the fragments
+        # first and only falls back to bytes when there are none - and why this
+        # is used for nothing except deciding whether the size shown may be
+        # rounded, which is a question that only arises when there are no
+        # fragments to begin with.
+        exact = _num(total) if not _num(frag_of) else 0.0
         size = _num(total) or _num(total_est)
 
+        # ⚠️⚠️ Two things are true here at once, and getting either one wrong
+        # produces a bar somebody reports. Both were measured on real
+        # downloads, after three wrong tries that were reasoned about instead.
+        #
+        # 1. The engine's estimate is its OWN extrapolation. From its source:
+        #        (bytes_so_far + this_fragment) / (fragment_index + 1) * total
+        #    - the average fragment so far, times how many there are. On the
+        #    opening lines that average comes from one part-finished fragment
+        #    and reads 1024 of 1024: a ratio of 1.0, which sent the bar to the
+        #    top of its band on line one and, with a furthest-reached guard,
+        #    kept it there. Reported as "start hote hi 92% pe chala jata hai".
+        #
+        # 2. Counting fragments instead fixed that and broke the other half.
+        #    Fragments complete in bursts: over 1,316 progress lines of one
+        #    download the fragment bar moved 38 times and stood still for 149
+        #    lines in a row. Reported as "percentage stuck".
+        #
+        # So the fragment count is a FLOOR - exact, and it never goes back -
+        # and the byte ratio moves the bar between fragments. Whichever is
+        # further along wins. Measured against the alternatives on one
+        # download: longest freeze 63 lines against 149, 279 moves against 38,
+        # and it never passes 3.3% in the opening tenth.
+        whole = _num(frag_of)
+        at = _num(frag_at)
+
+        # 3. And the fix for both was still dividing by that estimate. Measured
+        #    again on two real downloads at "max": total_bytes arrived on 14 of
+        #    1453 lines, so "size" below was the estimate nearly always - and
+        #    that estimate CLIMBED from 147 MB to 353 MB during one of them. A
+        #    denominator that grows drags the ratio down with it, and the bar
+        #    went backwards 144 times, by up to 3.44%. Reported as "% peeche
+        #    jaati thi", with the freezes that follow it being pinned to the
+        #    floor in between.
+        #
+        # So the estimate is gone from here entirely. A finished fragment's
+        # size needs no extrapolation: it is however many bytes arrived while
+        # the index stood still. That gives an exact boundary and a measured
+        # position inside the current fragment, which cannot reach the next
+        # boundary and cannot fall below the last one.
+        #
+        #    rule                          moves  back   worst  freeze
+        #    what shipped                    782   144   3.44%      26
+        #    fragments alone                  54     0       -      18
+        #    fragments + bytes inside them   741     0       -      14
+        if whole:
+            # A new stream restarts the count, and so must this.
+            if at < job.frag_base_at:
+                job.frag_base_at = 0.0
+                job.frag_base_bytes = 0.0
+                # The size is reported per stream, so the number held for the
+                # video half must not anchor the audio half's.
+                job.size_shown = 0.0
+                # ⚠️ And the band moves here too. It used to move only on a
+                # "finished" line, which is not guaranteed: one real capture
+                # in tests/fixtures has 1,438 lines, two streams and no
+                # "finished" at all, so the audio half was drawn in the video
+                # half's band and the bar fell from 92% to 0%. A falling
+                # fragment index is the signal that cannot go missing - this
+                # branch already trusts it for everything else.
+                job.streams += 1
+            if at > job.frag_base_at:
+                job.frag_base_at = at
+                job.frag_base_bytes = downloaded
+            base_at = job.frag_base_at
+            base_bytes = job.frag_base_bytes
+            typical = (base_bytes / base_at) if base_at else 0.0
+            inside = ((downloaded - base_bytes) / typical) if typical else 0.0
+            # Never the whole of the next fragment: that one is not in yet.
+            pct = min(1.0, (base_at + min(0.999, max(0.0, inside))) / whole)
+        elif size:
+            # No fragments at all - and only then is total_bytes the file's own
+            # size rather than the current fragment's. The audio half of every
+            # download arrives this way, and the byte maths was always right
+            # here.
+            pct = min(1.0, downloaded / size)
+        else:
+            pct = None
+
+        # ⚠️ Worked out HERE, not at the top of the function: the block above
+        # is what discovers that a new stream has started, and a band chosen
+        # before that discovery describes the stream that just ended.
         index = min(job.streams, len(self._STREAM_BANDS) - 1)
         low, high = self._STREAM_BANDS[index]
 
+        if pct is not None:
+            # ⚠️ No furthest-reached guard any more, deliberately: holding the
+            # maximum is what froze the bar for 326 lines in that same
+            # measurement, which is worse than the wobble it prevented - and
+            # the floor caps that wobble at 1.3%. 100% is still kept for the
+            # moment the file is actually on the disk.
+            job.percent = min(99.0, low + (high - low) * pct)
+
         if size:
-            pct = min(1.0, downloaded / size)
-            # Only ever forward, and 100% is saved for the moment the file is
-            # actually on the disk.
-            job.percent = max(job.percent, min(99.0, low + (high - low) * pct))
-            job.size = human_bytes(size)
+            # ⚠️⚠️ A fragmented download reports NO total_bytes at all - only
+            # total_bytes_estimate, and for its first few fragments that is an
+            # extrapolation from almost nothing. Measured on a file that turned
+            # out to be 37.3 MB: the opening readings were 4, 14, 56 and 88 MB,
+            # and they fell as often as they rose.
+            #
+            # Holding the LARGEST reading was the first attempt at this, and it
+            # was worse than the problem: it froze on the 88 and never came
+            # down, so an 83 MB download called itself 510 MB the whole way.
+            # Reported, and measured again afterwards - 88.8 MB shown for that
+            # 37.3 MB file, wrong from a tenth of the way in to the end.
+            #
+            # The estimate does settle. The same run read 47, 45, 40, 37, 39
+            # once a tenth of the fragments were in. So nothing clever is
+            # needed - only patience: say nothing until the estimate is an
+            # estimate, then say what it says.
+            settled = (not whole) or at >= max(2.0, whole * 0.1)
+            if settled and size >= downloaded:
+                # ⚠️ Rounded, because the estimate keeps moving and a total is
+                # read to know roughly how big the file is. Measured on the same
+                # two downloads: the exact number changed 484 times in one of
+                # them; rounded, 89 - for the same error, 8% at the halfway
+                # point either way.
+                #
+                # Waiting longer was measured and rejected: showing it only
+                # past a third, or past halfway, leaves the same 8% error and
+                # simply says nothing for 256 to 399 lines. And holding the
+                # largest reading stays dead - the estimate FALLS as well as
+                # rises, 54 times in one download and once by 174 MB in the
+                # other, which is the 51% overstatement that rule produced
+                # the first time it was tried.
+                job.size_estimated = not exact
+                if exact:
+                    job.size = human_bytes(size)
+                else:
+                    job.size_shown = _settled_size(size, job.size_shown)
+                    # ⚠️ Marked, because this one is not measured - it is
+                    # yt-dlp's extrapolation and it moves. Measured on two real
+                    # downloads: shown as 550 MB and then 350 MB on a file that
+                    # turned out to be 319.
+                    #
+                    # Hiding it was the alternative and it is worse: the number
+                    # is useful even at 10% out, and it is the only answer to
+                    # "how much longer". Saying it is approximate costs one
+                    # character and stops it reading as a measurement.
+                    #
+                    # Only "Max" ever reaches this on YouTube. Every capped
+                    # rung, 360 through 2160, carries a real filesize and takes
+                    # the branch above - so this mark appears exactly where the
+                    # number really is a guess, and nowhere else.
+                    job.size = human_bytes(job.size_shown)
             # ⚠️ Per STREAM, not per file: yt-dlp fetches the video and the
             # audio separately and reports each on its own. The stage beside it
             # says which one, so the numbers restarting is readable rather than

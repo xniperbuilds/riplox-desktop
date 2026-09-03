@@ -1,0 +1,1579 @@
+{
+ "artifact": "unnamed",
+ "generated": "2026-09-01 12:26:58",
+ "strength": 2,
+ "factors": {
+  "site": [
+   "youtube",
+   "tiktok",
+   "instagram",
+   "facebook",
+   "other"
+  ],
+  "auth": [
+   "none",
+   "valid",
+   "expired",
+   "paused"
+  ],
+  "content": [
+   "public",
+   "agegated",
+   "audience",
+   "removed",
+   "georestricted"
+  ],
+  "network": [
+   "online",
+   "offline",
+   "dropped_midway",
+   "dns_failed",
+   "rate_limited"
+  ],
+  "proxy": [
+   "direct",
+   "set"
+  ],
+  "format": [
+   "fragmented",
+   "progressive",
+   "audio_only"
+  ],
+  "ffmpeg": [
+   "present",
+   "absent"
+  ],
+  "engine": [
+   "current",
+   "outdated"
+  ],
+  "disk": [
+   "plenty",
+   "low",
+   "full"
+  ],
+  "job": [
+   "new",
+   "resumed",
+   "retried"
+  ],
+  "lifecycle": [
+   "foreground",
+   "restart_mid"
+  ],
+  "source": [
+   "ui",
+   "clipboard",
+   "phone",
+   "watch"
+  ],
+  "install": [
+   "fresh",
+   "upgraded",
+   "portable"
+  ],
+  "parallel": [
+   "one",
+   "many"
+  ],
+  "queue_size": [
+   "empty",
+   "one",
+   "large"
+  ],
+  "path": [
+   "ascii",
+   "non_ascii",
+   "very_long"
+  ],
+  "permission": [
+   "writable",
+   "readonly_dir",
+   "cookies_locked"
+  ]
+ },
+ "constraints": [
+  [
+   "network=offline",
+   "content=public"
+  ],
+  [
+   "network=offline",
+   "content=agegated"
+  ],
+  [
+   "network=offline",
+   "content=audience"
+  ],
+  [
+   "network=offline",
+   "content=removed"
+  ],
+  [
+   "network=offline",
+   "content=georestricted"
+  ],
+  [
+   "auth=paused",
+   "site=youtube"
+  ],
+  [
+   "format=audio_only",
+   "ffmpeg=absent"
+  ]
+ ],
+ "gates": [
+  {
+   "when": [
+    "ffmpeg=absent",
+    "format=fragmented"
+   ],
+   "why": "a 1080p+ merge needs the encoder, so the app degrades the format selector before it gets here - format_args drops every ffmpeg flag and the UI shows Limited mode",
+   "tested_at": "format_args and the Limited-mode banner, not the download below them"
+  },
+  {
+   "when": [
+    "auth=paused",
+    "site=other"
+   ],
+   "why": "pausing is per site and only the four named sites have a sign-in to pause",
+   "tested_at": "the cookies per-site filter"
+  }
+ ],
+ "risk": [],
+ "full_cross_product": 139968000,
+ "tuples_total": 1354,
+ "tuples_covered": 1310,
+ "uncovered_tuples": [
+  {
+   "auth": "expired",
+   "network": "offline"
+  },
+  {
+   "auth": "none",
+   "network": "offline"
+  },
+  {
+   "auth": "paused",
+   "network": "offline"
+  },
+  {
+   "auth": "valid",
+   "network": "offline"
+  },
+  {
+   "disk": "full",
+   "network": "offline"
+  },
+  {
+   "disk": "low",
+   "network": "offline"
+  },
+  {
+   "disk": "plenty",
+   "network": "offline"
+  },
+  {
+   "engine": "current",
+   "network": "offline"
+  },
+  {
+   "engine": "outdated",
+   "network": "offline"
+  },
+  {
+   "ffmpeg": "absent",
+   "network": "offline"
+  },
+  {
+   "ffmpeg": "present",
+   "network": "offline"
+  },
+  {
+   "format": "audio_only",
+   "network": "offline"
+  },
+  {
+   "format": "fragmented",
+   "network": "offline"
+  },
+  {
+   "format": "progressive",
+   "network": "offline"
+  },
+  {
+   "install": "fresh",
+   "network": "offline"
+  },
+  {
+   "install": "portable",
+   "network": "offline"
+  },
+  {
+   "install": "upgraded",
+   "network": "offline"
+  },
+  {
+   "job": "new",
+   "network": "offline"
+  },
+  {
+   "job": "resumed",
+   "network": "offline"
+  },
+  {
+   "job": "retried",
+   "network": "offline"
+  },
+  {
+   "lifecycle": "foreground",
+   "network": "offline"
+  },
+  {
+   "lifecycle": "restart_mid",
+   "network": "offline"
+  },
+  {
+   "network": "offline",
+   "parallel": "many"
+  },
+  {
+   "network": "offline",
+   "parallel": "one"
+  },
+  {
+   "network": "offline",
+   "path": "ascii"
+  },
+  {
+   "network": "offline",
+   "path": "non_ascii"
+  },
+  {
+   "network": "offline",
+   "path": "very_long"
+  },
+  {
+   "network": "offline",
+   "permission": "cookies_locked"
+  },
+  {
+   "network": "offline",
+   "permission": "readonly_dir"
+  },
+  {
+   "network": "offline",
+   "permission": "writable"
+  },
+  {
+   "network": "offline",
+   "proxy": "direct"
+  },
+  {
+   "network": "offline",
+   "proxy": "set"
+  },
+  {
+   "network": "offline",
+   "queue_size": "empty"
+  },
+  {
+   "network": "offline",
+   "queue_size": "large"
+  },
+  {
+   "network": "offline",
+   "queue_size": "one"
+  },
+  {
+   "network": "offline",
+   "site": "facebook"
+  },
+  {
+   "network": "offline",
+   "site": "instagram"
+  },
+  {
+   "network": "offline",
+   "site": "other"
+  },
+  {
+   "network": "offline",
+   "site": "tiktok"
+  },
+  {
+   "network": "offline",
+   "site": "youtube"
+  },
+  {
+   "network": "offline",
+   "source": "clipboard"
+  },
+  {
+   "network": "offline",
+   "source": "phone"
+  },
+  {
+   "network": "offline",
+   "source": "ui"
+  },
+  {
+   "network": "offline",
+   "source": "watch"
+  }
+ ],
+ "mutation_checks": [
+  {
+   "broke": "the log is no longer read in _network_went",
+   "caught": [
+    "r01"
+   ],
+   "detected": true
+  },
+  {
+   "broke": "--abort-on-unavailable-fragments removed",
+   "caught": [
+    "r03"
+   ],
+   "detected": true
+  },
+  {
+   "broke": "the bar trusts the byte totals again",
+   "caught": [
+    "r04"
+   ],
+   "detected": true
+  },
+  {
+   "broke": "the size is not held to its largest reading",
+   "caught": [
+    "r05"
+   ],
+   "detected": true
+  },
+  {
+   "broke": "the proxy guard dropped",
+   "caught": [
+    "r06"
+   ],
+   "detected": true
+  }
+ ],
+ "cases": [
+  {
+   "id": 1,
+   "kind": "grid",
+   "values": {
+    "site": "youtube",
+    "auth": "valid",
+    "content": "agegated",
+    "network": "dropped_midway",
+    "proxy": "set",
+    "format": "progressive",
+    "ffmpeg": "absent",
+    "engine": "outdated",
+    "disk": "low",
+    "job": "resumed",
+    "lifecycle": "restart_mid",
+    "source": "clipboard",
+    "install": "upgraded",
+    "parallel": "many",
+    "queue_size": "one",
+    "path": "non_ascii",
+    "permission": "readonly_dir"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real restricted post and an account it is shown to",
+   "updated": ""
+  },
+  {
+   "id": 2,
+   "kind": "grid",
+   "values": {
+    "site": "youtube",
+    "auth": "expired",
+    "content": "audience",
+    "network": "dns_failed",
+    "proxy": "direct",
+    "format": "audio_only",
+    "ffmpeg": "present",
+    "engine": "outdated",
+    "disk": "full",
+    "job": "retried",
+    "lifecycle": "restart_mid",
+    "source": "phone",
+    "install": "portable",
+    "parallel": "one",
+    "queue_size": "large",
+    "path": "very_long",
+    "permission": "cookies_locked"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real restricted post and an account it is shown to",
+   "updated": ""
+  },
+  {
+   "id": 3,
+   "kind": "grid",
+   "values": {
+    "site": "tiktok",
+    "auth": "none",
+    "content": "agegated",
+    "network": "dns_failed",
+    "proxy": "set",
+    "format": "fragmented",
+    "ffmpeg": "present",
+    "engine": "current",
+    "disk": "low",
+    "job": "retried",
+    "lifecycle": "foreground",
+    "source": "watch",
+    "install": "upgraded",
+    "parallel": "many",
+    "queue_size": "large",
+    "path": "very_long",
+    "permission": "writable"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real restricted post and an account it is shown to",
+   "updated": ""
+  },
+  {
+   "id": 4,
+   "kind": "grid",
+   "values": {
+    "site": "tiktok",
+    "auth": "valid",
+    "content": "public",
+    "network": "rate_limited",
+    "proxy": "direct",
+    "format": "progressive",
+    "ffmpeg": "absent",
+    "engine": "current",
+    "disk": "full",
+    "job": "new",
+    "lifecycle": "foreground",
+    "source": "phone",
+    "install": "portable",
+    "parallel": "many",
+    "queue_size": "one",
+    "path": "ascii",
+    "permission": "cookies_locked"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real signed-in session; using the live cookies is not my call",
+   "updated": ""
+  },
+  {
+   "id": 5,
+   "kind": "grid",
+   "values": {
+    "site": "tiktok",
+    "auth": "expired",
+    "content": "removed",
+    "network": "online",
+    "proxy": "set",
+    "format": "audio_only",
+    "ffmpeg": "present",
+    "engine": "current",
+    "disk": "plenty",
+    "job": "resumed",
+    "lifecycle": "restart_mid",
+    "source": "clipboard",
+    "install": "fresh",
+    "parallel": "many",
+    "queue_size": "empty",
+    "path": "non_ascii",
+    "permission": "readonly_dir"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real restricted post and an account it is shown to",
+   "updated": ""
+  },
+  {
+   "id": 6,
+   "kind": "grid",
+   "values": {
+    "site": "tiktok",
+    "auth": "paused",
+    "content": "audience",
+    "network": "dropped_midway",
+    "proxy": "direct",
+    "format": "fragmented",
+    "ffmpeg": "present",
+    "engine": "current",
+    "disk": "plenty",
+    "job": "resumed",
+    "lifecycle": "foreground",
+    "source": "watch",
+    "install": "portable",
+    "parallel": "one",
+    "queue_size": "one",
+    "path": "non_ascii",
+    "permission": "readonly_dir"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real restricted post and an account it is shown to",
+   "updated": ""
+  },
+  {
+   "id": 7,
+   "kind": "grid",
+   "values": {
+    "site": "instagram",
+    "auth": "none",
+    "content": "audience",
+    "network": "rate_limited",
+    "proxy": "set",
+    "format": "progressive",
+    "ffmpeg": "present",
+    "engine": "outdated",
+    "disk": "plenty",
+    "job": "new",
+    "lifecycle": "restart_mid",
+    "source": "ui",
+    "install": "upgraded",
+    "parallel": "one",
+    "queue_size": "empty",
+    "path": "very_long",
+    "permission": "cookies_locked"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real restricted post and an account it is shown to",
+   "updated": ""
+  },
+  {
+   "id": 8,
+   "kind": "grid",
+   "values": {
+    "site": "instagram",
+    "auth": "valid",
+    "content": "removed",
+    "network": "dns_failed",
+    "proxy": "direct",
+    "format": "fragmented",
+    "ffmpeg": "present",
+    "engine": "outdated",
+    "disk": "low",
+    "job": "new",
+    "lifecycle": "foreground",
+    "source": "clipboard",
+    "install": "fresh",
+    "parallel": "one",
+    "queue_size": "large",
+    "path": "ascii",
+    "permission": "writable"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real restricted post and an account it is shown to",
+   "updated": ""
+  },
+  {
+   "id": 9,
+   "kind": "grid",
+   "values": {
+    "site": "instagram",
+    "auth": "expired",
+    "content": "public",
+    "network": "dropped_midway",
+    "proxy": "set",
+    "format": "audio_only",
+    "ffmpeg": "present",
+    "engine": "current",
+    "disk": "low",
+    "job": "new",
+    "lifecycle": "foreground",
+    "source": "watch",
+    "install": "upgraded",
+    "parallel": "many",
+    "queue_size": "empty",
+    "path": "ascii",
+    "permission": "readonly_dir"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real signed-in session; using the live cookies is not my call",
+   "updated": ""
+  },
+  {
+   "id": 10,
+   "kind": "grid",
+   "values": {
+    "site": "instagram",
+    "auth": "paused",
+    "content": "agegated",
+    "network": "online",
+    "proxy": "direct",
+    "format": "progressive",
+    "ffmpeg": "absent",
+    "engine": "outdated",
+    "disk": "full",
+    "job": "retried",
+    "lifecycle": "restart_mid",
+    "source": "watch",
+    "install": "fresh",
+    "parallel": "one",
+    "queue_size": "empty",
+    "path": "ascii",
+    "permission": "writable"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real restricted post and an account it is shown to",
+   "updated": ""
+  },
+  {
+   "id": 11,
+   "kind": "grid",
+   "values": {
+    "site": "facebook",
+    "auth": "none",
+    "content": "removed",
+    "network": "dropped_midway",
+    "proxy": "direct",
+    "format": "progressive",
+    "ffmpeg": "absent",
+    "engine": "current",
+    "disk": "full",
+    "job": "resumed",
+    "lifecycle": "foreground",
+    "source": "ui",
+    "install": "upgraded",
+    "parallel": "many",
+    "queue_size": "large",
+    "path": "non_ascii",
+    "permission": "readonly_dir"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real restricted post and an account it is shown to",
+   "updated": ""
+  },
+  {
+   "id": 12,
+   "kind": "grid",
+   "values": {
+    "site": "facebook",
+    "auth": "valid",
+    "content": "audience",
+    "network": "online",
+    "proxy": "set",
+    "format": "audio_only",
+    "ffmpeg": "present",
+    "engine": "outdated",
+    "disk": "low",
+    "job": "retried",
+    "lifecycle": "restart_mid",
+    "source": "ui",
+    "install": "portable",
+    "parallel": "one",
+    "queue_size": "one",
+    "path": "very_long",
+    "permission": "writable"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real restricted post and an account it is shown to",
+   "updated": ""
+  },
+  {
+   "id": 13,
+   "kind": "grid",
+   "values": {
+    "site": "facebook",
+    "auth": "expired",
+    "content": "agegated",
+    "network": "rate_limited",
+    "proxy": "direct",
+    "format": "fragmented",
+    "ffmpeg": "present",
+    "engine": "current",
+    "disk": "plenty",
+    "job": "new",
+    "lifecycle": "restart_mid",
+    "source": "phone",
+    "install": "fresh",
+    "parallel": "one",
+    "queue_size": "empty",
+    "path": "non_ascii",
+    "permission": "cookies_locked"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real restricted post and an account it is shown to",
+   "updated": ""
+  },
+  {
+   "id": 14,
+   "kind": "grid",
+   "values": {
+    "site": "facebook",
+    "auth": "paused",
+    "content": "public",
+    "network": "dns_failed",
+    "proxy": "set",
+    "format": "progressive",
+    "ffmpeg": "absent",
+    "engine": "outdated",
+    "disk": "plenty",
+    "job": "resumed",
+    "lifecycle": "restart_mid",
+    "source": "clipboard",
+    "install": "upgraded",
+    "parallel": "many",
+    "queue_size": "large",
+    "path": "very_long",
+    "permission": "cookies_locked"
+   },
+   "safety": "SANDBOX",
+   "status": "PROVEN",
+   "evidence": "g01/g02: the SPACE_FLOOR guard exercised at the layer _run_job reaches",
+   "note": "",
+   "updated": ""
+  },
+  {
+   "id": 15,
+   "kind": "grid",
+   "values": {
+    "site": "other",
+    "auth": "none",
+    "content": "georestricted",
+    "network": "online",
+    "proxy": "direct",
+    "format": "audio_only",
+    "ffmpeg": "present",
+    "engine": "current",
+    "disk": "plenty",
+    "job": "retried",
+    "lifecycle": "foreground",
+    "source": "clipboard",
+    "install": "portable",
+    "parallel": "one",
+    "queue_size": "empty",
+    "path": "non_ascii",
+    "permission": "writable"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real restricted post and an account it is shown to",
+   "updated": ""
+  },
+  {
+   "id": 16,
+   "kind": "grid",
+   "values": {
+    "site": "other",
+    "auth": "valid",
+    "content": "public",
+    "network": "dropped_midway",
+    "proxy": "set",
+    "format": "fragmented",
+    "ffmpeg": "present",
+    "engine": "outdated",
+    "disk": "full",
+    "job": "retried",
+    "lifecycle": "restart_mid",
+    "source": "phone",
+    "install": "fresh",
+    "parallel": "many",
+    "queue_size": "one",
+    "path": "very_long",
+    "permission": "readonly_dir"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real signed-in session; using the live cookies is not my call",
+   "updated": ""
+  },
+  {
+   "id": 17,
+   "kind": "grid",
+   "values": {
+    "site": "other",
+    "auth": "expired",
+    "content": "agegated",
+    "network": "dns_failed",
+    "proxy": "direct",
+    "format": "progressive",
+    "ffmpeg": "absent",
+    "engine": "current",
+    "disk": "low",
+    "job": "new",
+    "lifecycle": "foreground",
+    "source": "ui",
+    "install": "upgraded",
+    "parallel": "one",
+    "queue_size": "one",
+    "path": "ascii",
+    "permission": "cookies_locked"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real restricted post and an account it is shown to",
+   "updated": ""
+  },
+  {
+   "id": 18,
+   "kind": "grid",
+   "values": {
+    "auth": "expired",
+    "content": "georestricted",
+    "site": "youtube",
+    "network": "rate_limited",
+    "proxy": "set",
+    "format": "fragmented",
+    "ffmpeg": "present",
+    "engine": "outdated",
+    "disk": "low",
+    "job": "resumed",
+    "lifecycle": "restart_mid",
+    "source": "phone",
+    "install": "upgraded",
+    "parallel": "many",
+    "queue_size": "large",
+    "path": "ascii",
+    "permission": "writable"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real restricted post and an account it is shown to",
+   "updated": ""
+  },
+  {
+   "id": 19,
+   "kind": "grid",
+   "values": {
+    "auth": "expired",
+    "site": "facebook",
+    "content": "georestricted",
+    "network": "dropped_midway",
+    "proxy": "direct",
+    "format": "progressive",
+    "ffmpeg": "absent",
+    "engine": "current",
+    "disk": "full",
+    "job": "new",
+    "lifecycle": "foreground",
+    "source": "watch",
+    "install": "fresh",
+    "parallel": "one",
+    "queue_size": "one",
+    "path": "ascii",
+    "permission": "cookies_locked"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real restricted post and an account it is shown to",
+   "updated": ""
+  },
+  {
+   "id": 20,
+   "kind": "grid",
+   "values": {
+    "auth": "expired",
+    "site": "instagram",
+    "content": "georestricted",
+    "network": "dns_failed",
+    "proxy": "direct",
+    "format": "fragmented",
+    "ffmpeg": "present",
+    "engine": "current",
+    "disk": "plenty",
+    "job": "resumed",
+    "lifecycle": "foreground",
+    "source": "ui",
+    "install": "portable",
+    "parallel": "one",
+    "queue_size": "empty",
+    "path": "non_ascii",
+    "permission": "readonly_dir"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real restricted post and an account it is shown to",
+   "updated": ""
+  },
+  {
+   "id": 21,
+   "kind": "grid",
+   "values": {
+    "auth": "expired",
+    "site": "other",
+    "content": "audience",
+    "network": "rate_limited",
+    "proxy": "direct",
+    "format": "audio_only",
+    "ffmpeg": "present",
+    "engine": "current",
+    "disk": "plenty",
+    "job": "resumed",
+    "lifecycle": "foreground",
+    "source": "clipboard",
+    "install": "fresh",
+    "parallel": "many",
+    "queue_size": "large",
+    "path": "ascii",
+    "permission": "readonly_dir"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real restricted post and an account it is shown to",
+   "updated": ""
+  },
+  {
+   "id": 22,
+   "kind": "grid",
+   "values": {
+    "auth": "expired",
+    "site": "tiktok",
+    "content": "georestricted",
+    "network": "online",
+    "proxy": "direct",
+    "format": "fragmented",
+    "ffmpeg": "present",
+    "engine": "outdated",
+    "disk": "plenty",
+    "job": "new",
+    "lifecycle": "foreground",
+    "source": "ui",
+    "install": "upgraded",
+    "parallel": "one",
+    "queue_size": "large",
+    "path": "very_long",
+    "permission": "cookies_locked"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real restricted post and an account it is shown to",
+   "updated": ""
+  },
+  {
+   "id": 23,
+   "kind": "grid",
+   "values": {
+    "auth": "none",
+    "queue_size": "one",
+    "site": "instagram",
+    "content": "removed",
+    "network": "rate_limited",
+    "proxy": "direct",
+    "format": "fragmented",
+    "ffmpeg": "present",
+    "engine": "current",
+    "disk": "plenty",
+    "job": "retried",
+    "lifecycle": "foreground",
+    "source": "phone",
+    "install": "portable",
+    "parallel": "one",
+    "path": "very_long",
+    "permission": "cookies_locked"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real restricted post and an account it is shown to",
+   "updated": ""
+  },
+  {
+   "id": 24,
+   "kind": "grid",
+   "values": {
+    "auth": "none",
+    "site": "facebook",
+    "content": "public",
+    "network": "online",
+    "proxy": "direct",
+    "format": "fragmented",
+    "ffmpeg": "present",
+    "engine": "current",
+    "disk": "plenty",
+    "job": "new",
+    "lifecycle": "foreground",
+    "source": "phone",
+    "install": "fresh",
+    "parallel": "one",
+    "queue_size": "empty",
+    "path": "non_ascii",
+    "permission": "writable"
+   },
+   "safety": "DESTRUCTIVE",
+   "status": "UNVERIFIED",
+   "evidence": "",
+   "note": "needs a real download to a real site - awaiting go-ahead",
+   "updated": ""
+  },
+  {
+   "id": 25,
+   "kind": "grid",
+   "values": {
+    "auth": "none",
+    "site": "other",
+    "content": "removed",
+    "network": "online",
+    "proxy": "direct",
+    "format": "fragmented",
+    "ffmpeg": "present",
+    "engine": "current",
+    "disk": "plenty",
+    "job": "new",
+    "lifecycle": "foreground",
+    "source": "watch",
+    "install": "fresh",
+    "parallel": "one",
+    "queue_size": "empty",
+    "path": "ascii",
+    "permission": "writable"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real restricted post and an account it is shown to",
+   "updated": ""
+  },
+  {
+   "id": 26,
+   "kind": "grid",
+   "values": {
+    "auth": "none",
+    "site": "youtube",
+    "content": "removed",
+    "network": "online",
+    "proxy": "direct",
+    "format": "fragmented",
+    "ffmpeg": "present",
+    "engine": "current",
+    "disk": "plenty",
+    "job": "new",
+    "lifecycle": "foreground",
+    "source": "watch",
+    "install": "fresh",
+    "parallel": "one",
+    "queue_size": "empty",
+    "path": "ascii",
+    "permission": "writable"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real restricted post and an account it is shown to",
+   "updated": ""
+  },
+  {
+   "id": 27,
+   "kind": "grid",
+   "values": {
+    "auth": "paused",
+    "content": "georestricted",
+    "site": "tiktok",
+    "network": "rate_limited",
+    "proxy": "direct",
+    "format": "audio_only",
+    "ffmpeg": "present",
+    "engine": "current",
+    "disk": "low",
+    "job": "new",
+    "lifecycle": "foreground",
+    "source": "ui",
+    "install": "fresh",
+    "parallel": "one",
+    "queue_size": "empty",
+    "path": "ascii",
+    "permission": "writable"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real restricted post and an account it is shown to",
+   "updated": ""
+  },
+  {
+   "id": 28,
+   "kind": "grid",
+   "values": {
+    "auth": "paused",
+    "content": "removed",
+    "site": "instagram",
+    "network": "online",
+    "proxy": "direct",
+    "format": "fragmented",
+    "ffmpeg": "present",
+    "engine": "current",
+    "disk": "plenty",
+    "job": "new",
+    "lifecycle": "foreground",
+    "source": "phone",
+    "install": "fresh",
+    "parallel": "one",
+    "queue_size": "empty",
+    "path": "ascii",
+    "permission": "writable"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real restricted post and an account it is shown to",
+   "updated": ""
+  },
+  {
+   "id": 29,
+   "kind": "grid",
+   "values": {
+    "auth": "valid",
+    "content": "georestricted",
+    "site": "youtube",
+    "network": "online",
+    "proxy": "direct",
+    "format": "fragmented",
+    "ffmpeg": "present",
+    "engine": "current",
+    "disk": "plenty",
+    "job": "new",
+    "lifecycle": "foreground",
+    "source": "watch",
+    "install": "fresh",
+    "parallel": "one",
+    "queue_size": "empty",
+    "path": "ascii",
+    "permission": "writable"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real restricted post and an account it is shown to",
+   "updated": ""
+  },
+  {
+   "id": 30,
+   "kind": "grid",
+   "values": {
+    "content": "agegated",
+    "format": "audio_only",
+    "site": "youtube",
+    "auth": "none",
+    "network": "online",
+    "proxy": "direct",
+    "ffmpeg": "present",
+    "engine": "current",
+    "disk": "plenty",
+    "job": "new",
+    "lifecycle": "foreground",
+    "source": "ui",
+    "install": "portable",
+    "parallel": "one",
+    "queue_size": "empty",
+    "path": "ascii",
+    "permission": "writable"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real restricted post and an account it is shown to",
+   "updated": ""
+  },
+  {
+   "id": 31,
+   "kind": "grid",
+   "values": {
+    "content": "audience",
+    "ffmpeg": "absent",
+    "site": "youtube",
+    "auth": "none",
+    "network": "online",
+    "proxy": "direct",
+    "format": "progressive",
+    "engine": "current",
+    "disk": "plenty",
+    "job": "new",
+    "lifecycle": "foreground",
+    "source": "ui",
+    "install": "fresh",
+    "parallel": "one",
+    "queue_size": "empty",
+    "path": "ascii",
+    "permission": "writable"
+   },
+   "safety": "HUMAN-ONLY",
+   "status": "HUMAN-ONLY",
+   "evidence": "",
+   "note": "needs a real restricted post and an account it is shown to",
+   "updated": ""
+  },
+  {
+   "id": 32,
+   "kind": "grid",
+   "values": {
+    "disk": "full",
+    "source": "clipboard",
+    "site": "youtube",
+    "auth": "none",
+    "content": "public",
+    "network": "online",
+    "proxy": "direct",
+    "format": "fragmented",
+    "ffmpeg": "present",
+    "engine": "current",
+    "job": "new",
+    "lifecycle": "foreground",
+    "install": "fresh",
+    "parallel": "one",
+    "queue_size": "empty",
+    "path": "ascii",
+    "permission": "writable"
+   },
+   "safety": "SANDBOX",
+   "status": "PROVEN",
+   "evidence": "g01/g02: the SPACE_FLOOR guard exercised at the layer _run_job reaches",
+   "note": "",
+   "updated": ""
+  },
+  {
+   "id": 33,
+   "kind": "grid",
+   "values": {
+    "network": "dropped_midway",
+    "permission": "writable",
+    "site": "youtube",
+    "auth": "none",
+    "content": "public",
+    "proxy": "direct",
+    "format": "fragmented",
+    "ffmpeg": "present",
+    "engine": "current",
+    "disk": "plenty",
+    "job": "new",
+    "lifecycle": "foreground",
+    "source": "ui",
+    "install": "fresh",
+    "parallel": "one",
+    "queue_size": "empty",
+    "path": "ascii"
+   },
+   "safety": "DESTRUCTIVE",
+   "status": "UNVERIFIED",
+   "evidence": "",
+   "note": "needs a real download to a real site - awaiting go-ahead",
+   "updated": ""
+  },
+  {
+   "id": 34,
+   "kind": "grid",
+   "values": {
+    "network": "rate_limited",
+    "source": "watch",
+    "site": "youtube",
+    "auth": "none",
+    "content": "public",
+    "proxy": "direct",
+    "format": "fragmented",
+    "ffmpeg": "present",
+    "engine": "current",
+    "disk": "plenty",
+    "job": "new",
+    "lifecycle": "foreground",
+    "install": "fresh",
+    "parallel": "one",
+    "queue_size": "empty",
+    "path": "ascii",
+    "permission": "writable"
+   },
+   "safety": "DESTRUCTIVE",
+   "status": "UNVERIFIED",
+   "evidence": "",
+   "note": "needs a real download to a real site - awaiting go-ahead",
+   "updated": ""
+  },
+  {
+   "id": 35,
+   "kind": "repro",
+   "name": "r01-network-drop-permanent-fail",
+   "values": {},
+   "safety": "SANDBOX",
+   "status": "PROVEN",
+   "evidence": "scratchpad/repros.py this session - 16 PROVEN 0 FAILED, output read",
+   "note": "",
+   "updated": ""
+  },
+  {
+   "id": 36,
+   "kind": "repro",
+   "name": "r02-second-door-overwrites-wait",
+   "values": {},
+   "safety": "SANDBOX",
+   "status": "PROVEN",
+   "evidence": "scratchpad/repros.py this session - 16 PROVEN 0 FAILED, output read",
+   "note": "",
+   "updated": ""
+  },
+  {
+   "id": 37,
+   "kind": "repro",
+   "name": "r03-skipped-fragments-called-done",
+   "values": {},
+   "safety": "SANDBOX",
+   "status": "PROVEN",
+   "evidence": "scratchpad/repros.py this session - 16 PROVEN 0 FAILED, output read",
+   "note": "",
+   "updated": ""
+  },
+  {
+   "id": 38,
+   "kind": "repro",
+   "name": "r04-bar-pinned-at-92",
+   "values": {},
+   "safety": "SANDBOX",
+   "status": "PROVEN",
+   "evidence": "scratchpad/repros.py this session - 16 PROVEN 0 FAILED, output read",
+   "note": "",
+   "updated": ""
+  },
+  {
+   "id": 39,
+   "kind": "repro",
+   "name": "r05-size-jumps-up-and-down",
+   "values": {},
+   "safety": "SANDBOX",
+   "status": "PROVEN",
+   "evidence": "scratchpad/repros.py this session - 16 PROVEN 0 FAILED, output read",
+   "note": "",
+   "updated": ""
+  },
+  {
+   "id": 40,
+   "kind": "repro",
+   "name": "r06-proxy-hostname-unresolvable",
+   "values": {},
+   "safety": "SANDBOX",
+   "status": "PROVEN",
+   "evidence": "scratchpad/repros.py this session - 16 PROVEN 0 FAILED, output read",
+   "note": "",
+   "updated": ""
+  },
+  {
+   "id": 41,
+   "kind": "repro",
+   "name": "r07-orphan-ytdlp-processes",
+   "values": {},
+   "safety": "SANDBOX",
+   "status": "PROVEN",
+   "evidence": "scratchpad/repros.py this session - 16 PROVEN 0 FAILED, output read",
+   "note": "",
+   "updated": ""
+  },
+  {
+   "id": 42,
+   "kind": "repro",
+   "name": "r08-cp1252-paths",
+   "values": {},
+   "safety": "SANDBOX",
+   "status": "PROVEN",
+   "evidence": "scratchpad/repros.py this session - 16 PROVEN 0 FAILED, output read",
+   "note": "",
+   "updated": ""
+  },
+  {
+   "id": 43,
+   "kind": "repro",
+   "name": "r09-silent-stall-no-watchdog",
+   "values": {},
+   "safety": "SANDBOX",
+   "status": "PROVEN",
+   "evidence": "scratchpad/repros.py this session - 16 PROVEN 0 FAILED, output read",
+   "note": "",
+   "updated": ""
+  },
+  {
+   "id": 44,
+   "kind": "repro",
+   "name": "r10-stale-media-url",
+   "values": {},
+   "safety": "SANDBOX",
+   "status": "PROVEN",
+   "evidence": "scratchpad/repros.py this session - 16 PROVEN 0 FAILED, output read",
+   "note": "",
+   "updated": ""
+  },
+  {
+   "id": 45,
+   "kind": "repro",
+   "name": "r11-expired-session-kills-public",
+   "values": {},
+   "safety": "SANDBOX",
+   "status": "PROVEN",
+   "evidence": "scratchpad/repros.py this session - 16 PROVEN 0 FAILED, output read",
+   "note": "",
+   "updated": ""
+  },
+  {
+   "id": 46,
+   "kind": "repro",
+   "name": "r12-terms-version-behind",
+   "values": {},
+   "safety": "SANDBOX",
+   "status": "PROVEN",
+   "evidence": "scratchpad/repros.py this session - 16 PROVEN 0 FAILED, output read",
+   "note": "",
+   "updated": ""
+  },
+  {
+   "id": 47,
+   "kind": "repro",
+   "name": "r13-resume-part-wrong-file",
+   "values": {},
+   "safety": "SANDBOX",
+   "status": "PROVEN",
+   "evidence": "scratchpad/repros.py this session - 16 PROVEN 0 FAILED, output read",
+   "note": "",
+   "updated": ""
+  },
+  {
+   "id": 48,
+   "kind": "repro",
+   "name": "r14-second-instance-hands-off",
+   "values": {},
+   "safety": "SANDBOX",
+   "status": "PROVEN",
+   "evidence": "two real Riplox.exe copies: second exited, 0 listening ports, first alive",
+   "note": "",
+   "updated": ""
+  },
+  {
+   "id": 49,
+   "kind": "repro",
+   "name": "r15-portable-data-beside-exe",
+   "values": {},
+   "safety": "SANDBOX",
+   "status": "PROVEN",
+   "evidence": "scratchpad/repros.py this session - 16 PROVEN 0 FAILED, output read",
+   "note": "",
+   "updated": ""
+  },
+  {
+   "id": 50,
+   "kind": "repro",
+   "name": "r16-cookies-db-locked",
+   "values": {},
+   "safety": "SANDBOX",
+   "status": "PROVEN",
+   "evidence": "scratchpad/repros.py this session - 16 PROVEN 0 FAILED, output read",
+   "note": "",
+   "updated": ""
+  },
+  {
+   "id": 51,
+   "kind": "sequence",
+   "name": "s01-drop-then-return",
+   "values": {},
+   "steps": [
+    "start a download",
+    "take the network away mid-file",
+    "let the engine spend its retries",
+    "put the network back",
+    "the job must resume, not fail, and not ship a partial file"
+   ],
+   "safety": "DESTRUCTIVE",
+   "status": "UNVERIFIED",
+   "evidence": "",
+   "note": "needs a real download plus a real network cut - awaiting go-ahead",
+   "updated": ""
+  },
+  {
+   "id": 52,
+   "kind": "sequence",
+   "name": "s02-pause-resume-restart",
+   "values": {},
+   "steps": [
+    "start",
+    "pause",
+    "close the app",
+    "reopen",
+    "the job comes back and continues from its .part"
+   ],
+   "safety": "DESTRUCTIVE",
+   "status": "UNVERIFIED",
+   "evidence": "",
+   "note": "needs a real download plus a real network cut - awaiting go-ahead",
+   "updated": ""
+  },
+  {
+   "id": 53,
+   "kind": "sequence",
+   "name": "s03-signed-in-refused-then-out",
+   "values": {},
+   "steps": [
+    "download with a stale session",
+    "site answers 403",
+    "the signed-out retry runs",
+    "the first refusal is the message kept"
+   ],
+   "safety": "SANDBOX",
+   "status": "PROVEN",
+   "evidence": "tests/run.py 58/58 this session + the network-free sequence run",
+   "note": "",
+   "updated": ""
+  },
+  {
+   "id": 54,
+   "kind": "sequence",
+   "name": "s04-engine-fails-then-door",
+   "values": {},
+   "steps": [
+    "yt-dlp fails on a real refusal",
+    "the second door runs",
+    "health is recorded as door-not-engine"
+   ],
+   "safety": "SANDBOX",
+   "status": "PROVEN",
+   "evidence": "tests/run.py 58/58 this session + the network-free sequence run",
+   "note": "",
+   "updated": ""
+  },
+  {
+   "id": 55,
+   "kind": "sequence",
+   "name": "s05-queue-while-offline",
+   "values": {},
+   "steps": [
+    "go offline",
+    "add three links",
+    "nothing starts",
+    "come back online",
+    "all three run"
+   ],
+   "safety": "SANDBOX",
+   "status": "PROVEN",
+   "evidence": "tests/run.py 58/58 this session + the network-free sequence run",
+   "note": "",
+   "updated": ""
+  }
+ ]
+}

@@ -1,0 +1,102 @@
+{
+  "name": "Riplox Desktop 1.5.0 - the download decision layer",
+  "notes": [
+    "The factors are the eleven derived in the 2026-08-15 sweep, plus 'format',",
+    "which is where all three of today's bugs lived and which nothing had modelled.",
+    "Coverage is over THESE factors. Anything not listed here is at 0%, however",
+    "green the report looks."
+  ],
+  "factors": {
+    "site": ["youtube", "tiktok", "instagram", "facebook", "other"],
+    "auth": ["none", "valid", "expired", "paused"],
+    "content": ["public", "agegated", "audience", "removed", "georestricted"],
+    "network": ["online", "offline", "dropped_midway", "dns_failed", "rate_limited"],
+    "proxy": ["direct", "set"],
+    "format": ["fragmented", "progressive", "audio_only"],
+    "ffmpeg": ["present", "absent"],
+    "engine": ["current", "outdated"],
+    "disk": ["plenty", "low", "full"],
+    "job": ["new", "resumed", "retried"],
+    "lifecycle": ["foreground", "restart_mid"],
+    "source": ["ui", "clipboard", "phone", "watch"],
+
+    "install": ["fresh", "upgraded", "portable"],
+    "parallel": ["one", "many"],
+    "queue_size": ["empty", "one", "large"],
+    "path": ["ascii", "non_ascii", "very_long"],
+    "permission": ["writable", "readonly_dir", "cookies_locked"]
+  },
+  "constraints": [
+    ["network=offline", "content=public"],
+    ["network=offline", "content=agegated"],
+    ["network=offline", "content=audience"],
+    ["network=offline", "content=removed"],
+    ["network=offline", "content=georestricted"],
+    ["auth=paused", "site=youtube"],
+    ["format=audio_only", "ffmpeg=absent"]
+  ],
+  "gates": [
+    {
+      "when": ["ffmpeg=absent", "format=fragmented"],
+      "why": "a 1080p+ merge needs the encoder, so the app degrades the format selector before it gets here - format_args drops every ffmpeg flag and the UI shows Limited mode",
+      "tested_at": "format_args and the Limited-mode banner, not the download below them"
+    },
+    {
+      "when": ["auth=paused", "site=other"],
+      "why": "pausing is per site and only the four named sites have a sign-in to pause",
+      "tested_at": "the cookies per-site filter"
+    }
+  ],
+  "repros": [
+    {"name": "r01-network-drop-permanent-fail",
+     "why": "1 Sep 2026: net dropped mid-download, job landed in Failed for ever and the error text was empty"},
+    {"name": "r02-second-door-overwrites-wait",
+     "why": "1 Sep 2026: _run_engine returned False for a requeued job and the second door failed it anyway"},
+    {"name": "r03-skipped-fragments-called-done",
+     "why": "1 Sep 2026: 36s of video against 390s of audio, marked done, twenty orphan .part-Frag files"},
+    {"name": "r04-bar-pinned-at-92",
+     "why": "1 Sep 2026: the engine's first progress line reads 1024 of 1024, and max() held the bar there"},
+    {"name": "r05-size-jumps-up-and-down",
+     "why": "1 Sep 2026: total_bytes_estimate falls as often as it rises - 346176 then 160272"},
+    {"name": "r06-proxy-hostname-unresolvable",
+     "why": "1 Sep 2026 (found while fixing r01): a bad proxy reads exactly like a lost network"},
+    {"name": "r07-orphan-ytdlp-processes",
+     "why": "25 Aug 2026: tie_to_app existed and was never called - four orphans, 13.8 hours of CPU"},
+    {"name": "r08-cp1252-paths",
+     "why": "25 Aug 2026: yt-dlp writes cp1252, Riplox read utf-8, 56 of 244 library paths wrong"},
+    {"name": "r09-silent-stall-no-watchdog",
+     "why": "25 Aug 2026: a job that could never extract span five hours showing 'downloading'"},
+    {"name": "r10-stale-media-url",
+     "why": "an 8K download outlived the URL YouTube issued for it; needs time, not another client"},
+    {"name": "r11-expired-session-kills-public",
+     "why": "a rejected sign-in took public reels down with it until the signed-out retry was added"},
+    {"name": "r12-terms-version-behind",
+     "why": "29 Aug 2026: TERMS.txt said 1.4.1 on a 1.5.0 build - the document the installer shows"},
+    {"name": "r13-resume-part-wrong-file",
+     "why": "TikTok signs a fresh address each time; appending a second encode to half of the first"},
+    {"name": "r14-second-instance-hands-off",
+     "why": "a second copy must hand its link to the running one, not open a second window - hit for real during today's boot test"},
+    {"name": "r15-portable-data-beside-exe",
+     "why": "portable mode must keep Data/ beside the exe and never write to LOCALAPPDATA"},
+    {"name": "r16-cookies-db-locked",
+     "why": "Chrome-family cookie stores cannot be read while the browser is open; the message must send the user to the browser sign-in instead"}
+  ],
+  "sequences": [
+    {"name": "s01-drop-then-return",
+     "steps": ["start a download", "take the network away mid-file",
+               "let the engine spend its retries", "put the network back",
+               "the job must resume, not fail, and not ship a partial file"]},
+    {"name": "s02-pause-resume-restart",
+     "steps": ["start", "pause", "close the app", "reopen",
+               "the job comes back and continues from its .part"]},
+    {"name": "s03-signed-in-refused-then-out",
+     "steps": ["download with a stale session", "site answers 403",
+               "the signed-out retry runs", "the first refusal is the message kept"]},
+    {"name": "s04-engine-fails-then-door",
+     "steps": ["yt-dlp fails on a real refusal", "the second door runs",
+               "health is recorded as door-not-engine"]},
+    {"name": "s05-queue-while-offline",
+     "steps": ["go offline", "add three links", "nothing starts",
+               "come back online", "all three run"]}
+  ]
+}

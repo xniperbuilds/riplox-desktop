@@ -19,6 +19,10 @@
 
   var $ = function (id) { return document.getElementById(id); };
 
+  // The sizes from the last analyse, kept so the line beside the button can
+  // be rebuilt on every chip click without re-reading the video.
+  var qualitySizes = {};
+
   function api(path, body) {
     return fetch(path, {
       method: body === undefined ? "GET" : "POST",
@@ -257,6 +261,139 @@
      not know: a blog post with three embedded videos, a links page, a forum
      thread. It comes back shaped like a playlist on purpose, so the picking,
      sorting and first-N screen below needs no second version of itself. */
+  /* ------------------------------------------ what a page read left out */
+
+  /* Matching a page's links against the library. Only the parameters known to
+     be tracking come off; the rest stays, because a video id lives in the
+     query on YouTube and stripping the whole thing would match every video on
+     the channel to every other.
+
+     lazy: a fixed list. A link carrying some other site's tracking parameter
+     will not match, and the cost of that is one video downloaded twice, which
+     is what happens today anyway. Matching harder risks the opposite - hiding
+     a video from the pickable list because it looked like one already saved -
+     and that is the worse mistake of the two. */
+  var TRACKING = /^(utm_[a-z]+|igsh?i?|si|fbclid|gclid|feature|ref|ref_src|source|share_id)$/i;
+
+  function bareUrl(url) {
+    var s = String(url || "").split("#")[0];
+    var cut = s.indexOf("?");
+    if (cut < 0) return s.replace(/\/+$/, "").toLowerCase();
+    var kept = s.slice(cut + 1).split("&").filter(function (pair) {
+      return pair && !TRACKING.test(pair.split("=")[0]);
+    });
+    return (s.slice(0, cut).replace(/\/+$/, "") +
+            (kept.length ? "?" + kept.join("&") : "")).toLowerCase();
+  }
+
+  function inLibrary(url) {
+    var bare = bareUrl(url);
+    if (!bare) return null;
+    for (var i = 0; i < libraryItems.length; i++) {
+      if (bareUrl(libraryItems[i].url) === bare) return libraryItems[i];
+    }
+    return null;
+  }
+
+  var grabShowing = "";
+  var grabCapped = 0;
+  var grabGroups = { known: [], duplicates: [], unsupported: [] };
+
+  var GRAB_WHY = {
+    known: "Already in your library",
+    duplicates: "The same link appears more than once on that page",
+    unsupported: "Riplox has no reader for this site. Listed so you know it "
+               + "was seen, not skipped."
+  };
+
+  /* Four reasons a link is not on the list, said as four different things.
+     "48 left out" would be true and useless: one of those reasons means the
+     video is already downloaded, and another means Riplox cannot fetch it at
+     all, and those are not the same news. */
+  function grabNote(info) {
+    var skipped = info.skipped || {};
+    var left = info.left_out || {};
+
+    // Worked out here rather than asked for, and taken off the pickable count:
+    // a chip that says 6 while the list holds 8 is worse than no chip at all.
+    var known = [];
+    (info.entries || []).forEach(function (e) {
+      var hit = inLibrary(e.url);
+      if (hit) known.push({ url: e.url, title: e.title, site: e.site, hit: hit });
+    });
+
+    var groups = [
+      ["", "To download", ((info.entries || []).length - known.length)],
+      ["known", "In your library", known.length],
+      ["duplicates", "Repeated on the page", skipped.duplicates || 0],
+      ["unsupported", "No reader for the site", skipped.unsupported || 0]
+    ];
+
+    grabGroups = { known: known,
+                   duplicates: left.duplicates || [],
+                   unsupported: left.unsupported || [] };
+
+    // Read by updateNote, which owns that line and is called again whenever
+    // the filter or the selection changes.
+    grabCapped = skipped.capped ? (info.count || 0) : 0;
+    updateNote((info.entries || []).length);
+
+    $("grabChips").hidden = false;
+    $("grabChips").innerHTML = groups
+      .filter(function (g) { return g[2] > 0 || g[0] === ""; })
+      .map(function (g) {
+        return '<button type="button" class="chip' +
+          (grabShowing === g[0] ? " is-on" : "") + '" data-grabgroup="' +
+          g[0] + '">' + g[1] + " · " + g[2] + "</button>";
+      }).join("");
+
+    $("grabFoot").hidden = false;
+    paintGrabGroup();
+  }
+
+  function paintGrabGroup() {
+    var picking = grabShowing === "";
+    $("playlistBox").hidden = !picking;
+    document.querySelector(".playlist-bar").hidden = !picking;
+    $("grabLeftOut").hidden = picking;
+    if (picking) return;
+
+    var rows = grabGroups[grabShowing] || [];
+    $("grabLeftOut").innerHTML = rows.map(function (r) {
+      var why = GRAB_WHY[grabShowing];
+      // The same string the library rows show, so the two agree.
+      if (grabShowing === "known" && r.hit && r.hit.when) {
+        why = "Already in your library — saved " +
+          String(r.hit.when).replace("T", " ").slice(0, 16);
+      }
+      return '<div class="gl-row">' +
+        '<div class="gl-what"><b>' + esc(r.title || r.url) + "</b>" +
+        '<span class="' + (grabShowing === "unsupported" ? "gl-warn" : "") +
+          '">' + esc(why) + "</span></div>" +
+        '<span class="gl-site">' + esc(r.site || "") + "</span>" +
+        '<button type="button" class="ghost small" data-copyurl="' +
+          esc(r.url) + '">Copy link</button>' +
+        "</div>";
+    }).join("");
+  }
+
+  $("grabChips").addEventListener("click", function (e) {
+    var chip = e.target.closest("[data-grabgroup]");
+    if (!chip) return;
+    grabShowing = chip.dataset.grabgroup;
+    $("grabChips").querySelectorAll(".chip").forEach(function (c) {
+      c.classList.toggle("is-on", c.dataset.grabgroup === grabShowing);
+    });
+    paintGrabGroup();
+  });
+
+  $("grabLeftOut").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-copyurl]");
+    if (!btn) return;
+    copyText(btn.dataset.copyurl);
+    toast("Link copied");
+  });
+
   function grabPage(url) {
     if (!url) { toast("Paste a page link first.", "bad"); return; }
 
@@ -275,6 +412,13 @@
       }
       current = res.info;
       renderPreview(res.info);
+      // The library is only fetched when its own room is opened, and the
+      // "already saved" match needs it. Someone who reads a page without ever
+      // visiting Library would otherwise be told nothing is already there -
+      // which is worse than saying nothing, because it reads as an answer.
+      if (libraryItems.length) grabNote(res.info);
+      else loadHistory().then(function () { grabNote(res.info); },
+                              function () { grabNote(res.info); });
       toast(res.info.count + " found on that page", "good");
     }).catch(function () {
       setBusy(false);
@@ -283,6 +427,16 @@
   }
 
   function renderPreview(info) {
+    // Cleared for every result, and put back only by grabNote(). A playlist
+    // leaves nothing out, so the chips from the last page read must not stay
+    // on screen describing something else.
+    grabShowing = "";
+    grabCapped = 0;
+    grabGroups = { known: [], duplicates: [], unsupported: [] };
+    $("grabChips").hidden = true;
+    $("grabLeftOut").hidden = true;
+    $("grabFoot").hidden = true;
+
     // A channel is not a video and not a playlist - it is a set of sections.
     // Show those, and let opening one become an ordinary playlist.
     if (info.kind === "channel") {
@@ -316,11 +470,27 @@
     if (!isList && info.extractor) bits.push(esc(info.extractor));
     $("pvMeta").innerHTML = bits.map(function (b) { return "<span>" + b + "</span>"; }).join("");
 
+    // ⚠️ "max" belongs in this fallback. The list was written before that rung
+    // existed and never caught up, and the line below silently replaces any
+    // choice missing from it - so on a playlist, or any link whose analysis
+    // returned no rungs, a chosen Max quietly became Best available. The
+    // download then ran as Best and the Library said so, which is how it was
+    // reported: "max pe kar raha hun, library mein best avail show ho raha".
+    // _available_qualities always offers ["best", "max", ...], so this is only
+    // ever the shape of the fallback, and it must match it.
     var options = (!isList && info.qualities && info.qualities.length)
       ? info.qualities
-      : ["best", "1080", "720", "480", "mp3"];
+      : ["best", "max", "1080", "720", "480", "mp3"];
 
-    if (options.indexOf(quality) === -1) quality = options[0];
+    // And when the choice really cannot be honoured, say so rather than
+    // swapping it behind the user's back. Silently downloading something other
+    // than what was asked for is the thing being fixed, not the swap itself.
+    if (options.indexOf(quality) === -1) {
+      var asked = labels[quality] || quality;
+      quality = options[0];
+      toast("This one has no " + asked + " - using "
+            + (labels[quality] || quality) + ".", "bad");
+    }
 
     // A rung that only exists because YouTube enlarged the video with AI says
     // so on the chip. "1440p" over a 480p source is the app lying about the
@@ -329,18 +499,50 @@
     // Shown before anything is pressed. "Highest" on an 8K video is 3.4 GB,
     // and finding that out from the progress bar is finding out too late.
     var sizes = (info && info.sizes) || {};
+    qualitySizes = sizes;
+
+    // What "Max" and "Best available" actually resolve to, when it can be
+    // known rather than guessed. Both are the same file as one of the rungs
+    // below, and three chips reading the identical size looked like three
+    // different things that happened to weigh the same. Named only when
+    // exactly one rung matches - two matches is ambiguous and says nothing.
+    function resolves(q) {
+      if (!sizes[q]) return "";
+      var hits = options.filter(function (r) {
+        return r !== "best" && r !== "max" && r !== "mp3" && sizes[r] === sizes[q];
+      });
+      return hits.length === 1 ? (labels[hits[0]] || hits[0]) : "";
+    }
+
+    // ⚠ Not "plays anywhere". h264 is a tie-break in the selector, not a
+    // filter (engine.format_args) - so where a height exists only as VP9 or
+    // AV1, Best available hands over VP9 or AV1 like everything else. It
+    // prefers the friendly codec; it cannot promise it.
+    // Both land on the tallest stream the video has; resolves() prints which
+    // one that is. These say only what separates them - the tie-break at that
+    // height - so the line stays short enough not to wrap.
+    var WHY = { max: "the fattest stream", best: "the friendliest codec it can" };
 
     $("qualityChips").innerHTML = options.map(function (q) {
       var from = upscaled[q];
+      var auto = (q === "best" || q === "max");
+      // The note is built from the pieces that exist, so a site with no size
+      // and no matching rung simply gets the short reason and no dangling
+      // separators.
+      var note = auto
+        ? [WHY[q], resolves(q)].filter(Boolean).join(" · ")
+        : "";
       return '<button type="button" class="chip' +
+        (auto ? " auto" : "") +
         (q === "mp3" ? " audio" : "") +
         (from ? " upscaled" : "") +
         (q === quality ? " is-on" : "") +
         '" data-q="' + q + '"' +
         (from ? ' title="YouTube made this with AI from a ' + from + 'p original"' : "") +
-        ">" + esc(labels[q] || q) +
-        (sizes[q] ? '<em class="chip-size"> · ' + esc(sizes[q]) + "</em>" : "") +
-        (from ? '<em> · AI-upscaled from ' + from + "p</em>" : "") +
+        ">" + '<b class="chip-name">' + esc(labels[q] || q) + "</b>" +
+        (sizes[q] ? '<em class="chip-size">' + esc(sizes[q]) + "</em>" : "") +
+        (note ? '<em class="chip-note">' + esc(note) + "</em>" : "") +
+        (from ? '<em class="chip-note">AI-upscaled from ' + from + "p</em>" : "") +
         "</button>";
     }).join("");
 
@@ -363,7 +565,12 @@
     // Cleared for every new link: wanting the audio of one video says nothing
     // about wanting the audio of the next.
     $("alsoAudio").checked = false;
+    $("cutExact").checked = false;
     syncAlsoAudio();
+    // A playlist is told apart from a video with no chapters here, not in
+    // there - null and [] have to mean different things on that screen.
+    renderChapters(isList ? null : info.chapters);
+    renderHeatmap(isList ? null : info);
     fillFormats(info);
     restoreOpts();
     // A playlist has no single format table, and a name for one file makes no
@@ -378,8 +585,43 @@
     } else {
       selected = null;
       $("downloadBtn").disabled = false;
-      $("downloadBtn").textContent = "Download";
+      ripWhat("Everything");
     }
+    // Outside the branch on purpose: a playlist analysed straight after a
+    // video would otherwise keep the video's line, sizes and all.
+    syncRipSummary();
+  }
+
+  /* The RIP button is two lines - RIP on top, what it will take underneath -
+     so only the second line is ever written to. Setting textContent on the
+     button would take both of them with it. */
+  function ripWhat(text) {
+    var el = $("ripWhat");
+    if (el) el.textContent = text;
+  }
+
+  /* Beside the button: what it will be taken AS, which the button itself
+     never said - it says what (Everything, 3 chapters), never at which
+     quality. The caveat rides here rather than in the queue row, because a
+     size that turns out to be wrong is worth knowing before the decision and
+     merely annoying after it. */
+  function syncRipSummary() {
+    var el = $("ripSummary");
+    if (!el) return;
+    if (!current || quality === "mp3") {
+      el.textContent = quality === "mp3" && current ? "MP3 audio" : "";
+      el.hidden = !el.textContent;
+      return;
+    }
+    var line = labels[quality] || quality;
+    if (qualitySizes[quality]) line += " · about " + qualitySizes[quality];
+    // Only Max. Every other rung is a named height, and the size that comes
+    // back for a named height has been the size that arrived.
+    if (quality === "max" && qualitySizes[quality]) {
+      line += " · exact size only once it finishes";
+    }
+    el.textContent = line;
+    el.hidden = false;
   }
 
   function resetTrim() {
@@ -393,6 +635,348 @@
     $("endMin").disabled = true;
     $("endSec").disabled = true;
   }
+
+  /* ------------------------------------------------------------ chapters */
+
+  /* The video's own chapters, read-only for now.
+
+     Shown only when there really are some. When there are none the list is
+     absent and the line beneath it says so out loud: someone who came for
+     this feature has to be able to tell "this video has not got any" from
+     "this is broken", and an empty box says the wrong one of those. */
+  // Which chapters are ticked, by their place in the list, and the rows they
+  // belong to. Cleared for every new link: what was wanted from one video
+  // says nothing about the next.
+  var chapterRows = [], chapterPicks = [];
+
+  function renderChapters(rows) {
+    var box = $("chapterBox"), note = $("chapterNote");
+    if (!box) return;
+    // null is a playlist or a grabbed page. "This video has no chapters" is
+    // not a true thing to say about forty videos at once, so neither the
+    // list nor the line appears - the question was never asked.
+    var known = !!rows;
+    chapterRows = rows || [];
+    chapterPicks = [];
+    box.open = false;
+    box.hidden = !chapterRows.length;
+    note.hidden = !known || chapterRows.length > 0;
+    $("chapterAll").checked = false;
+
+    // Two chapters can carry the same title - measured on a real 63-chapter
+    // video, which says "An aerial view of the Rocky Mountains in
+    // Switzerland." at 2:30 and again at 17:15. yt-dlp picks chapters by a
+    // regex over the title and has no way to be told "the one at 2:30", so
+    // asking for either of them always brings the other. They therefore tick
+    // as a pair, and say so on the row rather than in the download folder.
+    var byTitle = {};
+    chapterRows.forEach(function (c, i) {
+      (byTitle[c.title] = byTitle[c.title] || []).push(i);
+    });
+    // Without the encoder the list is still worth reading, so it is shown -
+    // but nothing is offered that cannot be done.
+    var canCut = !!S.hasFfmpeg;
+    $("chapterAllWrap").hidden = !canCut;
+    $("chapterList").innerHTML = chapterRows.map(function (c, i) {
+      var at = atTime(c.start), group = byTitle[c.title], mark = "";
+      if (group.length > 1) {
+        var others = group.filter(function (n) { return n !== i; })
+                          .map(function (n) { return atTime(chapterRows[n].start) || "?"; });
+        mark = ' <span class="ch-twin" title="' + esc("Same title at "
+          + others.join(", ") + " - chapters are asked for by their title, so "
+          + "these arrive together.") + '">&times;' + group.length + "</span>";
+      }
+      return "<li><label>"
+        + (canCut ? '<input type="checkbox" class="ch-pick" data-i="' + i + '">' : "")
+        + '<span class="ch-at">' + esc(at) + "</span>"
+        + '<span class="ch-title">' + esc(c.title) + mark + "</span></label></li>";
+    }).join("");
+    syncChapters();
+  }
+
+  // fmtDuration answers "" for zero, which is right for a video whose length
+  // is unknown and wrong for a moment that starts at the beginning.
+  function atTime(sec) {
+    return typeof sec === "number" ? (fmtDuration(sec) || "0:00") : "";
+  }
+
+  /* ------------------------------------------------------------ replayed */
+
+  /* The rewatch curve, read-only.
+
+     It is an undocumented field. It can stop arriving the day YouTube changes
+     the shape of its answer, and it will do that by simply not being there -
+     no error, no warning. So the empty case is the ordinary one here, and it
+     is said out loud: an empty graph looks like a broken feature and silence
+     looks like a missing one.
+
+     The line is only shown for YouTube. "YouTube has no data for this" under
+     a TikTok link would be noise about something never on offer there. */
+  function renderHeatmap(info) {
+    var box = $("heatBox"), note = $("heatNote");
+    if (!box) return;
+    var rows = (info && info.heatmap) || [];
+    var peaks = (info && info.peaks) || [];
+    var youtube = !!info && info.kind === "video"
+      && String(info.extractor || "").indexOf("youtube") === 0;
+
+    box.open = false;
+    box.hidden = !rows.length;
+    note.hidden = !youtube || rows.length > 0;
+    // One line for both panels, so it is said once rather than twice.
+    $("cutNoFf").hidden = S.hasFfmpeg
+      || !(chapterRows.length || (rows || []).length);
+    // Wanting clips of one video says nothing about wanting them of the next.
+    $("clipOn").checked = false;
+    $("clipOnWrap").hidden = !peaks.length || !S.hasFfmpeg;
+    renderClipLengths();
+    syncClips();
+    if (!rows.length) return;
+
+    // Drawn from the numbers rather than fetched as a picture: it is the same
+    // data the peaks are chosen from, so the graph cannot disagree with the
+    // list under it.
+    var W = 100, H = 30;
+    var span = rows[rows.length - 1].end || 1;
+    var x = function (t) { return Math.max(0, Math.min(W, (t / span) * W)); };
+    var pts = rows.map(function (r) {
+      return x((r.start + r.end) / 2).toFixed(2) + ","
+        + (H - r.value * (H - 2)).toFixed(2);
+    });
+    var firstY = pts[0].split(",")[1], lastY = pts[pts.length - 1].split(",")[1];
+    var line = "M0," + firstY + " L" + pts.join(" L") + " L" + W + "," + lastY;
+    var marks = peaks.map(function (p) {
+      var at = x((p.start + p.end) / 2).toFixed(2);
+      return '<line class="heat-mark" x1="' + at + '" y1="0" x2="' + at
+        + '" y2="' + H + '"></line>';
+    }).join("");
+
+    $("heatGraph").innerHTML =
+      '<svg viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="none" '
+      + 'role="img" aria-label="How often each part of this video was '
+      + 'replayed">' + marks
+      + '<path class="heat-area" d="' + line + " L" + W + "," + H + " L0," + H
+      + ' Z"></path>'
+      + '<path class="heat-line" vector-effect="non-scaling-stroke" d="'
+      + line + '"></path></svg>';
+
+    /* No percentage beside a moment. The number YouTube sends is how busy a
+       moment is COMPARED WITH THE BUSIEST ONE in the same video - "100%" next
+       to the top moment would read as a share of viewers, which it is not. A
+       bar says "relative" without claiming a figure. */
+    $("heatPeaks").innerHTML = peaks.map(function (p) {
+      return '<li><span class="heat-rank">' + p.rank + "</span>"
+        + '<span class="heat-at">' + esc(atTime(p.start)) + "</span>"
+        + '<span class="heat-bar" title="Compared with the most replayed '
+        + 'moment of this video"><i style="width:'
+        + Math.round(p.value * 100) + '%"></i></span></li>';
+    }).join("");
+
+    $("heatSummary").textContent = peaks.length
+      ? "Most replayed - top moment at " + atTime(peaks[0].start)
+      : "Most replayed";
+  }
+
+  /* ---------------------------------------------------------------- clips */
+
+  /* Which length of clip the moments get cut into.
+
+     The moments come from YouTube; the clips do not. YouTube always sends
+     exactly 100 buckets, so a bucket is a hundredth of the video - two and a
+     half seconds on a four-minute upload and seventy-three on a two-hour one.
+     Neither is a clip, so a length is chosen and the moment sits in the
+     middle of it. The ranges themselves are worked out by the engine and
+     arrive with the analysis, so this shows exactly what it is about to ask
+     for rather than a second guess at the same sum. */
+  var clipSeconds = 30;
+
+  function currentClips() {
+    var sets = (current && current.clips) || {};
+    return sets[String(clipSeconds)] || [];
+  }
+
+  function renderClipLengths() {
+    var sets = (current && current.clips) || {};
+    var lengths = Object.keys(sets).map(Number).sort(function (a, b) { return a - b; });
+    if (lengths.length && lengths.indexOf(clipSeconds) === -1) clipSeconds = lengths[0];
+    $("clipLens").innerHTML = lengths.map(function (n) {
+      return '<button type="button" class="chip' + (n === clipSeconds ? " is-on" : "")
+        + '" data-len="' + n + '">' + n + "s</button>";
+    }).join("");
+  }
+
+  function syncClips() {
+    var on = $("clipOn") && $("clipOn").checked;
+    var clips = on ? currentClips() : [];
+    $("clipRow").hidden = !on;
+    $("clipNote").hidden = !on;
+    if (on) {
+      var moments = ((current && current.peaks) || []).length;
+      $("clipNote").textContent = clips.length
+        + (clips.length === 1 ? " clip" : " clips") + " of " + clipSeconds
+        + " seconds, each one its own file, in a folder named after the video."
+        + (clips.length < moments
+           ? " The " + moments + " moments made " + clips.length
+             + ": some were close enough together to run into one."
+           : "")
+        + " Only these parts are downloaded, not the whole video."
+        + chapterMarkNote();
+      $("trimBlock").hidden = true;
+      if ($("trimOn").checked) { $("trimOn").checked = false; resetTrim(); }
+    } else if (current && current.kind === "video" && S.hasFfmpeg
+               && !chapterPicks.length) {
+      $("trimBlock").hidden = false;
+    }
+    syncCutButton();
+    syncNameField();
+  }
+
+  $("clipOn").addEventListener("change", function () {
+    if (this.checked && chapterPicks.length) {
+      $("chapterList").querySelectorAll(".ch-pick").forEach(function (b) {
+        b.checked = false;
+      });
+      syncChapters();
+    }
+    syncClips();
+  });
+
+  $("cutExact").addEventListener("change", refreshCommand);
+
+  $("clipLens").addEventListener("click", function (e) {
+    var chip = e.target.closest(".chip");
+    if (!chip) return;
+    clipSeconds = parseInt(chip.dataset.len, 10);
+    renderClipLengths();
+    syncClips();
+  });
+
+
+  // The titles that were ticked. Same title ticked twice is one pattern to
+  // the engine, so it is one entry here.
+  function pickedTitles() {
+    var out = [];
+    chapterPicks.forEach(function (i) {
+      var title = chapterRows[i] && chapterRows[i].title;
+      if (title && out.indexOf(title) === -1) out.push(title);
+    });
+    return out;
+  }
+
+  function syncChapters() {
+    var boxes = $("chapterList").querySelectorAll(".ch-pick");
+    chapterPicks = [];
+    boxes.forEach(function (b) {
+      if (b.checked) chapterPicks.push(parseInt(b.dataset.i, 10));
+    });
+    var all = chapterRows.length > 0 && chapterPicks.length === chapterRows.length;
+    $("chapterAll").checked = all;
+
+    // The closed summary is all most people ever see of this, so it carries
+    // the count both ways round: how many the video has, and how many are
+    // ticked - otherwise closing the list hides what is about to happen.
+    $("chapterCount").textContent =
+      (chapterRows.length === 1 ? "1 chapter" : chapterRows.length + " chapters")
+      + (chapterPicks.length ? " - " + chapterPicks.length + " ticked" : "");
+
+    /* Both a trim and a chapter selection speak through the same engine
+       option, and it adds them together rather than choosing - so asking for
+       both would hand back the chapters AND the trimmed range. One of the two
+       has to go, and the one being pressed right now is the one to keep. */
+    var picking = chapterPicks.length > 0;
+    if (picking && $("trimOn").checked) { $("trimOn").checked = false; resetTrim(); }
+    // Chapters and clips are both cuts of the same video and the engine can
+    // only make one kind at a time. Whichever was just pressed wins, and the
+    // other is visibly let go rather than quietly ignored.
+    if (picking && $("clipOn") && $("clipOn").checked) {
+      $("clipOn").checked = false;
+      syncClips();
+    }
+    $("trimBlock").hidden = picking || !current || current.kind === "playlist"
+                            || !S.hasFfmpeg;
+
+    var line = $("chapterPicked");
+    line.hidden = !picking;
+    if (picking) {
+      // Said before it is pressed, because a folder appearing where a file
+      // was expected is the kind of surprise this app tries not to hand out.
+      line.textContent = (all ? "All " + chapterRows.length + " chapters"
+                              : chapterPicks.length + " of " + chapterRows.length + " chapters")
+        + " - each one its own file, in a folder named after the video. "
+        + "Only these parts are downloaded, not the whole video."
+        + chapterMarkNote();
+    }
+    syncCutButton();
+    syncNameField();
+  }
+
+  /* A name typed by hand names one file. A playlist already disables this for
+     that reason; chapters and clips make a folder of files and need the same
+     answer, or the name silently lands on every one of them. */
+  function syncNameField() {
+    var many = chapterPicks.length > 0
+      || ($("clipOn") && $("clipOn").checked && currentClips().length > 0);
+    var box = $("optName");
+    if (!box) return;
+    if (many && box.value.trim()) box.value = "";
+    box.disabled = many || (current && current.kind === "playlist");
+    box.placeholder = many ? "One name cannot cover a folder of parts"
+      : (current && current.kind === "playlist")
+        ? "One name cannot cover a playlist"
+        : "%(title)s [%(id)s].%(ext)s";
+  }
+
+  /* "Chapter marks" is a setting, and it is switched off for a cut: the marks
+     describe the whole video, and writing them into a piece of it makes the
+     piece claim the whole video's length. Said here rather than left as a
+     setting that quietly does not happen. */
+  function chapterMarkNote() {
+    return settings.embed_chapters
+      ? " Chapter marks are left out of a part - they belong to the whole video."
+      : "";
+  }
+
+  /* Shown only while something is about to be cut into parts, because that
+     is the only time it means anything. */
+  function syncExactCut() {
+    var cutting = chapterPicks.length > 0
+      || ($("clipOn") && $("clipOn").checked && currentClips().length > 0);
+    $("cutExactWrap").hidden = !cutting;
+    if (!cutting) $("cutExact").checked = false;
+  }
+
+  function syncCutButton() {
+    syncExactCut();
+    var chapters = chapterPicks.length;
+    var clips = $("clipOn") && $("clipOn").checked ? currentClips().length : 0;
+    ripWhat(
+      chapters ? chapters + (chapters === 1 ? " chapter" : " chapters")
+      : clips ? clips + (clips === 1 ? " clip" : " clips")
+      : "Everything");
+  }
+
+  $("chapterList").addEventListener("change", function (e) {
+    var box = e.target.closest(".ch-pick");
+    if (!box) return;
+    // The pair the ×2 mark promised. Ticking one of two chapters that share a
+    // title cannot mean "only this one" - the engine has no way to say it -
+    // so the other follows visibly rather than turning up unannounced.
+    var title = (chapterRows[parseInt(box.dataset.i, 10)] || {}).title;
+    $("chapterList").querySelectorAll(".ch-pick").forEach(function (other) {
+      var row = chapterRows[parseInt(other.dataset.i, 10)];
+      if (row && row.title === title) other.checked = box.checked;
+    });
+    syncChapters();
+  });
+
+  $("chapterAll").addEventListener("change", function () {
+    var on = this.checked;
+    $("chapterList").querySelectorAll(".ch-pick").forEach(function (b) {
+      b.checked = on;
+    });
+    syncChapters();
+  });
+
 
   /* -------------------------------------------------------------- channel */
 
@@ -571,9 +1155,9 @@
 
     var btn = $("downloadBtn");
     btn.disabled = count === 0;
-    btn.textContent = count === 0 ? "Nothing selected"
-      : count === total ? "Download all " + total
-      : "Download " + count + " selected";
+    ripWhat(count === 0 ? "Nothing selected"
+      : count === total ? "All " + total
+      : count + " selected");
 
     updateNote(total);
   }
@@ -602,6 +1186,13 @@
     if (buried) {
       lines.push(buried + (buried === 1 ? " selected video is" : " selected videos are") +
         " hidden by the filter.");
+    }
+
+    // A cap is about the read, not about any particular link, so it has
+    // nothing to list and belongs in the sentence rather than in a chip.
+    if (grabCapped) {
+      lines.push("The page had more than " + grabCapped +
+        " and the read stopped there. Paste a later part of the page to see the rest.");
     }
 
     var note = $("plNote");
@@ -720,15 +1311,17 @@
     if (note) {
       note.hidden = quality !== "max";
       if (quality === "max") {
-        note.textContent = "Biggest file, chosen to survive being uploaded "
-          + "again rather than to play everywhere - it may need a codec your "
-          + "player does not have. Most of the time it is the same file as "
-          + "Best available, and it ignores “Skip files I already have” "
-          + "so a copy you saved at a lower quality is not mistaken for this one.";
+        note.textContent = "The heaviest stream at the highest resolution, "
+          + "chosen to survive being uploaded again. Most of the time it is "
+          + "exactly the same file as Best available; where the two differ, "
+          + "this one may need a codec your player does not have. It also "
+          + "ignores “Skip files I already have”, so a copy you saved at "
+          + "a lower quality is not mistaken for this one.";
       }
     }
 
     syncAlsoAudio();
+    syncRipSummary();
     refreshCommand();
   });
 
@@ -970,6 +1563,7 @@
     $("optSubLang").value = "";
     $("optSubsOnly").checked = false;
     $("optThumbAll").checked = false;
+    $("optWriteDesc").checked = false;
     $("optLiveFromStart").checked = false;
     // Only a stream that is live right now can be joined from its beginning.
     // Hidden otherwise rather than shown and ignored.
@@ -998,6 +1592,7 @@
     if ($("optCookies").value === "off") o.no_cookies = true;
     if ($("optSubsOnly").checked) o.subs_only = true;
     if ($("optThumbAll").checked) o.thumb_all = true;
+    if ($("optWriteDesc").checked) o.write_desc = true;
     if (pickedThumb) o.thumb_url = pickedThumb;
     if ($("optLiveFromStart").checked) o.live_from_start = true;
     return o;
@@ -1165,6 +1760,40 @@
   });
 
   var cmdTimer = null;
+  /* What the screen is asking to be cut, put onto a request.
+
+     Both the Download button and the command preview call this. The preview
+     used to build its own body and knew nothing about chapters or clips, so
+     it showed a command without them in it - and a preview that disagrees
+     with what will actually run is worse than no preview at all, which is the
+     reason the panel exists.
+
+     "All of them" travels as a flag rather than as two hundred titles,
+     because every title is its own argument and a command line has a ceiling.
+     Not inside moreOpts(): that answers with nothing while More options is
+     closed, and this sits above it. */
+  function applyCut(body) {
+    if (!current || current.kind === "playlist") return body;
+    if (chapterPicks.length) {
+      if (chapterPicks.length === chapterRows.length) body.opts.chapters_all = true;
+      else body.opts.chapters = pickedTitles();
+    } else if ($("clipOn").checked && currentClips().length) {
+      // The ranges the engine worked out, sent back as they came. Nothing
+      // here recalculates them - a second copy of that sum can drift.
+      body.opts.clips = currentClips();
+    } else {
+      return body;
+    }
+    // One idea, one field: the trim has always sent this, and a chapter or a
+    // clip is the same kind of cut asking the same thing of ffmpeg.
+    body.exact = $("cutExact").checked;
+    /* How many files this should produce. Counted here because the screen is
+       the only side that knows a ticked row is a file: two chapters sharing a
+       title are one pattern and two files, and the engine sees only patterns. */
+    body.opts.parts_expected = chapterPicks.length || currentClips().length;
+    return body;
+  }
+
   function refreshCommand() {
     if (!$("moreBox").open || !current || current.kind === "channel") return;
     clearTimeout(cmdTimer);
@@ -1174,17 +1803,28 @@
         quality: quality,
         opts: moreOpts()
       };
+      applyCut(body);
       if (current.kind !== "playlist" && $("trimOn").checked) {
         var t = trimTimes();
         if (t) { body.start = t.start; body.end = t.end; body.exact = $("exactCut").checked; }
       }
       api("/api/command", body).then(function (res) {
         $("cmdBox").textContent = res.ok ? res.command : (res.error || "—");
+      }).catch(function () {
+        // Not reachable, so what is in the box is a command for the options
+        // as they were - which is worse than no command at all.
+        $("cmdBox").textContent = "—";
       });
     }, 180);
   }
 
-  ["optName", "optCookies", "optClient", "optAudioLang", "optSubLang"].forEach(function (id) {
+  /* The tick boxes were missing from this list, so the shown command did not
+     change when one was pressed - and a preview that drifts from what will
+     actually run is worse than no preview at all, which is the reason the
+     panel exists. */
+  ["optName", "optCookies", "optClient", "optAudioLang", "optSubLang",
+   "optSubsOnly", "optThumbAll", "optWriteDesc", "optLiveFromStart"
+  ].forEach(function (id) {
     $(id).addEventListener("change", refreshCommand);
   });
   $("optName").addEventListener("input", refreshCommand);
@@ -1229,6 +1869,7 @@
     // The extras ride along with the main choice rather than replacing it,
     // so the video is still what the row says it is.
     if (quality !== "mp3" && $("alsoAudio").checked) body.also = ["mp3"];
+    applyCut(body);
     if (current.kind !== "playlist" && $("trimOn").checked) {
       var range = readTrim();
       if (range === null) return;             // readTrim already complained
@@ -1317,6 +1958,7 @@
     var badge = $("queueBadge");
     badge.textContent = active;
     badge.hidden = active === 0;
+    syncRailLive(jobs);
 
     $("queueEmpty").hidden = jobs.length > 0;
 
@@ -1452,6 +2094,39 @@
   // Pausing only means anything while bytes are moving.
   var PAUSE_BTN = ["pause", ICON.pause, "Pause — keeps what has downloaded", ""];
 
+  /* The rail's live panel. Two rows at most: it is a glance, not a list, and
+     the list itself is one click away in Queue. An open-ended clip has no
+     total to measure against, so its bar says "working" rather than sitting
+     at zero as if nothing were happening - the same rule the queue rows
+     already follow. */
+  function syncRailLive(jobs) {
+    var live = jobs.filter(function (j) {
+      return j.status === "downloading" || j.status === "converting";
+    });
+    $("railLive").hidden = live.length === 0;
+    if (!live.length) { $("liveRows").innerHTML = ""; return; }
+
+    $("liveCount").textContent = live.length > 2
+      ? "2 of " + live.length : String(live.length);
+
+    $("liveRows").innerHTML = live.slice(0, 2).map(function (j) {
+      var unmeasurable = !!j.stage && j.percent < 1;
+      var pct = unmeasurable ? 100 : j.percent;
+      var left = unmeasurable
+        ? esc(j.stage)
+        : j.percent.toFixed(0) + "%"
+          + (j.size ? " · " + esc((j.sizeEstimated ? "~" : "") + j.size) : "");
+      return '<div class="live-row">' +
+        '<div class="live-title" title="' + esc(j.title || "") + '">' +
+        esc(j.title || "") + "</div>" +
+        '<div class="meter"><i class="' + (unmeasurable ? "working" : "") +
+        '" style="width:' + pct.toFixed(0) + '%"></i></div>' +
+        '<div class="live-meta"><span>' + left + "</span>" +
+        "<span>" + (j.speed ? esc(j.speed) : "") + "</span></div>" +
+        "</div>";
+    }).join("");
+  }
+
   function actionsFor(j) {
     var set = (ACTIONS[j.status] || ACTIONS.busy).slice();
     if (j.status === "downloading") set.unshift(PAUSE_BTN);
@@ -1481,8 +2156,19 @@
       }
       // "45.2 MB of 342.0 MB" answers "how much longer on this line" in a way
       // a percentage never does - and on an 8K file that is the whole question.
-      if (j.got && j.size) bits.push(["", j.got + " of " + j.size]);
-      else if (j.size) bits.push(["", j.size]);
+      // ⚠️ The tilde is put on here rather than stored in the size itself.
+      // That string is read back as a number in three places, and one of them
+      // answers 0 rather than raising - a partial size reaching the library
+      // would have sorted as zero with nothing to show why.
+      var total = j.sizeEstimated ? "~" + j.size : j.size;
+      if (j.got && j.size) bits.push(["", j.got + " of " + total]);
+      else if (j.size) bits.push(["", total]);
+      // And the tilde is easy to miss, while the number it marks can be a
+      // third out - 550 MB was shown for a file that finished at 319. Only Max
+      // reaches this: every capped rung gets a real size from the site.
+      if (j.size && j.sizeEstimated) {
+        bits.push(["", "estimated — Max has no exact size until it finishes"]);
+      }
       if (j.speed) bits.push(["", j.speed]);
       if (j.eta) bits.push(["", "ETA " + j.eta]);
       // Worth seeing while it runs, not only once it lands.
@@ -1733,6 +2419,22 @@
   var siteNames = {};
   (S.sites || []).forEach(function (name) { siteNames[name.toLowerCase()] = name; });
 
+  /* What a downloaded file is, from what was already written down.
+
+     Nothing new is recorded for this: mp3 is a quality the job carried, and a
+     clip gets " clip 1.30-2.00" put into its filename by the engine precisely
+     so it cannot collide with the whole video. Reading those back is cheaper
+     than a migration, and it works on every row already in the library rather
+     than only on the ones downloaded after today. */
+  function kindOf(item) {
+    var path = String(item.filepath || "");
+    if (/ clip [\d.]+-/.test(path)) return "clip";
+    if (item.quality === "mp3" || /\.(mp3|m4a|opus|aac|flac|wav)$/i.test(path)) {
+      return "audio";
+    }
+    return "video";
+  }
+
   function sourceOf(item) {
     if (item.site) return item.site;
 
@@ -1743,11 +2445,15 @@
     return siteNames[folder.toLowerCase()] || "Other";
   }
 
+  // Returns its request so a caller that needs the library before it can do
+  // its own work - the page read, matching links against what is already
+  // saved - can wait for it rather than racing it.
   function loadHistory() {
-    api("/api/history").then(function (res) {
+    return api("/api/history").then(function (res) {
       libraryItems = (res.history || []).map(function (h) {
         h._source = sourceOf(h);
         h._bytes = bytesOf(h.size);
+        h._kind = kindOf(h);
         return h;
       });
       $("libraryEmpty").hidden = libraryItems.length > 0;
@@ -1765,8 +2471,15 @@
   }
 
   function renderChips() {
+    /* Counted within the kind that is being shown. A chip saying "youtube 253"
+       over a list of four audio files is the number disagreeing with the list
+       under it, which is the one thing a count on a screen must never do. */
+    var kind = $("libKind").value;
+    var pool = kind === "all" ? libraryItems
+      : libraryItems.filter(function (h) { return h._kind === kind; });
+
     var counts = {};
-    libraryItems.forEach(function (h) {
+    pool.forEach(function (h) {
       counts[h._source] = (counts[h._source] || 0) + 1;
     });
     var names = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; });
@@ -1774,7 +2487,7 @@
 
     $("libChips").innerHTML =
       ['<button type="button" class="chip' + (libSource === "all" ? " is-on" : "") +
-       '" data-src="all">All · ' + libraryItems.length + "</button>"]
+       '" data-src="all">All · ' + pool.length + "</button>"]
         .concat(names.map(function (n) {
           return '<button type="button" class="chip' +
             (n === libSource ? " is-on" : "") + '" data-src="' + esc(n) + '">' +
@@ -1786,8 +2499,10 @@
     var term = ($("libSearch").value || "").trim().toLowerCase();
     var sort = $("libSort").value;
 
+    var kind = $("libKind").value;
     var shown = libraryItems.filter(function (h) {
       if (libSource !== "all" && h._source !== libSource) return false;
+      if (kind !== "all" && h._kind !== kind) return false;
       if (!term) return true;
       // The uploader counts as well as the title. Without it, searching for
       // a name found nothing even though every file was by that person -
@@ -1827,6 +2542,10 @@
 
   $("libSearch").addEventListener("input", renderHistory);
   $("libSort").addEventListener("change", renderHistory);
+  $("libKind").addEventListener("change", function () {
+    renderChips();          // the site counts are of what this kind leaves
+    renderHistory();
+  });
   $("libChips").addEventListener("click", function (e) {
     var chip = e.target.closest("[data-src]");
     if (!chip) return;
@@ -1866,6 +2585,76 @@
       if (!r.ok) toast(r.error || "Could not open the folder.", "bad");
     });
   });
+
+  /* ------------------------------------------------------------- insights */
+  /* What the library already knows. The app has counted all of this since it
+     started keeping a history and had never shown any of it back.
+
+     Read every time it opens rather than cached: the numbers move with every
+     download, and a panel that opens on figures from an hour ago is worse
+     than one that takes a moment. */
+
+  $("openInsights").addEventListener("click", function () {
+    $("insights").hidden = false;
+    api("/api/insights").then(renderInsights, function () {
+      $("insSub").textContent = "Riplox could not read its own library.";
+    });
+  });
+
+  $("insightsClose").addEventListener("click", function () {
+    $("insights").hidden = true;
+  });
+
+  function renderInsights(d) {
+    if (!d || !d.ok) {
+      $("insSub").textContent = "Riplox could not read its own library.";
+      return;
+    }
+
+    // Nothing downloaded yet: four zeroes and a percentage of nothing say
+    // less than one sentence does, so the tiles stay blank and the sentence
+    // does the talking.
+    if (!d.files) {
+      $("insSub").textContent =
+        "Nothing has finished downloading yet, so there is nothing to count.";
+      $("insSites").innerHTML = "";
+      return;
+    }
+
+    // The history file keeps the most recent N and drops the rest, so "since"
+    // is the oldest row still held - not the day Riplox was installed. Said
+    // plainly, because the difference matters once the cap is reached.
+    $("insSub").textContent = d.capped
+      ? "The most recent " + d.kept + " downloads. Older ones are no longer kept."
+      : (d.since ? "Everything since " + d.since + "." : "Everything downloaded so far.");
+
+    $("insFiles").textContent = d.files;
+    $("insSize").textContent = d.size || "";
+
+    $("insWeek").textContent = d.week;
+    $("insWeekSize").textContent = d.week_size || "";
+
+    $("insFirst").textContent = d.first_try + "%";
+    $("insFirstOf").textContent = "of " + d.first_try_of + " tried";
+
+    $("insTop").textContent = d.top || "—";
+    $("insTopShare").textContent = d.top_share ? d.top_share + "% of them" : "";
+
+    // Sorted by how much came from each site, which is the order the engine
+    // already returns. The failure rate is only drawn where something has
+    // actually failed - a row of "0%" on every site is noise, and the whole
+    // point of the column is to make the one bad site stand out.
+    $("insSites").innerHTML = (d.sites || []).map(function (s) {
+      var bad = s.failed
+        ? '<span class="ins-bad">' + s.rate + "% failed</span>"
+        : '<span class="ins-ok">all worked</span>';
+      return '<div class="ins-row">' +
+        '<span class="ins-site">' + esc(s.site) + "</span>" +
+        '<span class="ins-count">' + s.done +
+          (s.size ? " · " + esc(s.size) : "") + "</span>" +
+        bad + "</div>";
+    }).join("");
+  }
 
   /* ---------------------------------------------------------------- failed */
   /* The list nothing tidies up. Every button here that removes a row is one
@@ -2161,8 +2950,31 @@
     $("updateBar").hidden = false;
   }
 
+  // Opened through the app rather than with a bare link, so it lands in
+  // whichever browser Windows actually uses rather than inside the app's own
+  // window - which has no tabs, no address bar and no way back.
+  $("getExtension").addEventListener("click", function () {
+    // ⚠️ The answer is read. This used to ignore it, and when the address was
+    // not on the app's allowlist the button simply did nothing at all - no
+    // page, no message, nothing to act on.
+    api("/api/open-url", { url: S.storeUrl }).then(function (res) {
+      if (!res || !res.ok) {
+        toast((res && res.error) || "Could not open the store page.", "bad");
+      }
+    }).catch(function () {
+      toast("Could not open the store page.", "bad");
+    });
+  });
+
   $("updateOpen").addEventListener("click", function () {
     if (updatePage) api("/api/open-url", { url: updatePage });
+  });
+
+  // Put off, not dismissed: it comes back next time Riplox starts. A notice
+  // that can be killed for good is one people kill on the day they are busy
+  // and never see again.
+  $("updateLater").addEventListener("click", function () {
+    $("updateBar").hidden = true;
   });
 
   if (settings.check_updates !== false) {
@@ -2207,6 +3019,22 @@
         ? res.path
         : "Not found on this PC - reinstall Riplox to get it back.";
     }
+
+    /* Which browser can reach this copy, by name. "A browser" is not an
+       answer on the ordinary PC with two installed and one of them
+       connected - and the app has always known which, it just returned true
+       and threw the name away. */
+    var who = $("extBrowsers");
+    if (who) {
+      var names = res.browsers || [];
+      who.textContent = names.length
+        ? (names.length === 1
+            ? names[0] + " can reach this copy."
+            : names.slice(0, -1).join(", ") + " and " + names[names.length - 1] +
+              " can reach this copy.")
+        : "No browser has been told about this copy yet.";
+    }
+
     showPortable(res);
   });
 
@@ -2298,6 +3126,23 @@
     return ago(seconds);
   }
 
+  /* When this item comes round again. Worked out here rather than asked for:
+     the interval is one setting and the last check is already on the row, so
+     the server has nothing to add.
+
+     Empty where there is no answer - paused, never checked, or already due -
+     because "next in 0 min" on an item the sweep is about to reach is a
+     countdown to something that has effectively happened. */
+  function nextCheck(item, s) {
+    if (item.paused || !item.checked || !s.on) return "";
+    var at = item.checked + (s.hours || 0) * 3600;
+    var left = Math.round(at - Date.now() / 1000);
+    if (left <= 60) return "";
+    if (left < 3600) return "in " + Math.round(left / 60) + " min";
+    if (left < 86400) return "in " + Math.round(left / 3600) + " h";
+    return "in " + Math.round(left / 86400) + " d";
+  }
+
   function renderWatch(s) {
     watchState = s;
     $("setWatch").classList.toggle("on", s.on);
@@ -2313,21 +3158,38 @@
     $("watchCheckAll").disabled = !s.items.length || s.sweeping;
 
     $("watchEmpty").hidden = s.items.length > 0;
+
+    /* Everything new, in one list. Reading down five channel panels to find
+       out whether there is anything at all is the work this removes; the
+       channel each video came from travels on its own row instead. */
+    var allNew = [];
+    s.items.forEach(function (it) {
+      (it.new || []).forEach(function (v) {
+        allNew.push({ v: v, from: it.title, id: it.id });
+      });
+    });
+
+    $("watchNew").hidden = allNew.length === 0;
+    $("watchNewCount").textContent = allNew.length
+      ? allNew.length + (allNew.length === 1 ? " video" : " videos") : "";
+    $("watchNewList").innerHTML = allNew.map(function (n) {
+      var v = n.v;
+      return '<div class="new-row">' +
+        (v.thumbnail ? '<img src="' + esc(v.thumbnail) + '" alt="" loading="lazy">'
+                     : '<div class="new-thumb"></div>') +
+        '<div class="new-what"><b>' + esc(v.title) + "</b>" +
+          "<span>" + esc(n.from) +
+          (fmtDuration(v.duration) ? " · " + esc(fmtDuration(v.duration)) : "") +
+          "</span></div>" +
+        '<button class="primary small" data-get="' + esc(v.url) + '" data-item="' +
+          esc(n.id) + '" data-video="' + esc(v.id) + '">Download</button>' +
+        '<button class="ghost small" data-skip="' + esc(n.id) + '" data-video="' +
+          esc(v.id) + '">Skip</button>' +
+        "</div>";
+    }).join("");
+
     $("watchList").innerHTML = s.items.map(function (it) {
       var fresh = it.new || [];
-
-      var videos = fresh.map(function (v) {
-        return '<div class="new-row">' +
-          (v.thumbnail ? '<img src="' + esc(v.thumbnail) + '" alt="" loading="lazy">'
-                       : '<div class="new-thumb"></div>') +
-          '<div class="new-what"><b>' + esc(v.title) + "</b>" +
-            "<span>" + esc(fmtDuration(v.duration) || "") + "</span></div>" +
-          '<button class="primary small" data-get="' + esc(v.url) + '" data-item="' +
-            esc(it.id) + '" data-video="' + esc(v.id) + '">Download</button>' +
-          '<button class="ghost small" data-skip="' + esc(it.id) + '" data-video="' +
-            esc(v.id) + '">Skip</button>' +
-          "</div>";
-      }).join("");
 
       var trouble = it.error
         ? '<p class="warn watch-err">' + esc(it.error) +
@@ -2340,20 +3202,21 @@
                           '" alt="" loading="lazy">' : '<div class="watch-thumb"></div>') +
           '<div class="who"><b>' + esc(it.title) +
             (it.paused ? ' <em class="tag">paused</em>' : "") + "</b>" +
-            '<span>' + esc(it.kind) + " · checked " + when(it.checked) +
+            '<span>' + esc(it.kind) +
+            (it.watching ? " · " + it.watching + " seen" : "") +
+            " · checked " + when(it.checked) +
+            // Only where it can be worked out and is still ahead: a paused
+            // item has no next check, and neither has one never checked.
+            (nextCheck(it, s) ? " · next " + nextCheck(it, s) : "") +
             (fresh.length ? " · " + fresh.length + " new" : "") + "</span></div>" +
           '<button class="ghost small" data-check="' + esc(it.id) + '">Check</button>' +
           '<button class="ghost small" data-wpause="' + esc(it.id) + '" data-to="' +
             (it.paused ? "0" : "1") + '">' + (it.paused ? "Resume" : "Pause") + "</button>" +
           '<button class="ghost small danger" data-drop="' + esc(it.id) +
             '">Remove</button>' +
-        "</div>" + trouble +
-        (fresh.length
-          ? '<div class="new-list">' + videos +
-            '<button class="ghost small" data-skip="' + esc(it.id) +
-            '">Clear all</button></div>'
-          : "") +
-        "</div>";
+        // The videos themselves are in the one list above. What stays here is
+        // the channel and what is true of it.
+        "</div>" + trouble + "</div>";
     }).join("");
 
     $("watchBadge").textContent = s.new;
@@ -2475,7 +3338,9 @@
     });
   });
 
-  $("watchList").addEventListener("click", function (e) {
+  // Bound to both lists: the videos moved into the one at the top, and the
+  // channel rows below still carry Check, Pause and Remove.
+  function onWatchClick(e) {
     var get = e.target.closest("[data-get]");
     if (get) {
       api("/api/add", { items: [{ url: get.dataset.get }], quality: quality })
@@ -2525,6 +3390,281 @@
           if (res.state) renderWatch(res.state);
         });
       });
+    }
+  }
+  $("watchList").addEventListener("click", onWatchClick);
+  $("watchNewList").addEventListener("click", onWatchClick);
+
+  /* Both of these act on the one list rather than on a channel, which is the
+     point of having one list: five channels' worth of new videos is a single
+     decision now instead of five. */
+  $("watchGetAll").addEventListener("click", function () {
+    var rows = $("watchNewList").querySelectorAll("[data-get]");
+    if (!rows.length) return;
+    var items = [];
+    rows.forEach(function (b) { items.push({ url: b.dataset.get }); });
+    api("/api/add", { items: items, quality: quality }).then(function (res) {
+      if (!res.ok) { toast(res.error || "Could not queue those.", "bad"); return; }
+      toast(items.length + " queued", "good");
+      pollJobs();
+      // Marked seen one at a time because that is what the endpoint takes;
+      // the screen is redrawn once, from the last answer, rather than after
+      // each of them.
+      var left = rows.length, last = null;
+      rows.forEach(function (b) {
+        api("/api/watch/seen", { id: b.dataset.item, video: b.dataset.video })
+          .then(function (r) {
+            if (r.state) last = r.state;
+            if (--left === 0 && last) renderWatch(last);
+          });
+      });
+    });
+  });
+
+  $("watchClearAll").addEventListener("click", function () {
+    var ids = {};
+    $("watchNewList").querySelectorAll("[data-skip]").forEach(function (b) {
+      ids[b.dataset.skip] = true;
+    });
+    var names = Object.keys(ids);
+    if (!names.length) return;
+    var left = names.length, last = null;
+    names.forEach(function (id) {
+      // No video id clears the whole channel's list, which is what the old
+      // per-channel "Clear all" did - this just does it for every channel.
+      api("/api/watch/seen", { id: id, video: "" }).then(function (r) {
+        if (r.state) last = r.state;
+        if (--left === 0 && last) renderWatch(last);
+      });
+    });
+  });
+
+  /* ------------------------------------------- five things you can press */
+  /* The advice for a bot check was five paragraphs naming five places to go.
+     Three of them still say where they are, because knowing that is worth as
+     much as arriving - but none of them has to be walked to any more. */
+
+  function gotoSetting(groupName) {
+    show("settings");
+    var g = byName(groupName);
+    if (!g) return false;
+    if ($("setSearch").value) { $("setSearch").value = ""; applySettingsFilter(); }
+    showGroup(g);
+    g.box.scrollIntoView({ block: "nearest" });
+    return true;
+  }
+
+  $("botSlow").addEventListener("click", function () {
+    $("watchHours").value = "24";
+    saveSetting({ watch_hours: 24 }).then(function (res) {
+      if (res && res.ok) toast("Checking every 24 hours");
+      loadWatch();
+    });
+  });
+
+  $("botPause").addEventListener("click", function () {
+    if (!$("setWatch").classList.contains("on")) { toast("Watch is already off"); return; }
+    $("setWatch").click();
+  });
+
+  $("botSignIn").addEventListener("click", function () {
+    if (!gotoSetting("Sign-in")) toast("That group has moved.", "bad");
+  });
+
+  $("botHelper").addEventListener("click", function () {
+    var toggle = $("setPotoken");
+    if (toggle.classList.contains("on")) {
+      toast("The helper is already on");
+      gotoSetting("YouTube");
+      return;
+    }
+    // Turned on here rather than in Settings, then shown, so what happened is
+    // visible rather than taken on trust.
+    toggle.click();
+    gotoSetting("YouTube");
+  });
+
+  $("botUpdate").addEventListener("click", function () {
+    if (!gotoSetting("Advanced")) { toast("That group has moved.", "bad"); return; }
+    $("updateEngine").click();
+  });
+
+  /* ---------------------------------------------------------- Ctrl+K */
+
+  /* One search across the rooms, every setting and the library - or a pasted
+     link, which skips the rooms entirely.
+
+     Nothing is fetched to build it. The rooms are the rail's own buttons and
+     their counts are the badges already hanging on them; the settings rows are
+     the same rows the settings search reads; the library is the array the
+     library screen already holds. */
+
+  var palRows = [], palIndex = 0;
+
+  function palResults(term) {
+    var q = term.trim().toLowerCase();
+    var out = [];
+
+    // A link is the commonest thing anybody does here, so it comes first and
+    // is offered as itself rather than as something to search for.
+    if (/^https?:\/\//i.test(term.trim())) {
+      var url = term.trim();
+      out.push({ group: "Do", label: "Analyse this link", hint: "and pick a quality",
+                 run: function () { show("capture"); $("urlInput").value = url; analyze(url); } });
+      out.push({ group: "Do", label: "Find every video on that page", hint: "reads the page",
+                 run: function () { show("capture"); $("urlInput").value = url; grabPage(url); } });
+      return out;
+    }
+    if (!q) return out;
+
+    /* Go to - matched on [data-view] rather than on a class, so restyling the
+       rail cannot quietly empty this list: a button without a view is not a
+       room, whatever it has been renamed to. */
+    document.querySelectorAll(".tab[data-view]").forEach(function (tab) {
+      var label = tab.querySelector(".tab-label");
+      var name = label ? label.textContent.trim() : "";
+      if (!name || name.toLowerCase().indexOf(q) < 0) return;
+      var badge = tab.querySelector(".badge");
+      out.push({
+        group: "Go to", label: name,
+        hint: badge && !badge.hidden && badge.textContent !== "0"
+          ? badge.textContent + " waiting" : "",
+        run: function () { show(tab.dataset.view); }
+      });
+    });
+
+    /* Every settings row, with the group it lives in - "Settings → Doing it
+       for you" - because the path is most of the answer. Getting there is the
+       settings search doing its own job: typing the label in is what makes an
+       advanced row visible, and jumping straight to a hidden row would land
+       on nothing. */
+    document.querySelectorAll("#view-settings .field").forEach(function (row) {
+      if (out.length > 30) return;
+      var label = row.querySelector("label");
+      var name = label ? label.textContent.trim() : "";
+      if (!name || name.toLowerCase().indexOf(q) < 0) return;
+      var panel = row.closest(".panel");
+      var head = panel && panel.previousElementSibling;
+      out.push({
+        group: "Do", label: name,
+        hint: head && head.classList.contains("group-head")
+          ? "Settings → " + head.textContent.trim() : "Settings",
+        run: function () {
+          show("settings");
+          $("setSearch").value = name;
+          applySettingsFilter();
+          row.scrollIntoView({ block: "center" });
+          row.classList.add("is-hit");
+          setTimeout(function () { row.classList.remove("is-hit"); }, 1600);
+        }
+      });
+    });
+
+    // What is already downloaded. Capped, because this is a way in and not a
+    // second library screen.
+    libraryItems.forEach(function (h) {
+      if (out.length > 30) return;
+      if (!h.title || h.title.toLowerCase().indexOf(q) < 0) return;
+      out.push({
+        group: "In your library", label: h.title,
+        hint: (labels[h.quality] || h.quality || "") + (h.size ? " · " + h.size : ""),
+        run: function () {
+          show("library");
+          $("libSearch").value = h.title;
+          $("libSearch").dispatchEvent(new Event("input"));
+        }
+      });
+    });
+
+    return out;
+  }
+
+  function renderPalette() {
+    var rows = palResults($("paletteInput").value);
+    palRows = rows;
+    if (palIndex >= rows.length) palIndex = Math.max(0, rows.length - 1);
+
+    var box = $("paletteList");
+    if (!rows.length) {
+      box.innerHTML = '<p class="pal-none">' +
+        ($("paletteInput").value.trim() ? "Nothing matches that."
+                                        : "Type to search, or paste a link.") +
+        "</p>";
+      return;
+    }
+
+    var html = "", group = "";
+    rows.forEach(function (r, i) {
+      if (r.group !== group) {
+        group = r.group;
+        html += '<div class="pal-group">' + esc(group) + "</div>";
+      }
+      html += '<div class="pal-row' + (i === palIndex ? " is-on" : "") +
+        '" data-i="' + i + '"><span class="pal-label">' + esc(r.label) + "</span>" +
+        (r.hint ? '<span class="pal-hint">' + esc(r.hint) + "</span>" : "") +
+        "</div>";
+    });
+    box.innerHTML = html;
+    var on = box.querySelector(".pal-row.is-on");
+    if (on) on.scrollIntoView({ block: "nearest" });
+  }
+
+  function openPalette() {
+    // The library is what makes a third of this list, and it is only fetched
+    // when its own room is opened.
+    if (!libraryItems.length) loadHistory();
+    $("palette").hidden = false;
+    $("paletteInput").value = "";
+    palIndex = 0;
+    renderPalette();
+    $("paletteInput").focus();
+  }
+
+  function closePalette() { $("palette").hidden = true; }
+
+  function runPalette(i) {
+    var row = palRows[i];
+    if (!row) return;
+    closePalette();
+    row.run();
+  }
+
+  $("paletteInput").addEventListener("input", function () {
+    palIndex = 0;
+    renderPalette();
+  });
+
+  $("paletteList").addEventListener("click", function (e) {
+    var row = e.target.closest(".pal-row");
+    if (row) runPalette(parseInt(row.dataset.i, 10));
+  });
+
+  $("palette").addEventListener("click", function (e) {
+    if (e.target === $("palette")) closePalette();
+  });
+
+  $("paletteInput").addEventListener("keydown", function (e) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      palIndex = Math.min(palIndex + 1, palRows.length - 1);
+      renderPalette();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      palIndex = Math.max(palIndex - 1, 0);
+      renderPalette();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      runPalette(palIndex);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      closePalette();
+    }
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) {
+      e.preventDefault();
+      if ($("palette").hidden) openPalette(); else closePalette();
     }
   });
 
@@ -2613,12 +3753,34 @@
     // "ready": the LAN line used to be appended here and read "ready ·
     // listening", which is the listener's status, not an address, and told
     // nobody anything.
+    // ⚠ The LAN listener was on neither of these lines. The note above is
+    // right that "ready · listening" told nobody anything - but its FAILURE
+    // was not shown either, so a phone on the same Wi-Fi failed against a PC
+    // reading "ready", and with "home network only" on, a PC nothing could
+    // reach still read "home network only".
+    var lanDown = s.on && s.lan === "unavailable";
+    // "relay only" rather than "ready": links from the phone still arrive
+    // over the internet, but nothing on this Wi-Fi can reach this PC. Green
+    // is reserved for both roads open - a green light above an amber warning
+    // is how this went unnoticed for as long as it did.
     var where = !s.on ? "off"
+      : lanDown && s.lan_only ? "not reachable"
+      : lanDown ? "relay only"
       : s.lan_only ? "home network only"
       : s.relay === "connected" ? "ready"
       : s.relay;
     $("shareState").textContent = where;
-    $("shareState").classList.toggle("on", s.on && (s.relay === "connected" || s.lan_only));
+    $("shareState").classList.toggle("on",
+      s.on && !lanDown && (s.relay === "connected" || s.lan_only));
+
+    // Shown only when something is wrong. A line that is always there is a
+    // line people stop reading, which is how the old status word earned its
+    // removal.
+    var fault = $("shareFault");
+    if (fault) {
+      fault.textContent = lanDown ? (s.lan_error || "") : "";
+      fault.hidden = !lanDown || !s.lan_error;
+    }
 
     $("shareInvite").disabled = !s.on;
 
@@ -3264,9 +4426,65 @@
     return saveSetting({ schedule_on: on, schedule_from: from, schedule_to: to });
   }
 
+  /* The window, drawn along a day.
+
+     "23:00 to 06:00" has to be turned into a picture before it is obvious it
+     runs through the night rather than being an empty seven hours - and that
+     is the schedule most people actually want. A window that wraps past
+     midnight is two pieces of one bar, which is why there are two fills. */
+  function minutesOf(value) {
+    var bits = String(value || "").split(":");
+    var h = parseInt(bits[0], 10), m = parseInt(bits[1], 10);
+    if (isNaN(h) || isNaN(m)) return null;
+    return h * 60 + m;
+  }
+
+  function drawSchedule() {
+    var bar = $("schedBar");
+    if (!bar) return;
+
+    var on = $("setSchedule").classList.contains("on");
+    bar.hidden = !on;
+    if (!on) return;
+
+    var from = minutesOf($("setScheduleFrom").value);
+    var to = minutesOf($("setScheduleTo").value);
+    var a = $("schedFill"), b = $("schedFill2"), say = $("schedSay");
+    if (from === null || to === null) { bar.hidden = true; return; }
+
+    var pct = function (mins) { return (mins / 1440 * 100).toFixed(2) + "%"; };
+
+    // Equal ends is the one case the engine treats as "all day", and a bar
+    // showing a hairline would say the opposite of what happens.
+    if (from === to) {
+      a.style.left = "0"; a.style.width = "100%";
+      b.style.width = "0";
+      say.textContent = "Any time — the two times are the same.";
+      return;
+    }
+
+    if (from < to) {
+      a.style.left = pct(from); a.style.width = pct(to - from);
+      b.style.width = "0";
+    } else {
+      // Through midnight: from the start to the end of the day, and again
+      // from the start of the day to the finish.
+      a.style.left = pct(from); a.style.width = pct(1440 - from);
+      b.style.left = "0"; b.style.width = pct(to);
+    }
+
+    var span = from < to ? to - from : 1440 - from + to;
+    say.textContent = $("setScheduleFrom").value + " to " +
+      $("setScheduleTo").value + " · " +
+      (span % 60 ? (span / 60).toFixed(1) : span / 60) +
+      (span === 60 ? " hour" : " hours") +
+      (from < to ? "" : ", through midnight");
+  }
+
   $("setSchedule").addEventListener("click", function () {
     var on = !$("setSchedule").classList.contains("on");
     $("setSchedule").classList.toggle("on", on);
+    drawSchedule();
     saveSchedule(on).then(function () {
       toast(on ? "Downloads will run " + $("setScheduleFrom").value
                  + "–" + $("setScheduleTo").value
@@ -3277,12 +4495,14 @@
 
   ["setScheduleFrom", "setScheduleTo"].forEach(function (id) {
     $(id).addEventListener("change", function () {
+      drawSchedule();
       // Changing the hours while it is off is just setting them up; it should
       // not quietly switch the thing on.
       saveSchedule($("setSchedule").classList.contains("on"))
         .then(function () { toast("Saved"); pollJobs(); });
     });
   });
+  drawSchedule();
 
   /* ------------------------------------------------------- browser sign-in */
 
@@ -4319,9 +5539,34 @@
     var line = $("engineUpdate");
     if (!line) return;
     api("/api/check-engine", { force: !!force }).then(function (res) {
-      if (!res || !res.newer) { line.hidden = true; return; }
-      line.textContent = "A newer engine is published (" + res.latest +
-        "). Press Update when you have a moment.";
+      if (res && res.newer) {
+        line.textContent = "A newer engine is published (" + res.latest +
+          "). Press Update when you have a moment.";
+        line.classList.add("warn");
+        line.hidden = false;
+        return;
+      }
+      /* Saying nothing was the old answer to "is this the current one?", and
+         silence is not an answer - it reads the same whether the check passed
+         or never ran. The app has recorded when it last asked since 1.3 and
+         no screen had ever read it.
+
+         A failed check is not "up to date" either. It is the case where the
+         old silence was most wrong: no connection, and the app looked as
+         reassuring as it does when it has just confirmed the version. */
+      if (res && res.ok === false) {
+        line.textContent = "Could not check for a newer engine.";
+        line.classList.add("warn");
+        line.hidden = false;
+        return;
+      }
+
+      line.classList.remove("warn");
+      if (res && res.checked) settings.engine_checked = Date.now() / 1000;
+      var asked = settings.engine_checked;
+      line.textContent = asked
+        ? "Up to date · last checked " + ago(asked)
+        : "Up to date";
       line.hidden = false;
     });
   }
@@ -4485,6 +5730,68 @@
       if (!res.ok) toast("Could not open the browser.", "bad");
     });
   });
+
+  /* ------------------------------------------------------------ first run */
+  /* Three questions on a new install, so where files go is a choice rather
+     than something discovered afterwards.
+
+     Only ever asked once, and never of somebody who was already here: the
+     engine writes first_run_done into any settings file that predates the
+     flag, so upgrading cannot make an existing install look new.
+
+     Each control saves the moment it is used, exactly as the same control
+     does in Settings. Skip therefore means "stop asking", not "throw away
+     what I just chose" - and the two buttons differ only in whether anything
+     was touched, which is the honest shape for a screen that changes settings
+     while it is open. */
+
+  function firstRun() {
+    if (settings.first_run_done) return;
+
+    var tool = $("frToolState");
+    tool.textContent = S.hasFfmpeg ? "found" : "missing";
+    tool.classList.toggle("good", !!S.hasFfmpeg);
+    $("frToolWhy").textContent = S.hasFfmpeg
+      ? "Merging 1080p and above, MP3, trimming and clips are all available."
+      : "Without it, 1080p and above cannot be merged and MP3 is unavailable. "
+        + "Reinstalling Riplox restores it.";
+
+    $("frDirPick").addEventListener("click", function () {
+      api("/api/choose-folder", {}).then(function (res) {
+        if (res.ok) {
+          $("frDirText").textContent = res.settings.download_dir;
+          $("dirLabel").textContent = res.settings.download_dir;
+        } else if (!res.cancelled) {
+          toast(res.error || "Could not open the picker.", "bad");
+        }
+      });
+    });
+
+    // The pair on the Settings screen has to move too, or the two disagree
+    // the first time anybody looks - the toggle there is drawn from the same
+    // setting this checkbox just changed.
+    function mirror(boxId, toggleId, key) {
+      $(boxId).addEventListener("change", function () {
+        var on = $(boxId).checked;
+        $(toggleId).classList.toggle("on", on);
+        var patch = {}; patch[key] = on;
+        saveSetting(patch);
+      });
+    }
+    mirror("frPerSite", "setSubfolder", "subfolder_per_site");
+    mirror("frClip", "setAutoPaste", "auto_paste");
+
+    function done() {
+      $("firstRun").hidden = true;
+      saveSetting({ first_run_done: true });
+      $("urlInput").focus();
+    }
+    $("frDone").addEventListener("click", done);
+    $("frSkip").addEventListener("click", done);
+
+    $("firstRun").hidden = false;
+  }
+  firstRun();
 
   $("urlInput").focus();
   pollJobs();

@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Riplox — store screenshot</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    width: 1280px; height: 800px; overflow: hidden;
+    display: flex; align-items: center; gap: 72px;
+    padding: 0 88px;
+    background:
+      radial-gradient(900px 620px at 84% 12%, rgba(14,116,144,.34) 0%, transparent 62%),
+      radial-gradient(760px 560px at 6% 96%, rgba(34,184,207,.16) 0%, transparent 60%),
+      linear-gradient(160deg, #0D1522 0%, #070B12 100%);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: #E8F1F5;
+  }
+  .copy { flex: 1 1 auto; max-width: 560px; }
+  .kicker {
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 7px 13px 7px 8px; margin-bottom: 30px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.05);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.10);
+    font-size: 13px; font-weight: 500; letter-spacing: .02em; color: #9FB3C8;
+  }
+  .tile {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; border-radius: 7px 7px 7px 3px;
+    background: linear-gradient(160deg, #5BE1F5 0%, #22B8CF 100%);
+  }
+  h1 {
+    margin: 0 0 20px; font-size: 62px; line-height: 1.04;
+    font-weight: 600; letter-spacing: -.025em;
+  }
+  h1 em { font-style: normal; color: #5BE1F5; }
+  p.lead { margin: 0 0 34px; font-size: 20px; line-height: 1.5; color: #A8BCCB; }
+  ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 13px; }
+  li { display: flex; align-items: center; gap: 12px; font-size: 16px; color: #C6D6E0; }
+  li b { font-weight: 500; color: #E8F1F5; }
+  .dot {
+    flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%;
+    background: #22B8CF; box-shadow: 0 0 0 4px rgba(34,184,207,.14);
+  }
+  .stage { flex: 0 0 auto; position: relative; }
+  .stage::after {
+    content: ""; position: absolute; inset: -30px -28px -32px;
+    border-radius: 28px; background: rgba(255,255,255,.03);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.07);
+    z-index: 0;
+  }
+  iframe {
+    position: relative; z-index: 1;
+    width: 320px; border: 0; border-radius: 12px;
+    box-shadow: 0 40px 80px -32px rgba(0,0,0,.9), 0 0 0 1px rgba(255,255,255,.10);
+  }
+</style>
+</head>
+<body>
+  <div class="copy">
+    <span class="kicker"><span class="tile"></span> <span id="kicker"></span></span>
+    <h1 id="head"></h1>
+    <p class="lead" id="lead"></p>
+    <ul id="points"></ul>
+  </div>
+
+  <!-- The real popup, loaded from the real files, so this picture cannot drift
+       away from the thing it is a picture of. Its height is set per shot to
+       whatever that state actually renders to. -->
+  <div class="stage"><iframe id="shot" src="../popup.html" title="Riplox popup"></iframe></div>
+
+<script>
+const SHOTS = {
+  1: {
+    kicker: "Works with Riplox on your PC",
+    head: ['Send it to ', 'Riplox', '.'],
+    lead: "The page you are on, or any link you right-click — handed "
+        + "straight to the download manager on your computer.",
+    points: [["Nothing downloads in the browser.", true],
+             ["No access to any website.", false],
+             ["No account, no server, no network requests.", false],
+             ["A live count of what Riplox is working on.", false]],
+    height: 342,
+  },
+  2: {
+    kicker: "Three ways in",
+    head: ['Button, or ', 'right‑click', '.'],
+    lead: "Use whichever is closer. The toolbar button sends the page you are "
+        + "looking at; the right‑click menu sends a page or a single link.",
+    points: [["Send this page to Riplox", false],
+             ["Send this link to Riplox", false],
+             ["Riplox closed? It waits for it — and says so.", true],
+             ["It never claims a download that did not start.", false]],
+    height: 342,
+  },
+  3: {
+    kicker: "What it is allowed to see",
+    head: ['Access is ', 'off', ' until you ask.'],
+    lead: "Installing it grants no access to any website. Switching on the "
+        + "in‑page button is what makes the browser ask — and switching it "
+        + "off hands that access straight back.",
+    points: [["It does not read the pages you visit.", true],
+             ["The in‑page button sends one thing: that page's address.", false],
+             ["Drag it anywhere; dismiss it per site.", false],
+             ["Collects nothing. Sends nothing anywhere.", false]],
+    height: 470,
+  },
+};
+
+const which = new URLSearchParams(location.search).get("v") || "1";
+const shot = SHOTS[which];
+
+document.getElementById("kicker").textContent = shot.kicker;
+
+const head = document.getElementById("head");
+const [before, accent, after] = shot.head;
+const em = document.createElement("em");
+em.textContent = accent;
+head.append(before, em, after);
+
+document.getElementById("lead").textContent = shot.lead;
+
+const points = document.getElementById("points");
+for (const [text, strong] of shot.points) {
+  const li = document.createElement("li");
+  const dot = document.createElement("span");
+  dot.className = "dot";
+  const body = strong ? document.createElement("b") : document.createElement("span");
+  body.textContent = text;
+  li.append(dot, body);
+  points.appendChild(li);
+}
+
+document.getElementById("shot").style.height = shot.height + "px";
+</script>
+</body>
+</html>

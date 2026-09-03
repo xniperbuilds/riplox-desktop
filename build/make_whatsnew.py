@@ -46,6 +46,56 @@ INTERNAL = (
     "What's new writes itself",
 )
 
+# Lines that were true when the commit was written and are not true now,
+# because the change was taken back out. History is not rewritten for this -
+# the commits happened - but a panel that announces a room nobody can find is
+# worse than one that says nothing, and it is the app's own voice saying it.
+#
+# The whole 1.5 redesign was reverted to the classic interface on 30 August.
+# These eight lines describe screens that no longer exist. Matched on a
+# fragment, like INTERNAL, so tidying the wording later cannot silently
+# resurrect one.
+# Checked one at a time against the interface that is actually shipping, not
+# assumed from the commit they came in.
+#
+# This list started at seventeen, when the 1.5 redesign was reverted and every
+# screen built on it went with it. Fourteen have since come off: some were
+# never gone at all, and the rest were rebuilt on the classic interface one at
+# a time. What remains is the three that describe the redesign itself - six
+# rooms instead of eight, Activity, and Convert as an overlay - and those are
+# the only ones that are still not true.
+#
+# A line leaves this list the moment the feature exists again. It has to, or
+# the panel starts lying in the other direction: hiding something the app
+# really does.
+#
+# ⚠️ One line was withdrawn in error, and the mistake is worth keeping written
+# down. The check was a grep for a UI name that the classic interface happens
+# not to use, and the conclusion drawn was that the feature was gone. It was
+# not. A line is only safe to withdraw after reading the code that renders it -
+# a name that does not appear proves nothing at all.
+# Lines a later one has absorbed. Separate commits, so separate trailers - but
+# to somebody reading the panel they are one thing each, and a list that says
+# the same thing twice reads as padding. Matched on a fragment, like the two
+# lists below.
+# ⚠️ Each fragment is chosen to match ONLY the line being retired. A
+# fragment that also appears in the line replacing it would filter the
+# replacement out too, and the panel would lose the feature altogether.
+SUPERSEDED = (
+    "instead of loading a folder yourself",
+    "sits in the rail from every screen",
+    "or take them all at once",
+    "Only the chapters you tick are fetched",
+    "drawn under the video with its five busiest",
+    "Cut those moments straight out",
+)
+
+WITHDRAWN = (
+    "Riplox has been redesigned",
+    "Queue and Failed are one room",
+    "Converting to audio opens over your library",
+)
+
 
 def git(*args: str) -> str:
     """Run git in the repo. Empty string if it fails for any reason."""
@@ -59,8 +109,16 @@ def git(*args: str) -> str:
 
 
 def since() -> str:
-    """The most recent tag, or "" to mean the whole history."""
-    return git("describe", "--tags", "--abbrev=0")
+    """
+    The most recent RELEASE tag, or "" to mean the whole history.
+
+    Only tags shaped like a version count. The repository holds other kinds -
+    a tag marking the classic interface, for one - and "the newest tag" quietly
+    became one of those the moment such a tag existed: the range turned into
+    nothing, and the panel came out empty with no complaint. What this wants is
+    the last release, so that is what it asks for.
+    """
+    return git("describe", "--tags", "--abbrev=0", "--match", "v[0-9]*")
 
 
 def collect() -> list:
@@ -73,20 +131,33 @@ def collect() -> list:
     if not raw:
         return []
 
-    items, hidden = [], False
+    items, hidden, gone, merged = [], 0, 0, 0
     for message in raw.split("\x00"):
         for found in TRAILER.finditer(message):
             line = " ".join(found.group(1).split())
             if not line or line.lower() == "skip" or line in items:
                 continue
             if any(mark in line for mark in INTERNAL):
-                hidden = True        # real work, but nothing a user can act on
+                hidden += 1          # real work, but nothing a user can act on
+                continue
+            if any(mark in line for mark in WITHDRAWN):
+                gone += 1            # shipped in a commit, taken back out since
+                continue
+            if any(mark in line for mark in SUPERSEDED):
+                merged += 1          # a later line says this and more
                 continue
             items.append(line)
 
-    # The plumbing still gets one honest line rather than being pretended away.
+    # The panel lists features and nothing else - Nazim, 28 Aug: "whatsnew man
+    # sirf features daalna, fixes khatam kr do". The plumbing used to get one
+    # summary line here; it is a changelog's job, not this panel's. `hidden`
+    # is still counted so the run says how many lines it left out.
     if hidden:
-        items.append("Plus the usual fixes and small improvements underneath.")
+        print(f"  {hidden} internal line(s) left out - this panel is features only")
+    if gone:
+        print(f"  {gone} line(s) left out - the change was reverted since")
+    if merged:
+        print(f"  {merged} line(s) left out - a later line covers them")
     return items[:MAX_ITEMS]
 
 

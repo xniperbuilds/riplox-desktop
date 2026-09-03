@@ -252,7 +252,12 @@ body::before {                       /* faint technical grid */
 }
 .wordmark i { font-style: normal; color: var(--cyan-ink); opacity: var(--soft-o-2); }
 
-.tabs { display: flex; flex-direction: column; gap: 2px; }
+/* The nav takes the rail's spare height, which is what puts the live panel and
+   the foot at the bottom in that order. Doing it with an auto margin on each
+   of them does not work: two auto margins SPLIT the free space, so the panel
+   ends up floating with a gap under it. Grow but never shrink - a short window
+   scrolls the rail rather than squeezing the tabs. */
+.tabs { display: flex; flex-direction: column; gap: 2px; flex: 1 0 auto; }
 
 .tab {
   position: relative;
@@ -305,7 +310,71 @@ body::before {                       /* faint technical grid */
   text-align: center;
 }
 
+/* What is downloading, in the corner of the rail. It has no auto margin of its
+   own - the nav above takes the spare height, so this and the foot land at the
+   bottom in order. See .tabs. */
+.rail-live {
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.live-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 10px;
+}
+.live-head span {
+  font-family: var(--display);
+  font-size: 10px;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.live-head em { font-style: normal; font-size: 11px; color: var(--ink-dim); }
+.live-row { padding: 8px; border-radius: var(--r-s); }
+.live-row + .live-row { margin-top: 2px; }
+.live-title {
+  font-size: 12px;
+  color: var(--ink-dim);
+  margin-bottom: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.live-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 7px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.live-meta span { overflow: hidden; text-overflow: ellipsis; }
+
 .side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+
+/* The one thing in the rail that leaves Riplox. Quiet on purpose: it has to
+   be findable without competing with the rooms above it, which are where the
+   work happens. */
+.side-link {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--well);
+  color: var(--ink-dim);
+  font-family: var(--body);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.side-link svg { width: 16px; height: 16px; flex: none; }
+.side-link:hover { color: var(--ink); border-color: rgba(var(--cyan-rgb), .45); }
 
 /* Three states, not a switch: "Auto" has to be sayable, and a two-position
    toggle cannot say it. */
@@ -498,6 +567,31 @@ button { font-family: var(--body); }
 .primary:disabled { opacity: .45; cursor: default; transform: none; box-shadow: none; }
 .primary.big { padding: 13px 28px; font-size: 15px; }
 
+/* RIP, and under it what is about to be taken. Two lines rather than a long
+   label, so the button keeps its shape whether the second line says
+   "Everything" or "12 selected". The stack is scoped to .rip - every other
+   .primary in the app is one line and stays a row. */
+.rip {
+  flex-direction: column;
+  gap: 1px;
+  padding-top: 9px;
+  padding-bottom: 9px;
+  line-height: 1.15;
+}
+.rip b { font-size: 16px; font-weight: 700; letter-spacing: .12em; }
+.rip em {
+  font-family: var(--body);
+  font-size: 10.5px;
+  font-style: normal;
+  font-weight: 500;
+  letter-spacing: .02em;
+  opacity: .78;
+  max-width: 15ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .ghost {
   padding: 10px 16px;
   border: 1px solid var(--line);
@@ -540,6 +634,18 @@ button { font-family: var(--body); }
   color: var(--cyan-ink); font-size: 12.5px;
   cursor: pointer; text-decoration: underline;
 }
+/* ⚠ #chapterNote is a .hint only for its type size. The dashed cyan box
+   above belongs to the clipboard offer, which is something to act on; this
+   is a fact to read past, and in the box it read as a warning that a feature
+   had failed. */
+#chapterNote {
+  margin-top: 10px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--ink-faint);
+}
+
 .hint em {
   font-style: normal;
   font-family: var(--mono);
@@ -643,6 +749,16 @@ button { font-family: var(--body); }
 
 .preview-media { position: relative; }
 
+/* Everything below the quality chips spans the whole card rather than sharing
+   the column beside the thumbnail. That column measures 509px, which fits one
+   block; the card is 830 and fits two, which is the layout these were designed
+   for. The actions row comes with them - left in the column it would sit above
+   the options, and a "download it" button does not belong above the choices it
+   acts on. */
+.preview > #heatBox,
+.preview > #moreBox,
+.preview > .preview-actions { grid-column: 1 / -1; }
+
 .preview-media img {
   width: 100%;
   aspect-ratio: 16 / 9;
@@ -723,6 +839,69 @@ button { font-family: var(--body); }
 
 .chips { display: flex; flex-wrap: wrap; gap: 7px; }
 
+/* ⚠️ Scoped to #qualityChips rather than .chips, because the clip lengths use
+   the same class and are a row of pills, which is right for them.
+   Six columns so the two answers can take three each and the rungs two, which
+   is the two-then-three the design asks for without a second container - and
+   the click delegation still has exactly one .chip list to look at. */
+#qualityChips {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+}
+/* One shape for both sizes of chip: name left, size hard right, and anything
+   after that on its own line. A rung has nothing after it, so it stays the
+   single row it looks like. */
+#qualityChips .chip {
+  grid-column: span 2;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 2px 8px;
+  padding: 9px 12px;
+  border-radius: var(--r-s);
+  text-align: left;
+}
+#qualityChips .chip-note { grid-column: 1 / -1; }
+#qualityChips .chip-name { font-weight: 500; }
+#qualityChips .chip-size {
+  font-family: var(--mono);
+  font-size: 11px;
+  opacity: 1;
+  color: var(--ink-faint);
+}
+
+/* The question most people are answering, given the room to look like it.
+   The weight is in the size of the target and the second line, not in colour -
+   colour is spent on whichever one is chosen. */
+/* ⚠ No justify-content here. The shared rule used to say space-between,
+   which reads as "size to the right" across a row and as "note to the floor"
+   down a column - so Max's second line sat at the bottom of the card while
+   Best's sat under its name. The grid above places both without it. */
+#qualityChips .chip.auto {
+  grid-column: span 3;
+  padding: 11px 14px;
+}
+#qualityChips .chip.auto .chip-name { font-size: 14px; color: var(--ink); }
+#qualityChips .chip.auto .chip-note {
+  font-style: normal;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--ink-faint);
+}
+
+/* A filled pill is fine at pill size and shouts at card size, so the chosen
+   answer is tinted instead - and its own name carries the accent. */
+#qualityChips .chip.auto.is-on {
+  background: rgba(var(--cyan-rgb), .10);
+  border-color: rgba(var(--cyan-rgb), .55);
+  color: var(--ink);
+  box-shadow: none;
+}
+#qualityChips .chip.auto.is-on .chip-name { color: var(--cyan-ink); }
+#qualityChips .chip.auto.is-on .chip-note { color: var(--ink-dim); }
+#qualityChips .chip.is-on .chip-size { color: inherit; }
+
 .chip {
   padding: 7px 14px;
   border: 1px solid var(--line);
@@ -744,6 +923,12 @@ button { font-family: var(--body); }
 .chip.audio.is-on { background: var(--pink); border-color: var(--pink); color: var(--on-pink); box-shadow: 0 6px 18px -10px var(--pink); }
 
 .preview-actions { display: flex; align-items: center; gap: 10px; }
+.rip-summary {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-faint);
+}
+.rip-summary[hidden] { display: none; }
 
 /* --- more options -------------------------------------------------------- */
 
@@ -774,22 +959,93 @@ button { font-family: var(--body); }
 .more[open] > summary::before { transform: rotate(45deg) translate(-1px, -1px); }
 .more > summary:hover { color: var(--ink-dim); }
 
+/* Eight unrelated concerns used to sit in one well, separated by hairlines -
+   the exact format table, subtitles, the trim, the file name, sign-in, the
+   player client, three checkboxes and the cover picture. Reported as rushed
+   and confusing, and fairly: nothing said where one ended and the next began.
+   Each is its own block now, two across, because the single column they were
+   stacked in used half the width and left the other half empty. */
 .more-body {
   margin-top: 12px;
-  padding: 14px 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-s);
-  background: var(--well);
+  display: grid;
+  /* ⚠️ minmax(0,...) rather than a bare 1fr, and auto-fit rather than a fixed
+     two. A bare 1fr is minmax(auto, 1fr) and will not shrink below its
+     content, so the format table inside the first block pushed that column to
+     902px inside a 509px panel - measured, and it overflowed. This panel is
+     509px wide beside the thumbnail, which is one block across; a wider window
+     gets two without another rule. */
+  /* 340 rather than 260: the row is 863px wide once these span the whole
+     card, and 260 fitted three columns of 279px, which is narrower than a
+     from/to pair of selects wants. 340 gives the two the design was drawn
+     for, and still folds to one if the window is made small. */
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 12px;
 }
 
-.more-sec + .more-sec { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
-.more-sec > label,
+/* No align-items here on purpose: left alone the grid stretches both cells in
+   a row to the taller one, so two blocks side by side end level instead of one
+   stopping short. */
+.more-sec {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--panel);
+}
+
+/* ⚠️ A grid item with a display of its own would out-argue the hidden
+   attribute, and half of these sections are hidden until they apply. This
+   keeps hidden winning whatever else is set below. */
+.more-sec[hidden] { display: none; }
+
+/* The ones that need the width say so rather than being cramped into half. */
+.more-sec.full { grid-column: 1 / -1; }
+
+/* Last, not first. The exact-format table used to greet anyone who opened the
+   options - a table of format ids and codecs above subtitles and the trim -
+   and it is the single most technical thing on the screen. Order rather than
+   moving the markup: it costs one class and cannot break a handler. */
+.more-sec.adv { order: 10; }
+
+/* ⚠️ Two labels were still shouting. The uppercase and the letter-spacing came
+   from a rule further up that these inherit, and it was doing the job that
+   size and colour should do - at the cost of being harder to read, which is
+   the opposite of what a label is for. */
+.also-audio > span,
+.chapter-all > span {
+  font-family: var(--body);
+  font-size: 12.5px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* A step with something to press. The button keeps its own width and sits
+   against the text rather than under it, so five steps read as five actions
+   rather than as five more paragraphs. */
+.more-sec.step {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+.step-text { flex: 1; min-width: 0; }
+.more-sec.step > .ghost.small { flex: none; margin-top: 2px; }
+/* ⚠️ These were one rule, and that was the whole of the confusion: a block's
+   heading and a single field's name were both 10px uppercase mono in the
+   faintest ink, so they were indistinguishable and nothing looked like a
+   heading at all.
+   A block's own heading now reads as one. */
+.more-sec > label {
+  display: block;
+  font: 500 13px/1.3 var(--body);
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+
+/* A field's name stays small, because it labels one control rather than a
+   section - but the uppercase and the letter-spacing go. They were doing the
+   work that size and colour should do, and they cost legibility to do it. */
 .more-row > label:not(.more-field) {
   display: block;
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: .16em;
-  text-transform: uppercase;
+  font: 400 11px/1.4 var(--body);
   color: var(--ink-faint);
 }
 
@@ -902,6 +1158,9 @@ button { font-family: var(--body); }
 .playlist-bar {
   display: flex;
   align-items: center;
+  /* Six controls, so it wraps rather than squeezing the filter box down to
+     nothing on a narrow window. */
+  flex-wrap: wrap;
   gap: 12px;
   padding: 10px 13px;
   border-bottom: 1px solid var(--line);
@@ -936,9 +1195,6 @@ button { font-family: var(--body); }
   white-space: nowrap;
 }
 
-/* The bar now holds six controls, so it wraps rather than squeezing the
-   filter box down to nothing on a narrow window. */
-.playlist-bar { flex-wrap: wrap; }
 .playlist-bar select { flex: none; padding: 6px 9px; font-size: 12.5px; }
 .playlist-bar .ghost.small { flex: none; }
 
@@ -961,6 +1217,12 @@ button { font-family: var(--body); }
   font-size: 12.5px;
 }
 .pl-first input:focus { outline: 0; border-color: rgba(var(--cyan-rgb), .4); }
+
+/* How big that quality will be, on the chip itself. It is an <em>, which the
+   browser italicises, and the only rule that turned that off was the upscaled
+   one - so every ordinary chip was showing its size in italics. Dimmed with
+   opacity rather than a colour, because the chip inverts when it is chosen. */
+.chip-size { font-style: normal; opacity: .72; }
 
 /* A quality that only exists because YouTube enlarged the video with AI.
    Marked amber rather than hidden: the number is real, what made it is not. */
@@ -1432,7 +1694,25 @@ button { font-family: var(--body); }
   color: var(--ink-faint);
 }
 
-.update-bar { border-left-color: var(--amber); }
+/* Across the top of whichever room you are in, until it is acted on or put
+   off. Amber rather than red: nothing is broken, there is simply a newer one.
+   Not a modal - a bar that can be read past is what keeps it from being
+   clicked away without being read. */
+.update-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 18px;
+  padding: 11px 16px;
+  border: 1px solid rgba(var(--amber-rgb), .45);
+  border-left: 3px solid var(--amber);
+  border-radius: var(--r);
+  background: rgba(var(--amber-rgb), .08);
+  font-size: 13px;
+  color: var(--ink);
+}
+.update-bar b { font-weight: 500; flex: 1; }
+.update-bar[hidden] { display: none; }
 
 /* --- channel sections ---------------------------------------------------- */
 
@@ -1740,6 +2020,32 @@ button { font-family: var(--body); }
 
 .watch-err { margin: 0 14px 12px; font-size: 12px; }
 
+/* Everything new from every watched channel, above the channels themselves.
+   It is the part anybody came to this screen for, so it is first. */
+.watch-new {
+  margin-bottom: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--panel);
+  overflow: hidden;
+}
+.wn-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.wn-head > label {
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.wn-count { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); }
+#watchNewList { padding: 4px 14px 10px; background: var(--well); }
+
 .new-list {
   padding: 4px 14px 14px;
   border-top: 1px solid var(--line-soft);
@@ -2046,6 +2352,21 @@ button { font-family: var(--body); }
 
 /* --- did anything get lost? ---------------------------------------------- */
 
+/* Only ever seen when the home-network listener is down. Amber rather than
+   red: the relay path may well still be working, so this is one road closed
+   and not the whole feature. */
+.share-fault {
+  margin: 10px 0 0;
+  padding: 9px 13px;
+  border: 1px solid rgba(var(--amber-rgb), .45);
+  border-radius: var(--r-s);
+  background: rgba(var(--amber-rgb), .07);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-dim);
+}
+.share-fault[hidden] { display: none; }
+
 .share-check {
   display: flex;
   align-items: center;
@@ -2155,6 +2476,183 @@ button { font-family: var(--body); }
 }
 .also-audio input { cursor: pointer; }
 .also-audio:hover { color: var(--ink); }
+
+/* --- the video's own chapters -------------------------------------------- */
+
+.chapters { margin-top: 12px; }
+.chapters > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  cursor: pointer;
+  list-style: none;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  transition: color .18s;
+}
+.chapters > summary::-webkit-details-marker { display: none; }
+.chapters > summary::before {
+  content: "";
+  width: 5.5px; height: 5.5px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform .2s var(--ease);
+}
+.chapters[open] > summary::before { transform: rotate(45deg) translate(-1px, -1px); }
+.chapters > summary:hover { color: var(--ink-dim); }
+
+/* A video can have two hundred chapters and not one of them may be hidden,
+   so the list scrolls instead of being cut short. */
+.chapter-list {
+  margin: 9px 0 0;
+  padding: 6px 0;
+  max-height: 232px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--well);
+  list-style: none;
+}
+.chapter-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 9px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+.chapter-all input { cursor: pointer; }
+.chapter-all:hover { color: var(--ink); }
+
+.chapter-list li label {
+  display: flex;
+  align-items: baseline;
+  gap: 11px;
+  padding: 5px 13px;
+  font-size: 12.5px;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+.chapter-list li label:hover { color: var(--ink); background: var(--line-soft); }
+.chapter-list .ch-pick { flex: none; cursor: pointer; }
+.chapter-list .ch-at {
+  flex: none;
+  min-width: 46px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+/* A chapter title can run the width of the screen. It wraps rather than
+   pushing the whole panel sideways. */
+.chapter-list .ch-title { min-width: 0; overflow-wrap: anywhere; }
+/* Two chapters under one title. Marked here rather than explained later,
+   because the folder is the wrong place to learn it. */
+.chapter-list .ch-twin {
+  display: inline-block;
+  margin-left: 7px;
+  padding: 0 5px;
+  border-radius: var(--r-s);
+  background: rgba(var(--cyan-rgb), .12);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--cyan-ink);
+  cursor: help;
+}
+
+/* --- what people went back to -------------------------------------------- */
+
+/* Same shape as the chapter list on purpose: they sit under the same chips,
+   they are both read-only, and two different-looking panels there would read
+   as two different kinds of thing. */
+.heatmap { margin-top: 12px; }
+.heatmap > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  cursor: pointer;
+  list-style: none;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  transition: color .18s;
+}
+.heatmap > summary::-webkit-details-marker { display: none; }
+.heatmap > summary::before {
+  content: "";
+  width: 5.5px; height: 5.5px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform .2s var(--ease);
+}
+.heatmap[open] > summary::before { transform: rotate(45deg) translate(-1px, -1px); }
+.heatmap > summary:hover { color: var(--ink-dim); }
+
+.heat-graph {
+  margin-top: 9px;
+  padding: 8px 10px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--well);
+}
+/* The viewBox is stretched to whatever width the panel has, so the curve
+   keeps its shape while the box does not have to. */
+.heat-graph svg { display: block; width: 100%; height: 64px; }
+.heat-area { fill: rgba(var(--cyan-rgb), .16); stroke: none; }
+.heat-line { fill: none; stroke: var(--cyan-ink); stroke-width: 1.4; }
+/* Behind the curve, not over it: a marker that hides the shape it is marking
+   is worse than no marker. */
+.heat-mark { stroke: rgba(var(--cyan-rgb), .42); stroke-width: 1; }
+
+.heat-peaks {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.heat-peaks li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 2px;
+  font-size: 12.5px;
+  color: var(--ink-dim);
+}
+.heat-rank {
+  flex: none;
+  width: 17px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-faint);
+}
+.heat-at {
+  flex: none;
+  min-width: 46px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+/* A bar, deliberately without a number on it - see the comment where it is
+   built. It says "busier than that one" and claims nothing more. */
+.heat-bar {
+  flex: 1;
+  min-width: 40px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--line-soft);
+  overflow: hidden;
+  cursor: help;
+}
+.heat-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--cyan-ink);
+}
 
 /* --- who you download from ----------------------------------------------- */
 
@@ -2271,12 +2769,361 @@ button { font-family: var(--body); }
 }
 .roadmap li.done::before { content: "✓"; color: var(--cyan-ink); }
 .roadmap li.done { color: var(--ink-faint); }
+
+/* ⚠️ What's new is not a roadmap, and this is where that difference shows.
+   A roadmap fades what has landed so the eye goes to what has not; What's new
+   is nothing BUT landed items, so that rule painted every line in the colour
+   meant for the half you are not reading.
+
+   Measured on the panel's own dark ground: 5.83:1 before, 7.55:1 after. Both
+   clear the 4.5:1 floor - this is legibility, not a failure being repaired,
+   and the first measurement that said otherwise was comparing the text against
+   white because the panel's background is a 3.5% white veil and only its first
+   three numbers were read. */
+#whatsNew li.done { color: var(--ink-dim); }
+#whatsNew li.done b { color: var(--ink); }
 .roadmap li b { color: var(--ink); font-weight: 600; }
 .roadmap li.done b { color: var(--ink-dim); font-weight: 600; }
 
 /* --- the site picker ----------------------------------------------------- */
 
 /* Wider than the ask box: this one holds a grid, not a sentence. */
+/* --- Ctrl+K --------------------------------------------------------------- */
+
+/* Near the top rather than centred: the list grows downwards as it fills, and
+   a box that keeps re-centring itself while being typed into is hard to read. */
+.scrim-top { align-items: flex-start; padding-top: 12vh; }
+
+.dlg-pal { width: min(660px, 100%); max-height: 70vh; padding: 0; overflow: hidden;
+           display: flex; flex-direction: column; }
+
+.pal-omni {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  flex: none;
+  padding: 0 18px;
+  height: 56px;
+  border-bottom: 1px solid var(--line);
+}
+.pal-omni svg { flex: none; width: 17px; height: 17px; color: var(--ink-faint); }
+.pal-omni input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 15px;
+}
+.pal-omni input:focus { outline: 0; }
+.pal-omni input::placeholder { color: var(--ink-faint); }
+
+.pal-body { flex: 1; min-height: 0; overflow-y: auto; padding: 8px; }
+.pal-group {
+  padding: 10px 10px 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.pal-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  border-radius: var(--r-s);
+  cursor: pointer;
+}
+.pal-row.is-on { background: rgba(var(--cyan-rgb), .12); }
+.pal-label { flex: 1; min-width: 0; font-size: 13.5px; color: var(--ink);
+             overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pal-hint { flex: none; max-width: 46%; font-size: 11.5px; color: var(--ink-faint);
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pal-none { margin: 0; padding: 22px 12px; font-size: 13px; color: var(--ink-faint); }
+
+.pal-foot {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: none;
+  padding: 9px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--well);
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+.pal-tip { margin-left: auto; }
+.pal-foot kbd, .pal-omni kbd {
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--well-2);
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-faint);
+}
+
+/* Where the palette put you. It fades rather than staying marked, because the
+   row is the answer and a permanent highlight becomes another thing to undo. */
+.field.is-hit {
+  background: rgba(var(--cyan-rgb), .10);
+  transition: background .5s var(--ease);
+}
+
+/* --- limited mode: both halves ------------------------------------------- */
+
+.alert-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+.alert-cols label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.alert-cols p {
+  margin: 5px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+}
+@media (max-width: 720px) { .alert-cols { grid-template-columns: 1fr; } }
+
+/* --- the download window, drawn ------------------------------------------ */
+
+.sched-bar { padding: 0 18px 15px; }
+.sched-track {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--track);
+  overflow: hidden;
+}
+/* Two, because a window that runs through midnight is one period drawn as
+   two pieces of the same day. */
+.sched-track i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  background: linear-gradient(90deg, var(--cyan), var(--cyan-2));
+}
+.sched-ticks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--ink-faint);
+}
+.sched-say {
+  margin: 7px 0 0;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+/* --- what a page read left out -------------------------------------------- */
+
+.grab-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--line);
+}
+.grab-chips .chip { flex: none; white-space: nowrap; }
+
+.grab-left { padding: 6px; }
+.gl-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  border-radius: var(--r-s);
+}
+.gl-row + .gl-row { border-top: 1px solid var(--line-soft); }
+.gl-what { flex: 1; min-width: 0; }
+.gl-what b {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gl-what span {
+  display: block;
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+/* The one reason that is not merely informational: Riplox cannot fetch these
+   at all, and that is worth a colour the other three do not get. */
+.gl-what span.gl-warn { color: var(--amber-ink); }
+.gl-site {
+  flex: none;
+  max-width: 180px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.grab-foot {
+  margin: 0;
+  padding: 10px 13px 12px;
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+
+/* --- insights, and the first-run questions -------------------------------- */
+
+/* Both hold rows rather than a sentence, so they get the site picker's width
+   rather than the ask box's. */
+.dlg-wide { width: min(620px, 100%); }
+
+.ins-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+.ins-tile {
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--well);
+}
+.ins-tile label {
+  display: block;
+  font-size: 10px;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.ins-tile b {
+  display: block;
+  margin-top: 7px;
+  font-family: var(--display);
+  font-size: 21px;
+  font-weight: 600;
+  color: var(--ink);
+  /* A site name can be long where a count never is, and this is the one tile
+     that holds one. It shortens rather than widening the grid column. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ins-tile span {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+
+.ins-where { margin-top: 18px; }
+.ins-where > label {
+  display: block;
+  margin-bottom: 9px;
+  font-size: 12.5px;
+  color: var(--ink-dim);
+}
+.ins-sites {
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  overflow: hidden;
+}
+.ins-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 14px;
+  font-size: 12.5px;
+}
+.ins-row + .ins-row { border-top: 1px solid var(--line-soft); }
+.ins-site { flex: 1; min-width: 0; color: var(--ink);
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ins-count { flex: none; font-family: var(--mono); font-size: 11px; color: var(--ink-dim); }
+/* Wide enough for either verdict, so the column does not jump between rows. */
+.ins-bad, .ins-ok { flex: none; width: 84px; text-align: right; font-size: 11px; }
+.ins-bad { color: var(--pink); }
+.ins-ok { color: var(--ink-faint); }
+
+/* The export sits at the far left of the foot: it is about the library, not
+   about closing this box, and putting the two side by side reads as a choice
+   between them. */
+.ins-export { margin-right: auto; min-width: 0; }
+
+.fr-card {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--well);
+}
+.fr-card > label {
+  display: block;
+  font-family: var(--display);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.fr-card > span {
+  display: block;
+  margin-top: 5px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-dim);
+}
+.fr-dir {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+.fr-dir code {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--well-2);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fr-check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 11px;
+  font-size: 12.5px;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+.fr-check input { flex: none; }
+.fr-note {
+  margin-right: auto;
+  align-self: center;
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+/* The state of the media tool is the one tag in the app that can be good news,
+   so it is not left amber like the rest. */
+.tag.good { color: var(--cyan); }
+
 .dlg-sites { width: min(620px, 100%); }
 
 .dlg-sites .text-input {
@@ -2667,7 +3514,9 @@ select:focus { border-color: rgba(var(--cyan-rgb), .45); }
   /* Below this width the labels are what has to go, not the navigation. */
   .sidebar { width: 62px; padding: 16px 8px 14px; align-items: center; }
   .brand { padding: 4px 0 0; }
-  .wordmark, .tab-label, .theme-pick button span { display: none; }
+  /* The live panel steps aside too: a title and a speed cannot be read in
+     62 pixels, and the icons are what this width exists to keep. */
+  .wordmark, .tab-label, .theme-pick button span, .rail-live { display: none; }
   .theme-pick button b { display: block; }
   .tabs { width: 100%; }
   .tab { justify-content: center; padding: 10px 0; }
@@ -2683,3 +3532,6 @@ select:focus { border-color: rgba(var(--cyan-rgb), .45); }
   .status { padding: 6px; justify-content: center; }
   .status span:not(.dot) { display: none; }
 }
+
+.clip-row { margin-top: 9px; }
+.clip-row .chips { gap: 6px; }

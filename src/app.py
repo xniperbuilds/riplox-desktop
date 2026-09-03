@@ -34,7 +34,7 @@ import sharing
 import watch
 
 APP_TITLE = "Riplox"
-VERSION = "1.4.1"
+VERSION = "1.5.0"
 
 
 def resource_dir() -> Path:
@@ -146,6 +146,9 @@ def index():
         # from one that is just where a file happened to land.
         sites=engine.known_sites(),
         whats_new=whats_new(),
+        # One copy of the listing address. The rail's button reads this rather
+        # than carrying its own, so the id cannot drift between them.
+        store_url=STORE_URL,
     )
 
 
@@ -182,6 +185,12 @@ def api_analyze():
         return jsonify({"ok": False, "error": "Paste a link first."}), 400
     if not url.lower().startswith(("http://", "https://")):
         return jsonify({"ok": False, "error": "That does not look like a link."}), 400
+    # A scheme with nothing after it passed the line above and came back from
+    # the engine as urllib's own "Invalid URL 'https://': No host supplied",
+    # with the input quoted inside it. Every other shape that cannot be a link
+    # is refused right here, in words; this one was not.
+    if not url.split("://", 1)[1].strip(" /"):
+        return jsonify({"ok": False, "error": "That link has no site in it."}), 400
 
     try:
         info = engine.analyze(url, engine.load_settings())
@@ -288,6 +297,33 @@ def api_add():
     if batch:
         opts.pop("format_id", None)
         opts.pop("outtmpl", None)
+        # Chapters belong to the one video they were read from. The second
+        # video in a playlist has its own, so carrying these titles across
+        # forty of them would ask each for chapters it has never had.
+        opts.pop("chapters", None)
+        opts.pop("chapters_all", None)
+
+    # Every ticked title travels as its own argument, and Windows takes 32767
+    # characters in a whole command. Nobody ticks two hundred long titles by
+    # hand, but a request that quietly became a whole-video download would be
+    # the worst possible answer to one that did.
+    # A name typed by hand names ONE file. A chapter or clip download makes a
+    # folder of them, and yt-dlp resolves every section to that same name -
+    # measured: two chapters, one "my name.webm", the second landing on the
+    # first. Refused rather than resolved, because which of the two the user
+    # meant is not something this can know.
+    if opts.get("outtmpl") and (opts.get("chapters") or opts.get("chapters_all")
+                                or opts.get("clips")):
+        return jsonify({"ok": False,
+                        "error": "A file name of your own covers one file, "
+                                 "and this makes a folder of them. Clear the "
+                                 "name, or download the whole video."}), 400
+
+    if sum(len(name) for name in opts.get("chapters") or []) > 20000:
+        return jsonify({"ok": False,
+                        "error": "That is too many chapters to ask for by "
+                                 "name at once. Tick All chapters instead, "
+                                 "or choose fewer."}), 400
 
     # More than one output from one press: the video AND the mp3, rather than
     # downloading the same link twice by hand. Only qualities the engine
@@ -657,6 +693,12 @@ def api_job_log():
     """The raw engine output for one job - for reporting a problem."""
     job_id = (request.json or {}).get("id", "")
     return jsonify({"ok": True, "log": manager.job_log(job_id)})
+
+
+@app.get("/api/insights")
+def api_insights():
+    """What the library already knows. Reads two files; fetches nothing."""
+    return jsonify(engine.insights())
 
 
 @app.post("/api/clear-finished")
@@ -1245,11 +1287,36 @@ def extension_dir() -> Path:
 # --------------------------------------------------------------------------
 
 HOST_NAME = "com.xniperbuilds.riplox"
-EXTENSION_ID = "eceoennjnigbildembfcpdlmiaahocnm"
+# Both, and the order does not matter. Chrome hands a published extension a
+# different id from the same code loaded as a folder, so a host that names one
+# of them turns the other into an extension that cannot speak to Riplox - which
+# is exactly what anyone installing from the store got until this line.
+#
+#   eceo…  the folder in this repository, loaded unpacked
+#   hacb…  the Chrome Web Store listing
+#
+# The unpacked one stays. It is how this is developed, and it is how somebody
+# whose browser has no store still gets the button.
+EXTENSION_IDS = ("eceoennjnigbildembfcpdlmiaahocnm",
+                 "hacbllnggmnnajhobdgcklhdmaoddnnh")
+
+# Kept for anything still asking for one. The store listing is the one a normal
+# install has.
+EXTENSION_ID = EXTENSION_IDS[1]
+
+# One address, owned by engine.py, which is also where the allowlist that
+# decides whether it may be opened at all lives. Two copies of it was how the
+# button came to ask for a link the app would not open.
+STORE_URL = engine.STORE_PAGE
 
 _HOST_KEYS = (r"Software\Google\Chrome\NativeMessagingHosts",
               r"Software\Microsoft\Edge\NativeMessagingHosts",
               r"Software\BraveSoftware\Brave-Browser\NativeMessagingHosts")
+
+# The same three, by the name a person calls them. Settings says which browser
+# can reach this copy, and "a browser" is not an answer when two are installed
+# and only one of them works.
+_HOST_NAMES = ("Chrome", "Edge", "Brave")
 
 # riplox:// is the extension's other half - the handoff that opens Riplox when
 # it is closed. Registering one without the other leaves a button that works
@@ -1269,23 +1336,35 @@ def _same_file(one: str, other: str) -> bool:
             == other.strip().lower().replace("/", "\\"))
 
 
-def browser_connected() -> bool:
-    """Does any browser already point at this copy's native-host.json?"""
+def connected_browsers() -> list:
+    """Which browsers already point at this copy's native-host.json.
+
+    This walked the same three keys and returned True at the first hit,
+    throwing away the name it had just read. Settings can now say Chrome and
+    Edge rather than "a browser", which matters on the ordinary PC with two
+    installed and one of them connected.
+    """
     want = str(native_host_file())
     try:
         import winreg
     except ImportError:
-        return False
-    for sub in _HOST_KEYS:
+        return []
+    found = []
+    for sub, name in zip(_HOST_KEYS, _HOST_NAMES):
         try:
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
                                 sub + "\\" + HOST_NAME) as key:
                 value, _ = winreg.QueryValueEx(key, "")
             if _same_file(str(value), want):
-                return True
+                found.append(name)
         except OSError:
             continue
-    return False
+    return found
+
+
+def browser_connected() -> bool:
+    """Does any browser point at this copy? Kept for every existing caller."""
+    return bool(connected_browsers())
 
 
 def _write_host_manifest() -> Path:
@@ -1316,7 +1395,8 @@ def _write_host_manifest() -> Path:
         "description": "Riplox",
         "path": str(where.parent / "RiploxHost.exe"),
         "type": "stdio",
-        "allowed_origins": ["chrome-extension://" + EXTENSION_ID + "/"],
+        "allowed_origins": ["chrome-extension://" + one + "/"
+                            for one in EXTENSION_IDS],
     }, indent=2), encoding="utf-8")
     return where
 
@@ -1396,6 +1476,7 @@ def api_extension():
     return jsonify({"ok": True, "path": str(folder), "there": folder.is_dir(),
                     "portable": state,
                     "connected": browser_connected(),
+                    "browsers": connected_browsers(),
                     # Only a portable copy is ever asked to do this itself.
                     # An installed one had it done by setup.
                     "canConnect": state == "on" and getattr(sys, "frozen", False)})
@@ -1408,7 +1489,9 @@ def api_extension_connect():
     if engine.portable_state() != "on":
         return jsonify({"ok": False,
                         "error": "The installed Riplox already did this."}), 400
-    return jsonify(connect_browsers(bool(body.get("on", True))))
+    out = connect_browsers(bool(body.get("on", True)))
+    out["browsers"] = connected_browsers()
+    return jsonify(out)
 
 
 @app.post("/api/extension/open")
@@ -1446,19 +1529,22 @@ def api_open():
 
     path = Path(target)
     if not _inside_downloads(path):
-        return jsonify({"ok": False, "error": "That file is outside the download folder."}), 403
+        return jsonify({"ok": False,
+                        "error": "That download is outside the download "
+                                 "folder."}), 403
 
     if not path.exists():
         # Moved or deleted since it was downloaded - show the folder instead.
         parent = path.parent
         if not parent.exists() or not _inside_downloads(parent):
-            return jsonify({"ok": False, "error": "That file is no longer there."}), 404
+            return jsonify({"ok": False,
+                            "error": "That download is no longer there."}), 404
         os.startfile(str(parent))  # noqa: S606
         # The note is the whole point of this branch. It used to be returned
         # and never shown, so pressing Play opened a folder and said nothing -
         # which reads as the button being broken rather than the file having
         # moved.
-        return jsonify({"ok": True, "note": "That file is not where Riplox "
+        return jsonify({"ok": True, "note": "That download is not where Riplox "
                                             "left it, so its folder is open "
                                             "instead."})
 
@@ -1493,11 +1579,72 @@ def api_engine_progress():
     return jsonify({"ok": True, "progress": engine.engine_progress()})
 
 
+def _engine_busy() -> bool:
+    """Is anything downloading? Then the engine is not to be swapped."""
+    try:
+        return any(j.get("status") in engine.DownloadManager.ACTIVE
+                   for j in manager.snapshot())
+    except Exception:                                       # noqa: BLE001
+        return True          # unsure means leave it alone
+
+
+def _fetch_engine_quietly():
+    """Fetch a newer engine on a background thread, once, and say nothing."""
+    def work():
+        try:
+            engine.update_engine()
+        except Exception:                                   # noqa: BLE001
+            pass          # a failed update is the state we were already in
+    threading.Thread(target=work, name="riplox-engine-auto", daemon=True).start()
+
+
 @app.post("/api/check-engine")
 def api_check_engine():
-    """Ask whether a newer engine is published. Never downloads anything."""
+    """
+    Ask whether a newer engine is published, and fetch it if it is.
+
+    ⚠️ It used to only ask. That is why installs were found months behind:
+    the fetch was a button in Settings, and an engine nobody updates is the
+    single most common reason a site stops working. "engine_auto" can turn
+    this back into asking alone.
+    """
     force = bool((request.json or {}).get("force"))
-    return jsonify(engine.check_engine_update(force))
+    verdict = engine.check_engine_update(force)
+    if (verdict.get("newer")
+            and engine.load_settings().get("engine_auto", True)
+            and not _engine_busy()):
+        _fetch_engine_quietly()
+        verdict["fetching"] = True
+    return jsonify(verdict)
+
+def _catch_up() -> None:
+    """Bring a new install up to date without being asked.
+
+    ⚠️ Ordered on purpose. The engine is small and is the thing that decides
+    whether a site works at all; the helper is 44 MB and only matters when
+    YouTube asks for proof. A first run gets the engine before the big
+    download starts competing for the line.
+
+    Everything here is best-effort. A machine with no connection on its first
+    run is a machine that carries on with the engine it shipped with.
+    """
+    settings = engine.load_settings()
+    try:
+        if settings.get("engine_auto", True) and not _engine_busy():
+            # force=True: a fresh install has never checked, and the daily
+            # throttle would otherwise hold the first check back.
+            verdict = engine.check_engine_update(force=not settings.get("first_run_done"))
+            if verdict.get("newer"):
+                engine.update_engine()
+    except Exception:                                       # noqa: BLE001
+        pass
+
+    try:
+        if settings.get("potoken", True) and not potoken.installed():
+            potoken.install()
+    except Exception:                                       # noqa: BLE001
+        pass
+
 
 
 @app.get("/api/history")
@@ -2130,6 +2277,11 @@ def main() -> None:
     cookies.sweep_temp()
     potoken.kill_orphans()
     manager.restore()
+
+    # The two things a fresh install needs and never asks for. On a thread,
+    # because neither is worth a second of a start-up, and both are safe to
+    # fail: the helper is optional and the engine already works.
+    threading.Thread(target=_catch_up, name="riplox-catch-up", daemon=True).start()
 
     # A phone that was paired yesterday should not have to be told again.
     if engine.load_settings().get("sharing"):

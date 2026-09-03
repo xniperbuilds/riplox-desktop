@@ -1,0 +1,1444 @@
+{
+  "artifact": "Riplox 1.5 desktop UI after the redesign migration @ b4790d8 (branch chapters)",
+  "generated": "2026-08-29 02:22:57",
+  "strength": 2,
+  "factors": {
+    "room": [
+      "capture",
+      "activity",
+      "library",
+      "watch",
+      "sharing",
+      "settings"
+    ],
+    "overlay": [
+      "none",
+      "palette",
+      "insights",
+      "convert",
+      "detail",
+      "firstrun",
+      "sitepicker"
+    ],
+    "theme": [
+      "dark",
+      "light"
+    ],
+    "width": [
+      "1440",
+      "1153",
+      "1152",
+      "1024",
+      "900",
+      "759"
+    ],
+    "filter": [
+      "all",
+      "running",
+      "waiting",
+      "failed"
+    ],
+    "data": [
+      "none",
+      "one",
+      "many"
+    ],
+    "typed": [
+      "nothing",
+      "word",
+      "url",
+      "long"
+    ],
+    "server": [
+      "ok",
+      "error"
+    ]
+  },
+  "constraints": [
+    [
+      "room=capture",
+      "filter=running"
+    ],
+    [
+      "room=capture",
+      "filter=waiting"
+    ],
+    [
+      "room=capture",
+      "filter=failed"
+    ],
+    [
+      "room=library",
+      "filter=running"
+    ],
+    [
+      "room=library",
+      "filter=waiting"
+    ],
+    [
+      "room=library",
+      "filter=failed"
+    ],
+    [
+      "room=watch",
+      "filter=running"
+    ],
+    [
+      "room=watch",
+      "filter=waiting"
+    ],
+    [
+      "room=watch",
+      "filter=failed"
+    ],
+    [
+      "room=sharing",
+      "filter=running"
+    ],
+    [
+      "room=sharing",
+      "filter=waiting"
+    ],
+    [
+      "room=sharing",
+      "filter=failed"
+    ],
+    [
+      "room=settings",
+      "filter=running"
+    ],
+    [
+      "room=settings",
+      "filter=waiting"
+    ],
+    [
+      "room=settings",
+      "filter=failed"
+    ]
+  ],
+  "gates": [
+    {
+      "when": [
+        "overlay=insights",
+        "room=capture"
+      ],
+      "why": "Insights is opened by a button that only exists in the library head",
+      "tested_at": "the library room, which is where a person can reach it"
+    },
+    {
+      "when": [
+        "overlay=convert",
+        "room=capture"
+      ],
+      "why": "same - Convert to audio is a library button since it stopped being a room",
+      "tested_at": "the library room"
+    },
+    {
+      "when": [
+        "data=many",
+        "overlay=firstrun"
+      ],
+      "why": "first run only opens when settings.first_run_done is false, which an install with a library never is",
+      "tested_at": "test_first_run.py, at the loader that decides it"
+    },
+    {
+      "when": [
+        "overlay=none",
+        "typed=url"
+      ],
+      "why": "typing only happens into an overlay's field or a room's own search - a URL with no overlay is the URL bar, which is the app's oldest path and not what this migration changed",
+      "tested_at": "the existing analyze tests"
+    }
+  ],
+  "risk": [
+    "width",
+    "overlay",
+    "theme"
+  ],
+  "full_cross_product": 48384,
+  "tuples_total": 474,
+  "tuples_covered": 474,
+  "uncovered_tuples": [],
+  "mutation_checks": [
+    {
+      "broke": "the library's two-column collapse reverted, as it was before the source-order fix",
+      "detected": true,
+      "caught_by": "900,901,902",
+      "recorded": "2026-08-29 02:25:09"
+    }
+  ],
+  "cases": [
+    {
+      "id": 1,
+      "kind": "grid",
+      "values": {
+        "room": "capture",
+        "overlay": "none",
+        "theme": "dark",
+        "width": "1440",
+        "filter": "all",
+        "data": "none",
+        "typed": "nothing",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:14"
+    },
+    {
+      "id": 2,
+      "kind": "grid",
+      "values": {
+        "room": "capture",
+        "overlay": "palette",
+        "theme": "light",
+        "width": "1153",
+        "filter": "all",
+        "data": "one",
+        "typed": "word",
+        "server": "error"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:14"
+    },
+    {
+      "id": 3,
+      "kind": "grid",
+      "values": {
+        "room": "capture",
+        "overlay": "detail",
+        "theme": "dark",
+        "width": "1152",
+        "filter": "all",
+        "data": "many",
+        "typed": "url",
+        "server": "error"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:14"
+    },
+    {
+      "id": 4,
+      "kind": "grid",
+      "values": {
+        "room": "capture",
+        "overlay": "firstrun",
+        "theme": "dark",
+        "width": "1024",
+        "filter": "all",
+        "data": "one",
+        "typed": "long",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:14"
+    },
+    {
+      "id": 5,
+      "kind": "grid",
+      "values": {
+        "room": "capture",
+        "overlay": "sitepicker",
+        "theme": "dark",
+        "width": "900",
+        "filter": "all",
+        "data": "none",
+        "typed": "word",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:14"
+    },
+    {
+      "id": 6,
+      "kind": "grid",
+      "values": {
+        "room": "activity",
+        "overlay": "none",
+        "theme": "light",
+        "width": "1152",
+        "filter": "running",
+        "data": "none",
+        "typed": "long",
+        "server": "error"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:15"
+    },
+    {
+      "id": 7,
+      "kind": "grid",
+      "values": {
+        "room": "activity",
+        "overlay": "palette",
+        "theme": "dark",
+        "width": "759",
+        "filter": "waiting",
+        "data": "many",
+        "typed": "nothing",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:15"
+    },
+    {
+      "id": 8,
+      "kind": "grid",
+      "values": {
+        "room": "activity",
+        "overlay": "insights",
+        "theme": "dark",
+        "width": "1153",
+        "filter": "failed",
+        "data": "none",
+        "typed": "url",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:15"
+    },
+    {
+      "id": 9,
+      "kind": "grid",
+      "values": {
+        "room": "activity",
+        "overlay": "convert",
+        "theme": "dark",
+        "width": "1440",
+        "filter": "running",
+        "data": "one",
+        "typed": "word",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:15"
+    },
+    {
+      "id": 10,
+      "kind": "grid",
+      "values": {
+        "room": "activity",
+        "overlay": "detail",
+        "theme": "light",
+        "width": "1024",
+        "filter": "waiting",
+        "data": "none",
+        "typed": "nothing",
+        "server": "error"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:15"
+    },
+    {
+      "id": 11,
+      "kind": "grid",
+      "values": {
+        "room": "activity",
+        "overlay": "firstrun",
+        "theme": "light",
+        "width": "900",
+        "filter": "failed",
+        "data": "one",
+        "typed": "nothing",
+        "server": "error"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:15"
+    },
+    {
+      "id": 12,
+      "kind": "grid",
+      "values": {
+        "room": "activity",
+        "overlay": "sitepicker",
+        "theme": "light",
+        "width": "1440",
+        "filter": "waiting",
+        "data": "many",
+        "typed": "url",
+        "server": "error"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:15"
+    },
+    {
+      "id": 13,
+      "kind": "grid",
+      "values": {
+        "room": "library",
+        "overlay": "none",
+        "theme": "dark",
+        "width": "1153",
+        "filter": "all",
+        "data": "many",
+        "typed": "word",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:16"
+    },
+    {
+      "id": 14,
+      "kind": "grid",
+      "values": {
+        "room": "library",
+        "overlay": "palette",
+        "theme": "light",
+        "width": "1440",
+        "filter": "all",
+        "data": "none",
+        "typed": "long",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:16"
+    },
+    {
+      "id": 15,
+      "kind": "grid",
+      "values": {
+        "room": "library",
+        "overlay": "insights",
+        "theme": "light",
+        "width": "759",
+        "filter": "all",
+        "data": "one",
+        "typed": "url",
+        "server": "error"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:16"
+    },
+    {
+      "id": 16,
+      "kind": "grid",
+      "values": {
+        "room": "library",
+        "overlay": "convert",
+        "theme": "light",
+        "width": "1152",
+        "filter": "all",
+        "data": "none",
+        "typed": "nothing",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:16"
+    },
+    {
+      "id": 17,
+      "kind": "grid",
+      "values": {
+        "room": "library",
+        "overlay": "detail",
+        "theme": "dark",
+        "width": "900",
+        "filter": "all",
+        "data": "one",
+        "typed": "long",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:16"
+    },
+    {
+      "id": 18,
+      "kind": "grid",
+      "values": {
+        "room": "library",
+        "overlay": "firstrun",
+        "theme": "dark",
+        "width": "1440",
+        "filter": "all",
+        "data": "none",
+        "typed": "word",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:16"
+    },
+    {
+      "id": 19,
+      "kind": "grid",
+      "values": {
+        "room": "library",
+        "overlay": "sitepicker",
+        "theme": "dark",
+        "width": "1024",
+        "filter": "all",
+        "data": "one",
+        "typed": "nothing",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:16"
+    },
+    {
+      "id": 20,
+      "kind": "grid",
+      "values": {
+        "room": "watch",
+        "overlay": "none",
+        "theme": "dark",
+        "width": "1024",
+        "filter": "all",
+        "data": "one",
+        "typed": "word",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:17"
+    },
+    {
+      "id": 21,
+      "kind": "grid",
+      "values": {
+        "room": "watch",
+        "overlay": "palette",
+        "theme": "light",
+        "width": "1152",
+        "filter": "all",
+        "data": "none",
+        "typed": "url",
+        "server": "error"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:17"
+    },
+    {
+      "id": 22,
+      "kind": "grid",
+      "values": {
+        "room": "watch",
+        "overlay": "insights",
+        "theme": "dark",
+        "width": "1440",
+        "filter": "all",
+        "data": "many",
+        "typed": "long",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:17"
+    },
+    {
+      "id": 23,
+      "kind": "grid",
+      "values": {
+        "room": "watch",
+        "overlay": "convert",
+        "theme": "dark",
+        "width": "1153",
+        "filter": "all",
+        "data": "many",
+        "typed": "nothing",
+        "server": "error"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:17"
+    },
+    {
+      "id": 24,
+      "kind": "grid",
+      "values": {
+        "room": "watch",
+        "overlay": "detail",
+        "theme": "dark",
+        "width": "759",
+        "filter": "all",
+        "data": "none",
+        "typed": "word",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:17"
+    },
+    {
+      "id": 25,
+      "kind": "grid",
+      "values": {
+        "room": "watch",
+        "overlay": "firstrun",
+        "theme": "dark",
+        "width": "1153",
+        "filter": "all",
+        "data": "none",
+        "typed": "url",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:17"
+    },
+    {
+      "id": 26,
+      "kind": "grid",
+      "values": {
+        "room": "watch",
+        "overlay": "sitepicker",
+        "theme": "dark",
+        "width": "1153",
+        "filter": "all",
+        "data": "none",
+        "typed": "long",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:17"
+    },
+    {
+      "id": 27,
+      "kind": "grid",
+      "values": {
+        "room": "sharing",
+        "overlay": "none",
+        "theme": "dark",
+        "width": "900",
+        "filter": "all",
+        "data": "many",
+        "typed": "nothing",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:17"
+    },
+    {
+      "id": 28,
+      "kind": "grid",
+      "values": {
+        "room": "sharing",
+        "overlay": "palette",
+        "theme": "light",
+        "width": "1024",
+        "filter": "all",
+        "data": "none",
+        "typed": "url",
+        "server": "error"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:18"
+    },
+    {
+      "id": 29,
+      "kind": "grid",
+      "values": {
+        "room": "sharing",
+        "overlay": "insights",
+        "theme": "dark",
+        "width": "1152",
+        "filter": "all",
+        "data": "one",
+        "typed": "word",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:18"
+    },
+    {
+      "id": 30,
+      "kind": "grid",
+      "values": {
+        "room": "sharing",
+        "overlay": "convert",
+        "theme": "dark",
+        "width": "759",
+        "filter": "all",
+        "data": "none",
+        "typed": "long",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:18"
+    },
+    {
+      "id": 31,
+      "kind": "grid",
+      "values": {
+        "room": "sharing",
+        "overlay": "detail",
+        "theme": "dark",
+        "width": "1440",
+        "filter": "all",
+        "data": "none",
+        "typed": "nothing",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:18"
+    },
+    {
+      "id": 32,
+      "kind": "grid",
+      "values": {
+        "room": "sharing",
+        "overlay": "firstrun",
+        "theme": "dark",
+        "width": "1153",
+        "filter": "all",
+        "data": "none",
+        "typed": "nothing",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:18"
+    },
+    {
+      "id": 33,
+      "kind": "grid",
+      "values": {
+        "room": "sharing",
+        "overlay": "sitepicker",
+        "theme": "dark",
+        "width": "1152",
+        "filter": "all",
+        "data": "none",
+        "typed": "nothing",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:18"
+    },
+    {
+      "id": 34,
+      "kind": "grid",
+      "values": {
+        "room": "settings",
+        "overlay": "none",
+        "theme": "dark",
+        "width": "759",
+        "filter": "all",
+        "data": "none",
+        "typed": "nothing",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:18"
+    },
+    {
+      "id": 35,
+      "kind": "grid",
+      "values": {
+        "room": "settings",
+        "overlay": "palette",
+        "theme": "light",
+        "width": "900",
+        "filter": "all",
+        "data": "one",
+        "typed": "url",
+        "server": "error"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:19"
+    },
+    {
+      "id": 36,
+      "kind": "grid",
+      "values": {
+        "room": "settings",
+        "overlay": "insights",
+        "theme": "dark",
+        "width": "1024",
+        "filter": "all",
+        "data": "many",
+        "typed": "nothing",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:19"
+    },
+    {
+      "id": 37,
+      "kind": "grid",
+      "values": {
+        "room": "settings",
+        "overlay": "convert",
+        "theme": "dark",
+        "width": "1440",
+        "filter": "all",
+        "data": "none",
+        "typed": "word",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:19"
+    },
+    {
+      "id": 38,
+      "kind": "grid",
+      "values": {
+        "room": "settings",
+        "overlay": "detail",
+        "theme": "dark",
+        "width": "1153",
+        "filter": "all",
+        "data": "none",
+        "typed": "long",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:19"
+    },
+    {
+      "id": 39,
+      "kind": "grid",
+      "values": {
+        "room": "settings",
+        "overlay": "firstrun",
+        "theme": "dark",
+        "width": "1152",
+        "filter": "all",
+        "data": "none",
+        "typed": "nothing",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:19"
+    },
+    {
+      "id": 40,
+      "kind": "grid",
+      "values": {
+        "room": "settings",
+        "overlay": "sitepicker",
+        "theme": "dark",
+        "width": "759",
+        "filter": "all",
+        "data": "none",
+        "typed": "nothing",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:19"
+    },
+    {
+      "id": 41,
+      "kind": "grid",
+      "values": {
+        "data": "many",
+        "filter": "failed",
+        "room": "activity",
+        "overlay": "none",
+        "theme": "dark",
+        "width": "1440",
+        "typed": "word",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:19"
+    },
+    {
+      "id": 42,
+      "kind": "grid",
+      "values": {
+        "data": "many",
+        "filter": "running",
+        "room": "activity",
+        "overlay": "palette",
+        "theme": "dark",
+        "width": "1153",
+        "typed": "nothing",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:19"
+    },
+    {
+      "id": 43,
+      "kind": "grid",
+      "values": {
+        "data": "one",
+        "filter": "waiting",
+        "room": "activity",
+        "overlay": "insights",
+        "theme": "dark",
+        "width": "900",
+        "typed": "word",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:20"
+    },
+    {
+      "id": 44,
+      "kind": "grid",
+      "values": {
+        "filter": "all",
+        "room": "activity",
+        "overlay": "convert",
+        "theme": "dark",
+        "width": "1024",
+        "data": "none",
+        "typed": "url",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:20"
+    },
+    {
+      "id": 45,
+      "kind": "grid",
+      "values": {
+        "filter": "failed",
+        "overlay": "convert",
+        "room": "activity",
+        "theme": "dark",
+        "width": "1152",
+        "data": "none",
+        "typed": "long",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:20"
+    },
+    {
+      "id": 46,
+      "kind": "grid",
+      "values": {
+        "filter": "failed",
+        "overlay": "detail",
+        "room": "activity",
+        "theme": "dark",
+        "width": "1024",
+        "data": "none",
+        "typed": "nothing",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:20"
+    },
+    {
+      "id": 47,
+      "kind": "grid",
+      "values": {
+        "filter": "failed",
+        "overlay": "palette",
+        "room": "activity",
+        "theme": "dark",
+        "width": "759",
+        "data": "none",
+        "typed": "nothing",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:20"
+    },
+    {
+      "id": 48,
+      "kind": "grid",
+      "values": {
+        "filter": "failed",
+        "overlay": "sitepicker",
+        "room": "activity",
+        "theme": "dark",
+        "width": "1440",
+        "data": "none",
+        "typed": "nothing",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:20"
+    },
+    {
+      "id": 49,
+      "kind": "grid",
+      "values": {
+        "filter": "running",
+        "overlay": "detail",
+        "room": "activity",
+        "theme": "dark",
+        "width": "1024",
+        "data": "none",
+        "typed": "url",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:20"
+    },
+    {
+      "id": 50,
+      "kind": "grid",
+      "values": {
+        "filter": "running",
+        "overlay": "firstrun",
+        "room": "activity",
+        "theme": "dark",
+        "width": "759",
+        "data": "none",
+        "typed": "nothing",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:21"
+    },
+    {
+      "id": 51,
+      "kind": "grid",
+      "values": {
+        "filter": "running",
+        "overlay": "insights",
+        "room": "activity",
+        "theme": "dark",
+        "width": "900",
+        "data": "none",
+        "typed": "nothing",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:21"
+    },
+    {
+      "id": 52,
+      "kind": "grid",
+      "values": {
+        "filter": "running",
+        "overlay": "sitepicker",
+        "room": "activity",
+        "theme": "dark",
+        "width": "1440",
+        "data": "none",
+        "typed": "nothing",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:21"
+    },
+    {
+      "id": 53,
+      "kind": "grid",
+      "values": {
+        "filter": "waiting",
+        "overlay": "convert",
+        "room": "activity",
+        "theme": "dark",
+        "width": "1153",
+        "data": "none",
+        "typed": "long",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:21"
+    },
+    {
+      "id": 54,
+      "kind": "grid",
+      "values": {
+        "filter": "waiting",
+        "overlay": "firstrun",
+        "room": "activity",
+        "theme": "dark",
+        "width": "1152",
+        "data": "none",
+        "typed": "nothing",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:21"
+    },
+    {
+      "id": 55,
+      "kind": "grid",
+      "values": {
+        "filter": "waiting",
+        "overlay": "none",
+        "room": "activity",
+        "theme": "dark",
+        "width": "1440",
+        "data": "none",
+        "typed": "nothing",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:21"
+    },
+    {
+      "id": 56,
+      "kind": "grid",
+      "values": {
+        "overlay": "convert",
+        "room": "watch",
+        "theme": "dark",
+        "width": "900",
+        "filter": "all",
+        "data": "none",
+        "typed": "nothing",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:21"
+    },
+    {
+      "id": 57,
+      "kind": "grid",
+      "values": {
+        "overlay": "detail",
+        "room": "capture",
+        "theme": "dark",
+        "width": "759",
+        "filter": "all",
+        "data": "none",
+        "typed": "nothing",
+        "server": "ok"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven in the running app at its own width via the CG harness: room shown, theme set, list seeded, filter clicked, overlay opened; then every laid-out element measured for scrollWidth > clientWidth, the page for horizontal scroll, and window.onerror counted. All 57 returned 0 overflowing elements, no sideways scroll, 0 JS errors, overlay visible.",
+      "note": "",
+      "updated": "2026-08-29 02:28:21"
+    },
+    {
+      "id": 58,
+      "kind": "repro",
+      "name": "danger-at-rest",
+      "values": {},
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "rendered in the app: .ghost.danger resting colour rgb(255,77,106) = --bad, border --bad-dim. Red before the pointer arrives.",
+      "note": "",
+      "updated": "2026-08-29 02:29:45"
+    },
+    {
+      "id": 59,
+      "kind": "repro",
+      "name": "danger-dialog-runtime",
+      "values": {},
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "rendered: .primary.danger is background --bad with --on-bad text (5.9:1 dark, 5.3:1 light, measured). The rule survives and the dialog's OK button reaches it at runtime.",
+      "note": "",
+      "updated": "2026-08-29 02:29:45"
+    },
+    {
+      "id": 60,
+      "kind": "repro",
+      "name": "failed-filter-hides-errors",
+      "values": {},
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven: with one downloading and one errored row, the Failed chip leaves the errored row visible, hides the running one, and keeps the failed list. The bug hid the errored row.",
+      "note": "",
+      "updated": "2026-08-29 02:29:46"
+    },
+    {
+      "id": 61,
+      "kind": "repro",
+      "name": "library-collapse-source-order",
+      "values": {},
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "mutation: the pre-fix two-column rule was re-injected at 759 and produced 77 overflowing elements including .lib-body+140; removing it returned to 0.",
+      "note": "",
+      "updated": "2026-08-29 02:29:46"
+    },
+    {
+      "id": 62,
+      "kind": "repro",
+      "name": "duplicate-summary",
+      "values": {},
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "live page has 0 duplicate ids, and the stylesheet has exactly 1 bare .summary block. Both are also guarded by tests: test_ids_exist.py and test_classes_exist.py.",
+      "note": "",
+      "updated": "2026-08-29 02:29:46"
+    },
+    {
+      "id": 63,
+      "kind": "repro",
+      "name": "insights-since-date",
+      "values": {},
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "python tests/test_insights.py - a library filled to HISTORY_LIMIT reports capped=true and the subtitle reads 'the last 300 files ... older ones are not kept'; under the limit it does not.",
+      "note": "",
+      "updated": "2026-08-29 02:29:46"
+    },
+    {
+      "id": 64,
+      "kind": "repro",
+      "name": "firstrun-on-upgrade",
+      "values": {},
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "python tests/test_first_run.py - a settings file with no first_run_done key reads as already answered; disabling that path turns the check red.",
+      "note": "",
+      "updated": "2026-08-29 02:29:46"
+    },
+    {
+      "id": 65,
+      "kind": "repro",
+      "name": "grab-counts-navigation",
+      "values": {},
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "python tests/test_grab_skipped.py - two off-site unreadable links are counted and the page's own relative navigation is not.",
+      "note": "",
+      "updated": "2026-08-29 02:29:46"
+    },
+    {
+      "id": 66,
+      "kind": "repro",
+      "name": "bad-as-gradient-end",
+      "values": {},
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "grep of app.css: zero linear-gradient declarations still ending in var(--bad). The three were the tab marker, the backdrop and the progress fill.",
+      "note": "",
+      "updated": "2026-08-29 02:29:46"
+    },
+    {
+      "id": 67,
+      "kind": "repro",
+      "name": "faux-bold",
+      "values": {},
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "live page: no element computes above font-weight 500, and only the 400 and 500 faces ship, so no synthesised bold is possible.",
+      "note": "",
+      "updated": "2026-08-29 02:29:47"
+    },
+    {
+      "id": 68,
+      "kind": "repro",
+      "name": "unstyled-chip-em",
+      "values": {},
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "rendered: .chip .chip-size computes font-style normal at 10px, not the browser's default italic.",
+      "note": "",
+      "updated": "2026-08-29 02:29:47"
+    },
+    {
+      "id": 69,
+      "kind": "sequence",
+      "name": "palette-to-settings-row",
+      "values": {},
+      "steps": [
+        "open the palette from a room that is not settings",
+        "type a settings row's name",
+        "press Enter",
+        "the settings room opens, the row is scrolled to and marked"
+      ],
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven from the library: Ctrl+K, typed 'Downloads at once', Enter -> ended in view-settings with the row carrying .has-hit and the palette closed.",
+      "note": "",
+      "updated": "2026-08-29 02:29:47"
+    },
+    {
+      "id": 70,
+      "kind": "sequence",
+      "name": "filter-then-reopen",
+      "values": {},
+      "steps": [
+        "open Activity",
+        "pick the Failed chip",
+        "leave for another room",
+        "come back",
+        "the chip and the list still agree"
+      ],
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven: Failed chip picked in Activity, left for the library, returned - chip still 'failed' and the same single row visible.",
+      "note": "",
+      "updated": "2026-08-29 02:29:47"
+    },
+    {
+      "id": 71,
+      "kind": "sequence",
+      "name": "theme-flip-with-overlay-open",
+      "values": {},
+      "steps": [
+        "open a dialog",
+        "switch the theme",
+        "the dialog repaints in the new theme"
+      ],
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven: Insights open, dark dialog rgb(11,13,17) -> light rgb(237,238,241). It repaints.",
+      "note": "",
+      "updated": "2026-08-29 02:29:47"
+    },
+    {
+      "id": 72,
+      "kind": "sequence",
+      "name": "narrow-then-widen",
+      "values": {},
+      "steps": [
+        "at 1440 with the rail open",
+        "narrow to 1024 so the rail collapses",
+        "widen back to 1440",
+        "the rail's labels and the active marker come back"
+      ],
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "driven: 1440 rail 320 labels block marker indent 22px -> 1024 rail 72 labels none indent 0 -> back to 1440 rail 320 labels block indent 22px with the marker drawn.",
+      "note": "",
+      "updated": "2026-08-29 02:29:47"
+    }
+  ]
+}
