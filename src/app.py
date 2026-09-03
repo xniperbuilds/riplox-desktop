@@ -1304,8 +1304,10 @@ EXTENSION_IDS = ("eceoennjnigbildembfcpdlmiaahocnm",
 # install has.
 EXTENSION_ID = EXTENSION_IDS[1]
 
-STORE_URL = ("https://chromewebstore.google.com/detail/"
-             "riplox-%E2%80%94-send-to-your-dow/" + EXTENSION_IDS[1])
+# One address, owned by engine.py, which is also where the allowlist that
+# decides whether it may be opened at all lives. Two copies of it was how the
+# button came to ask for a link the app would not open.
+STORE_URL = engine.STORE_PAGE
 
 _HOST_KEYS = (r"Software\Google\Chrome\NativeMessagingHosts",
               r"Software\Microsoft\Edge\NativeMessagingHosts",

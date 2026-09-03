@@ -2001,10 +2001,17 @@ HOME_PAGE = "https://xniperbuilds.com"
 ISSUES_PAGE = "https://github.com/xniperbuilds/riplox-desktop/issues/new/choose"
 _UPDATE_GAP = 24 * 3600
 
+# The extension's listing. Here rather than in app.py because this is the file
+# that owns the addresses, and because a URL the app hands to a browser has to
+# be on the list below - which is what the Browser extension button fell over:
+# it asked, and was refused, and nothing said so.
+STORE_PAGE = ("https://chromewebstore.google.com/detail/"
+              "riplox-%E2%80%94-send-to-your-dow/hacbllnggmnnajhobdgcklhdmaoddnnh")
+
 # The only addresses Riplox will ever hand to the real browser. An allowlist
 # rather than a check on the string, so a page that talked its way past the
 # token still cannot use the app as a launcher for anything it likes.
-OPENABLE = (RELEASES_PAGE, HOME_PAGE, ISSUES_PAGE)
+OPENABLE = (RELEASES_PAGE, HOME_PAGE, ISSUES_PAGE, STORE_PAGE)
 
 
 def _version_tuple(text: str) -> tuple:

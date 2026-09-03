@@ -2954,7 +2954,16 @@
   // whichever browser Windows actually uses rather than inside the app's own
   // window - which has no tabs, no address bar and no way back.
   $("getExtension").addEventListener("click", function () {
-    api("/api/open-url", { url: S.storeUrl });
+    // ⚠️ The answer is read. This used to ignore it, and when the address was
+    // not on the app's allowlist the button simply did nothing at all - no
+    // page, no message, nothing to act on.
+    api("/api/open-url", { url: S.storeUrl }).then(function (res) {
+      if (!res || !res.ok) {
+        toast((res && res.error) || "Could not open the store page.", "bad");
+      }
+    }).catch(function () {
+      toast("Could not open the store page.", "bad");
+    });
   });
 
   $("updateOpen").addEventListener("click", function () {

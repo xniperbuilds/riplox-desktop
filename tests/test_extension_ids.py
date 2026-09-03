@@ -45,6 +45,18 @@ check("EXTENSION_ID still resolves, for anything that asks for one",
 check("the store link carries the store id", STORE in app.STORE_URL,
       app.STORE_URL)
 
+# ⚠️ The one that shipped broken. /api/open-url keeps an allowlist, on purpose
+# - a page that talked its way past the token must not be able to use Riplox as
+# a launcher - and the listing was not on it. So the rail's button asked, the
+# route answered 400, the click handler ignored the answer, and pressing it did
+# nothing and said nothing. Asking is not opening.
+import engine                                               # noqa: E402
+check("the app will actually open the listing",
+      engine.STORE_PAGE in engine.OPENABLE,
+      "%d allowed address(es)" % len(engine.OPENABLE))
+check("and that is the same address the page is given",
+      app.STORE_URL == engine.STORE_PAGE, app.STORE_URL[-46:])
+
 print("\n-- and the installer writes the same two " + "-" * 28)
 iss = (ROOT / "build" / "installer.iss").read_text(encoding="utf-8",
                                                    errors="replace")

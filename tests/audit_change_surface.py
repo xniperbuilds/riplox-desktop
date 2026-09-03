@@ -8,7 +8,10 @@ a temp folder before anything that writes.
 import io, json, os, sys, tempfile
 from pathlib import Path
 
-SRC = Path(r"C:\Users\FAIZAN COMPUTERS\Desktop\XniperBuilds\RiploxDesktop\src")
+# ⚠️ Relative to this file, not a path off one machine. This was written as an
+# absolute path on the machine it was first run on, which meant it could only
+# ever run there - and it put that machine's user name into a public repository.
+SRC = Path(__file__).resolve().parent.parent / "src"
 sys.path.insert(0, str(SRC))
 import engine                                                    # noqa: E402
 
