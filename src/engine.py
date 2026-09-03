@@ -501,11 +501,23 @@ DEFAULT_SETTINGS = {
     # site actually refuses is separate - that one is not optional.
     "pace_sites": True,
     "engine_channel": "stable",      # stable | nightly
+    # On: fetch a newer engine when one is published, rather than only
+    # reporting that one exists. Checking without fetching is what left
+    # installs running an engine months old - the single most common reason a
+    # site "stops working" - because the fetch was a button nobody knew about.
+    # It never runs while anything is downloading; see api_check_engine.
+    "engine_auto": True,
     # On: when the engine is refused, let Riplox try its own way in. It only
     # ever runs on a link that has already failed, so the cost of leaving it on
     # is nothing, and the day the engine is walled it is the whole difference.
     "second_door": True,
-    "potoken": False,                # opt-in: fetch the proof-of-origin helper
+    # On. It is what answers YouTube's "prove you are not a bot", and a
+    # machine found with it switched off was hitting that wall repeatedly.
+    # ⚠️ The helper is a separate 44 MB download: this flag being true does not
+    # install it - ensure_running() returns "" and a download still works
+    # without it. app.py fetches it in the background when it is on and
+    # missing, which is what makes the default mean anything.
+    "potoken": True,
     # On: pacing costs a second or two and is the difference between YouTube
     # answering and YouTube asking to confirm you are not a bot.
     "polite_mode": True,
@@ -527,10 +539,14 @@ DEFAULT_SETTINGS = {
     "embed_chapters": False,         # chapter marks players can jump between
     "sponsorblock": False,           # cut sponsor segments out of YouTube
     "skip_existing": False,          # remember what has been downloaded
-    # Four pieces of the same file at once. This is where the real speed comes
-    # from on fragmented video, and it is also why aria2c was not needed.
-    # Higher looks faster on a fast line and starts being refused on a slow one.
-    "fragments": 4,
+    # Sixteen pieces of the same file at once. This is where the real speed
+    # comes from on fragmented video, and it is also why aria2c was not needed.
+    # ⚠️ It was four, and four is where the repeated https failures were found:
+    # on a second machine, raising this alongside the engine and the helper was
+    # what made the downloads run. Higher looks faster on a fast line and
+    # starts being refused on a slow one, so this is a ceiling rather than a
+    # promise - the setting is still there for anyone it does not suit.
+    "fragments": 16,
     "speed_limit": 0,                # KB/s ceiling; 0 means no limit
     # Empty means a direct connection. A site that answers a different line
     # but not this one is the case this exists for - and it is not rare: a

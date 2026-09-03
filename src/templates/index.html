@@ -140,6 +140,16 @@
 
 <main>
 
+  <!-- ⚠️ Here, not inside a view. This lived in the Queue screen, which is the
+       one room a person who is not downloading anything never opens - so the
+       fact that a new Riplox exists was shown only to people already busy. -->
+  <div class="update-bar" id="updateBar" hidden>
+    <b id="updateText"></b>
+    <button class="primary small" id="updateOpen">Open the release page</button>
+    <button class="ghost small" id="updateLater" title="Hide until the next start">Later</button>
+  </div>
+
+
   <!-- ============================ CAPTURE ============================ -->
   <section class="view is-active" id="view-capture">
 
@@ -533,10 +543,6 @@
       <input type="search" id="queueSearch" class="text-input" autocomplete="off"
              spellcheck="false" placeholder="Search the queue…">
       <span class="queue-found" id="queueFound"></span>
-    </div>
-    <div class="resume-bar update-bar" id="updateBar" hidden>
-      <span id="updateText"></span>
-      <button class="ghost small" id="updateOpen">Open the release page</button>
     </div>
     <div class="resume-bar" id="resumeBar" hidden>
       <span id="resumeText"></span>

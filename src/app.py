@@ -1555,11 +1555,72 @@ def api_engine_progress():
     return jsonify({"ok": True, "progress": engine.engine_progress()})
 
 
+def _engine_busy() -> bool:
+    """Is anything downloading? Then the engine is not to be swapped."""
+    try:
+        return any(j.get("status") in engine.DownloadManager.ACTIVE
+                   for j in manager.snapshot())
+    except Exception:                                       # noqa: BLE001
+        return True          # unsure means leave it alone
+
+
+def _fetch_engine_quietly():
+    """Fetch a newer engine on a background thread, once, and say nothing."""
+    def work():
+        try:
+            engine.update_engine()
+        except Exception:                                   # noqa: BLE001
+            pass          # a failed update is the state we were already in
+    threading.Thread(target=work, name="riplox-engine-auto", daemon=True).start()
+
+
 @app.post("/api/check-engine")
 def api_check_engine():
-    """Ask whether a newer engine is published. Never downloads anything."""
+    """
+    Ask whether a newer engine is published, and fetch it if it is.
+
+    ⚠️ It used to only ask. That is why installs were found months behind:
+    the fetch was a button in Settings, and an engine nobody updates is the
+    single most common reason a site stops working. "engine_auto" can turn
+    this back into asking alone.
+    """
     force = bool((request.json or {}).get("force"))
-    return jsonify(engine.check_engine_update(force))
+    verdict = engine.check_engine_update(force)
+    if (verdict.get("newer")
+            and engine.load_settings().get("engine_auto", True)
+            and not _engine_busy()):
+        _fetch_engine_quietly()
+        verdict["fetching"] = True
+    return jsonify(verdict)
+
+def _catch_up() -> None:
+    """Bring a new install up to date without being asked.
+
+    ⚠️ Ordered on purpose. The engine is small and is the thing that decides
+    whether a site works at all; the helper is 44 MB and only matters when
+    YouTube asks for proof. A first run gets the engine before the big
+    download starts competing for the line.
+
+    Everything here is best-effort. A machine with no connection on its first
+    run is a machine that carries on with the engine it shipped with.
+    """
+    settings = engine.load_settings()
+    try:
+        if settings.get("engine_auto", True) and not _engine_busy():
+            # force=True: a fresh install has never checked, and the daily
+            # throttle would otherwise hold the first check back.
+            verdict = engine.check_engine_update(force=not settings.get("first_run_done"))
+            if verdict.get("newer"):
+                engine.update_engine()
+    except Exception:                                       # noqa: BLE001
+        pass
+
+    try:
+        if settings.get("potoken", True) and not potoken.installed():
+            potoken.install()
+    except Exception:                                       # noqa: BLE001
+        pass
+
 
 
 @app.get("/api/history")
@@ -2192,6 +2253,11 @@ def main() -> None:
     cookies.sweep_temp()
     potoken.kill_orphans()
     manager.restore()
+
+    # The two things a fresh install needs and never asks for. On a thread,
+    # because neither is worth a second of a start-up, and both are safe to
+    # fail: the helper is optional and the engine already works.
+    threading.Thread(target=_catch_up, name="riplox-catch-up", daemon=True).start()
 
     # A phone that was paired yesterday should not have to be told again.
     if engine.load_settings().get("sharing"):

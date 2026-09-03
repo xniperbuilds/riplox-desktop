@@ -2954,6 +2954,13 @@
     if (updatePage) api("/api/open-url", { url: updatePage });
   });
 
+  // Put off, not dismissed: it comes back next time Riplox starts. A notice
+  // that can be killed for good is one people kill on the day they are busy
+  // and never see again.
+  $("updateLater").addEventListener("click", function () {
+    $("updateBar").hidden = true;
+  });
+
   if (settings.check_updates !== false) {
     // Quietly, once a day, and never in the way of the first screen.
     setTimeout(function () {

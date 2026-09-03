@@ -1673,7 +1673,25 @@ button { font-family: var(--body); }
   color: var(--ink-faint);
 }
 
-.update-bar { border-left-color: var(--amber); }
+/* Across the top of whichever room you are in, until it is acted on or put
+   off. Amber rather than red: nothing is broken, there is simply a newer one.
+   Not a modal - a bar that can be read past is what keeps it from being
+   clicked away without being read. */
+.update-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 18px;
+  padding: 11px 16px;
+  border: 1px solid rgba(var(--amber-rgb), .45);
+  border-left: 3px solid var(--amber);
+  border-radius: var(--r);
+  background: rgba(var(--amber-rgb), .08);
+  font-size: 13px;
+  color: var(--ink);
+}
+.update-bar b { font-weight: 500; flex: 1; }
+.update-bar[hidden] { display: none; }
 
 /* --- channel sections ---------------------------------------------------- */
 
