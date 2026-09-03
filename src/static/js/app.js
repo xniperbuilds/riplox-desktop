@@ -2950,6 +2950,13 @@
     $("updateBar").hidden = false;
   }
 
+  // Opened through the app rather than with a bare link, so it lands in
+  // whichever browser Windows actually uses rather than inside the app's own
+  // window - which has no tabs, no address bar and no way back.
+  $("getExtension").addEventListener("click", function () {
+    api("/api/open-url", { url: S.storeUrl });
+  });
+
   $("updateOpen").addEventListener("click", function () {
     if (updatePage) api("/api/open-url", { url: updatePage });
   });

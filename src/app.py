@@ -146,6 +146,9 @@ def index():
         # from one that is just where a file happened to land.
         sites=engine.known_sites(),
         whats_new=whats_new(),
+        # One copy of the listing address. The rail's button reads this rather
+        # than carrying its own, so the id cannot drift between them.
+        store_url=STORE_URL,
     )
 
 

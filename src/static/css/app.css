@@ -355,6 +355,27 @@ body::before {                       /* faint technical grid */
 
 .side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
 
+/* The one thing in the rail that leaves Riplox. Quiet on purpose: it has to
+   be findable without competing with the rooms above it, which are where the
+   work happens. */
+.side-link {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--well);
+  color: var(--ink-dim);
+  font-family: var(--body);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.side-link svg { width: 16px; height: 16px; flex: none; }
+.side-link:hover { color: var(--ink); border-color: rgba(var(--cyan-rgb), .45); }
+
 /* Three states, not a switch: "Auto" has to be sayable, and a two-position
    toggle cannot say it. */
 .theme-pick {
