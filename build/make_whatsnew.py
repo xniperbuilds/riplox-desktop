@@ -74,6 +74,22 @@ INTERNAL = (
 # not to use, and the conclusion drawn was that the feature was gone. It was
 # not. A line is only safe to withdraw after reading the code that renders it -
 # a name that does not appear proves nothing at all.
+# Lines a later one has absorbed. Separate commits, so separate trailers - but
+# to somebody reading the panel they are one thing each, and a list that says
+# the same thing twice reads as padding. Matched on a fragment, like the two
+# lists below.
+# ⚠️ Each fragment is chosen to match ONLY the line being retired. A
+# fragment that also appears in the line replacing it would filter the
+# replacement out too, and the panel would lose the feature altogether.
+SUPERSEDED = (
+    "instead of loading a folder yourself",
+    "sits in the rail from every screen",
+    "or take them all at once",
+    "Only the chapters you tick are fetched",
+    "drawn under the video with its five busiest",
+    "Cut those moments straight out",
+)
+
 WITHDRAWN = (
     "Riplox has been redesigned",
     "Queue and Failed are one room",
@@ -115,7 +131,7 @@ def collect() -> list:
     if not raw:
         return []
 
-    items, hidden, gone = [], 0, 0
+    items, hidden, gone, merged = [], 0, 0, 0
     for message in raw.split("\x00"):
         for found in TRAILER.finditer(message):
             line = " ".join(found.group(1).split())
@@ -127,6 +143,9 @@ def collect() -> list:
             if any(mark in line for mark in WITHDRAWN):
                 gone += 1            # shipped in a commit, taken back out since
                 continue
+            if any(mark in line for mark in SUPERSEDED):
+                merged += 1          # a later line says this and more
+                continue
             items.append(line)
 
     # The panel lists features and nothing else - Nazim, 28 Aug: "whatsnew man
@@ -137,6 +156,8 @@ def collect() -> list:
         print(f"  {hidden} internal line(s) left out - this panel is features only")
     if gone:
         print(f"  {gone} line(s) left out - the change was reverted since")
+    if merged:
+        print(f"  {merged} line(s) left out - a later line covers them")
     return items[:MAX_ITEMS]
 
 

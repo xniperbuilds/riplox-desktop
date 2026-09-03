@@ -2769,6 +2769,19 @@ button { font-family: var(--body); }
 }
 .roadmap li.done::before { content: "✓"; color: var(--cyan-ink); }
 .roadmap li.done { color: var(--ink-faint); }
+
+/* ⚠️ What's new is not a roadmap, and this is where that difference shows.
+   A roadmap fades what has landed so the eye goes to what has not; What's new
+   is nothing BUT landed items, so that rule painted every line in the colour
+   meant for the half you are not reading.
+
+   Measured on the panel's own dark ground: 5.83:1 before, 7.55:1 after. Both
+   clear the 4.5:1 floor - this is legibility, not a failure being repaired,
+   and the first measurement that said otherwise was comparing the text against
+   white because the panel's background is a 3.5% white veil and only its first
+   three numbers were read. */
+#whatsNew li.done { color: var(--ink-dim); }
+#whatsNew li.done b { color: var(--ink); }
 .roadmap li b { color: var(--ink); font-weight: 600; }
 .roadmap li.done b { color: var(--ink-dim); font-weight: 600; }
 
