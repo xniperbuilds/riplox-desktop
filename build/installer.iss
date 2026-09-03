@@ -11,6 +11,11 @@
 ; what lets this file name it in advance.
 #define HostName     "com.xniperbuilds.riplox"
 #define ExtensionId  "eceoennjnigbildembfcpdlmiaahocnm"
+; The Chrome Web Store gives the same code a different id from the unpacked
+; folder, and a host that names only one leaves the other unable to speak to
+; Riplox. Both are written into the manifest; see EXTENSION_IDS in app.py.
+#define StoreExtensionId  "hacbllnggmnnajhobdgcklhdmaoddnnh"
+#define StoreUrl  "https://chromewebstore.google.com/detail/riplox-%E2%80%94-send-to-your-dow/hacbllnggmnnajhobdgcklhdmaoddnnh"
 
 [Setup]
 AppId={{9C2F41B7-6E4A-4C58-9B21-7D3E5A0F81C4}
@@ -130,8 +135,18 @@ Root: HKA; Subkey: "Software\Google\Chrome\NativeMessagingHosts\{#HostName}"; Va
 Root: HKA; Subkey: "Software\Microsoft\Edge\NativeMessagingHosts\{#HostName}"; ValueType: string; ValueName: ""; ValueData: "{app}\native-host.json"; Flags: uninsdeletekey
 Root: HKA; Subkey: "Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\{#HostName}"; ValueType: string; ValueName: ""; ValueData: "{app}\native-host.json"; Flags: uninsdeletekey
 
+[Tasks]
+; Ticked, not forced. Opening a browser at somebody the moment an installer
+; finishes is what this is meant to feel like, minus the part where a window
+; arrives over whatever they were doing. Leave it ticked and Finish opens the
+; listing; clear it and nothing happens.
+Name: "extension"; Description: "Get the Riplox button for Chrome, Edge or Brave"; GroupDescription: "Browser:"
+
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
+; shellexec because this is a URL rather than a program - Windows opens it in
+; whichever browser is the default one.
+Filename: "{#StoreUrl}"; Description: "Get the browser button"; Flags: shellexec nowait postinstall skipifsilent; Tasks: extension
 
 [UninstallDelete]
 ; Only what this installer wrote. The user's own folder is deliberately NOT
@@ -172,7 +187,7 @@ begin
     '  "description": "Riplox",' + #13#10 +
     '  "path": "' + Path + '",' + #13#10 +
     '  "type": "stdio",' + #13#10 +
-    '  "allowed_origins": [ "chrome-extension://{#ExtensionId}/" ]' + #13#10 +
+    '  "allowed_origins": [ "chrome-extension://{#ExtensionId}/", "chrome-extension://{#StoreExtensionId}/" ]' + #13#10 +
     '}' + #13#10;
   SaveStringToFile(ExpandConstant('{app}\native-host.json'), Json, False);
 end;

@@ -1284,7 +1284,25 @@ def extension_dir() -> Path:
 # --------------------------------------------------------------------------
 
 HOST_NAME = "com.xniperbuilds.riplox"
-EXTENSION_ID = "eceoennjnigbildembfcpdlmiaahocnm"
+# Both, and the order does not matter. Chrome hands a published extension a
+# different id from the same code loaded as a folder, so a host that names one
+# of them turns the other into an extension that cannot speak to Riplox - which
+# is exactly what anyone installing from the store got until this line.
+#
+#   eceo…  the folder in this repository, loaded unpacked
+#   hacb…  the Chrome Web Store listing
+#
+# The unpacked one stays. It is how this is developed, and it is how somebody
+# whose browser has no store still gets the button.
+EXTENSION_IDS = ("eceoennjnigbildembfcpdlmiaahocnm",
+                 "hacbllnggmnnajhobdgcklhdmaoddnnh")
+
+# Kept for anything still asking for one. The store listing is the one a normal
+# install has.
+EXTENSION_ID = EXTENSION_IDS[1]
+
+STORE_URL = ("https://chromewebstore.google.com/detail/"
+             "riplox-%E2%80%94-send-to-your-dow/" + EXTENSION_IDS[1])
 
 _HOST_KEYS = (r"Software\Google\Chrome\NativeMessagingHosts",
               r"Software\Microsoft\Edge\NativeMessagingHosts",
@@ -1372,7 +1390,8 @@ def _write_host_manifest() -> Path:
         "description": "Riplox",
         "path": str(where.parent / "RiploxHost.exe"),
         "type": "stdio",
-        "allowed_origins": ["chrome-extension://" + EXTENSION_ID + "/"],
+        "allowed_origins": ["chrome-extension://" + one + "/"
+                            for one in EXTENSION_IDS],
     }, indent=2), encoding="utf-8")
     return where
 
