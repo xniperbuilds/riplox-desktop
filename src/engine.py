@@ -2256,7 +2256,8 @@ def analyze(url: str, settings: dict) -> dict:
         close_cookies(cookie_path, temp_cookie)
 
     if out is None or out.returncode != 0 or not (out.stdout or "").strip():
-        raise RuntimeError(_clean_error(out.stderr if out is not None else ""))
+        raise RuntimeError(
+            _clean_error(out.stderr if out is not None else "", during="reading"))
 
     try:
         info = json.loads(out.stdout)
@@ -2566,7 +2567,7 @@ def peek(url: str, settings: dict, limit: int = 30) -> dict:
         close_cookies(cookie_path, temp_cookie)
 
     if out.returncode != 0 or not (out.stdout or "").strip():
-        raise RuntimeError(_clean_error(out.stderr))
+        raise RuntimeError(_clean_error(out.stderr, during="reading"))
 
     try:
         info = json.loads(out.stdout)
@@ -3150,8 +3151,42 @@ def network_lost(text: str) -> bool:
     return any(sign in low for sign in _NETWORK_LOST)
 
 
-def _clean_error(stderr: str) -> str:
-    """Turn a yt-dlp stack of ERROR lines into one human sentence."""
+def _site_name(text: str) -> str:
+    """The site, from the engine's own [extractor] tag, or a plain word."""
+    tag = re.match(r"\s*\[([a-z0-9_]+)", (text or "").lower())
+    known = {"youtube": "YouTube", "instagram": "Instagram", "tiktok": "TikTok",
+             "facebook": "Facebook", "twitter": "X", "reddit": "Reddit"}
+    return known.get(tag.group(1) if tag else "", "The site")
+
+
+def _plain_line(line: str) -> str:
+    """Strip the engine's own prefix off a line before a person reads it.
+
+    yt-dlp writes "[youtube] dQw4w9WgXcQ: message". The tag is which extractor
+    ran and the token after it is the video id - neither is an explanation,
+    and both used to reach the screen whenever no branch above matched.
+    """
+    out = re.sub(r"^\[[^\]]{1,40}\]\s*", "", (line or "").strip())
+    # Only an id-shaped token, so a real sentence that happens to contain a
+    # colon keeps all of itself.
+    out = re.sub(r"^[A-Za-z0-9_-]{1,24}:\s+", "", out)
+    # ⚠️ And never the part in brackets. yt-dlp appends "(caused by <HTTPError
+    # 404: Not Found ...>)", which is the library's exception repr - it is cut
+    # off by the length limit and leaves the sentence ending on an unclosed
+    # bracket, which is what a reader was being shown.
+    out = out.split("(caused by")[0].strip()
+    return out.strip()
+
+
+def _clean_error(stderr: str, during: str = "download") -> str:
+    """Turn a yt-dlp stack of ERROR lines into one human sentence.
+
+    ⚠️ `during` exists because the same failures are shown in two very
+    different moments. "reading" is someone pasting a link or checking a
+    playlist - nothing has been fetched, so nothing may be described as
+    partly done. "download" is a job that really was moving bytes. The
+    default is the download wording, which is what it was written for.
+    """
     text = (stderr or "").strip()
     if not text:
         return "That link could not be opened."
@@ -3165,6 +3200,12 @@ def _clean_error(stderr: str) -> str:
     # directory: ...part-Frag3", which is the consequence rather than the
     # cause, and was what the user was being shown.
     if network_lost(low_all):
+        if during == "reading":
+            # Nothing was being fetched yet, so there is nothing kept and
+            # nothing to carry on from - saying otherwise sends someone
+            # looking for a half-finished file that does not exist.
+            return ("No connection, so that link could not be read. Check the "
+                    "connection and try again.")
         return ("The connection dropped while this was downloading. What "
                 "already arrived is kept, so carrying on continues from "
                 "there rather than starting again.")
@@ -3287,12 +3328,45 @@ def _clean_error(stderr: str) -> str:
             low = msg.lower()
             if "unsupported url" in low:
                 return "This site is not supported."
+            # ⚠️ Read BEFORE the word-matching branches below. "Service
+            # Unavailable" contains "unavailable", so a 503 was being reported as
+            # the uploader having removed the video - one of those clears by
+            # itself and the other never does.
+            #
+            # The status code, not the engine's sentence. Measured: a 404
+            # came back as "Unable to download webpage: HTTP Error 404: Not
+            # Found (caused by <HTTPError 404: Not Found" - cut mid-bracket -
+            # and on a long URL the message was the URL itself, because the
+            # leading token in that line is a piece of what was just pasted.
+            status = re.search(r"http error (\d{3})", low)
+            if status:
+                code = status.group(1)
+                if code == "404":
+                    return "There is nothing at that link - check it and try again."
+                if code in ("401", "403"):
+                    return ("The site would not open that one for this "
+                            "computer. Signing in with your browser in "
+                            "Settings sometimes helps.")
+                if code == "429":
+                    return ("The site is asking this computer to slow down. "
+                            "Wait a few minutes before trying again.")
+                if code.startswith("5"):
+                    return ("The site is having trouble at its end (%s). It is "
+                            "worth trying again shortly." % code)
+                return "The site answered with an error (%s)." % code
+            if "unable to download webpage" in low:
+                return "That page could not be opened."
+            if "no host supplied" in low or "invalid url" in low:
+                return "That link has no site in it."
             if "not a bot" in low or "login_required" in low:
                 # Usually a passing IP-level check: Riplox already retries on
                 # its own, so by the time this is shown the retries are spent.
-                return ("YouTube asked for proof you are a real viewer and kept "
+                # ⚠️ The site comes from the line, not from a guess. This said
+                # "YouTube" for every site, so an Instagram post that wanted a
+                # login sent the reader somewhere they had never been.
+                return ("%s asked for proof you are a real viewer and kept "
                         "asking. Wait a few minutes, or sign in with your "
-                        "browser in Settings.")
+                        "browser in Settings." % _site_name(msg))
             if "private" in low or "login" in low or "sign in" in low:
                 return "This video is private - sign in with your browser in Settings."
             if "unavailable" in low or "removed" in low:
@@ -3304,9 +3378,9 @@ def _clean_error(stderr: str) -> str:
             if "requested format is not available" in low:
                 return ("YouTube did not offer this quality for that video. "
                         "Try 'Best available'.")
-            return msg[:200]
+            return _plain_line(msg)[:200] or msg[:200]
 
-    return text.splitlines()[-1][:200]
+    return _plain_line(text.splitlines()[-1])[:200] or text.splitlines()[-1][:200]
 
 
 # --------------------------------------------------------------------------

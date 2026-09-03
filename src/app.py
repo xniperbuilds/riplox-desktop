@@ -182,6 +182,12 @@ def api_analyze():
         return jsonify({"ok": False, "error": "Paste a link first."}), 400
     if not url.lower().startswith(("http://", "https://")):
         return jsonify({"ok": False, "error": "That does not look like a link."}), 400
+    # A scheme with nothing after it passed the line above and came back from
+    # the engine as urllib's own "Invalid URL 'https://': No host supplied",
+    # with the input quoted inside it. Every other shape that cannot be a link
+    # is refused right here, in words; this one was not.
+    if not url.split("://", 1)[1].strip(" /"):
+        return jsonify({"ok": False, "error": "That link has no site in it."}), 400
 
     try:
         info = engine.analyze(url, engine.load_settings())
