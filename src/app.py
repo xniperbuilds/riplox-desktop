@@ -919,6 +919,72 @@ def api_watch_auto():
     return jsonify({"ok": done, "state": watch.state()})
 
 
+@app.post("/api/watch/options")
+def api_watch_options():
+    """One followed channel's own settings. Anything unusable is dropped."""
+    body = request.json or {}
+    done = watch.set_options(str(body.get("id", ""))[:24], body.get("opts") or {})
+    return jsonify({"ok": done, "state": watch.state()})
+
+
+@app.post("/api/watch/export")
+def api_watch_export():
+    """The followed list as a file, so it can move to another machine."""
+    if _window is None:
+        return jsonify({"ok": False, "error": "Saving a file needs the app window."}), 400
+
+    items = watch.export_items()
+    if not items:
+        return jsonify({"ok": False, "error": "You are not following anything yet."})
+
+    import webview
+    result = _window.create_file_dialog(
+        webview.SAVE_DIALOG, save_filename="riplox-following.json",
+        file_types=("JSON file (*.json)",))
+    if not result:
+        return jsonify({"ok": False, "cancelled": True})
+
+    chosen = Path(result[0] if isinstance(result, (list, tuple)) else result)
+    try:
+        chosen.write_text(json.dumps({"following": items}, indent=1),
+                          encoding="utf-8")
+    except OSError as exc:
+        return jsonify({"ok": False, "error": f"Could not write it: {exc}"})
+    return jsonify({"ok": True, "path": str(chosen), "count": len(items)})
+
+
+@app.post("/api/watch/import")
+def api_watch_import():
+    """
+    Read a followed list back in.
+
+    Each one is added the ordinary way, which means a first look at the site
+    for every entry - so this is slow on purpose and runs while the person is
+    standing there, rather than pretending to be instant.
+    """
+    if _window is None:
+        return jsonify({"ok": False, "error": "Opening a file needs the app window."}), 400
+
+    import webview
+    result = _window.create_file_dialog(
+        webview.OPEN_DIALOG, file_types=("JSON file (*.json)",))
+    if not result:
+        return jsonify({"ok": False, "cancelled": True})
+
+    chosen = Path(result[0] if isinstance(result, (list, tuple)) else result)
+    try:
+        data = json.loads(chosen.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return jsonify({"ok": False, "error": f"Could not read it: {exc}"})
+
+    rows = data.get("following") if isinstance(data, dict) else data
+    if not isinstance(rows, list):
+        return jsonify({"ok": False, "error": "That file is not a followed list."})
+
+    outcome = watch.import_items(rows)
+    return jsonify({"ok": True, "result": outcome, "state": watch.state()})
+
+
 @app.post("/api/watch/seen")
 def api_watch_seen():
     body = request.json or {}

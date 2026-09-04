@@ -12,7 +12,7 @@ plan for finishing it.
 | 2 | Open up the limits, and rewrite the consent text | done |
 | 3 | The catch-up | done |
 | 4 | Download without being asked — opt-in, capped | done |
-| 5 | Per-item options | not started; the Edit panel is the next piece of work |
+| 5 | Per-item options | done for interval, quality, folder, date, title rules, and export/import. **Not** done: length rules, per-item account, an after-download command, retention, per-item notification — see below |
 | 6 | Say it out loud | the app and the README say it; the site and the store listing do not yet |
 
 Covered by `tests/test_following.py`.
@@ -193,6 +193,22 @@ global default when unset.
 | After download | run a command — move the file, refresh a media server |
 | Keep only newest N | optional retention |
 | Notify | tray / silent / badge only |
+
+**What is built, and what is not.** Interval, quality, folder, "only after"
+and the two title rules are in, each falling back to the setting when left
+empty, and the list exports and imports as a file. Four are not:
+
+- **Length between** needs a duration, and the feed carries none — so it needs
+  a lookup per candidate, which is the one thing the feed change was meant to
+  avoid. It belongs with auto-download's other guardrails, not here.
+- **Per-item account** and **after-download command** are both small, and both
+  wanted rarely enough that they can wait for someone to ask.
+- **Keep only newest N** deletes files. That is a different kind of feature and
+  should not arrive as a checkbox inside a panel of filters.
+
+A filtered video is still written into `known`. Without that it would be found
+again on every check for the rest of time, and the filter would be a way of
+making the same video reappear for ever rather than a way of ignoring it.
 
 **Two more, outside the table:**
 

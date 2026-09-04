@@ -1986,6 +1986,13 @@ button { font-family: var(--body); }
 }
 .watch-item.is-paused { opacity: .62; }
 
+/* One channel's own settings, inside its own row. The margins that separate a
+   standalone .more from the page would push this panel out of the card it
+   belongs to, so they go and padding does the work instead. */
+.watch-opts { margin: 0; border-top: 1px solid var(--line); }
+.watch-opts > summary { padding: 8px 12px; }
+.watch-opts > .more-body { padding: 0 12px 12px; }
+
 .watch-head {
   display: flex;
   align-items: center;

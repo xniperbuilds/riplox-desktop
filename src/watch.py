@@ -33,6 +33,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime
 from xml.etree import ElementTree
 
 import engine
@@ -104,7 +105,50 @@ def _migrate(item: dict) -> dict:
     item.setdefault("feed_fail", 0)
     item.setdefault("full_checked", item.get("checked", 0))
     item.setdefault("auto", False)
+    item.setdefault("opts", {})
     return item
+
+
+# What one followed thing may say for itself. Anything not in here is dropped
+# rather than stored, so a file edited by hand cannot put an unknown key
+# somewhere the rest of the code will later trust.
+OPTION_KEYS = ("every", "quality", "dest_dir", "after", "title_has", "title_not")
+
+
+def clean_options(raw: dict) -> dict:
+    """
+    The options for one followed thing, with everything unusable removed.
+
+    An empty value is not stored at all: absent means "use the setting", and
+    keeping an empty string around would make the two look different.
+    """
+    raw = raw if isinstance(raw, dict) else {}
+    out = {}
+
+    try:
+        every = int(raw.get("every") or 0)
+    except (TypeError, ValueError):
+        every = 0
+    if every in MINUTES:
+        out["every"] = every
+
+    quality = str(raw.get("quality") or "").strip()
+    if quality in engine.QUALITY_LABELS:
+        out["quality"] = quality
+
+    folder = str(raw.get("dest_dir") or "").strip()
+    if folder:
+        out["dest_dir"] = folder[:400]
+
+    after = str(raw.get("after") or "").strip()
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", after):
+        out["after"] = after
+
+    for key in ("title_has", "title_not"):
+        words = str(raw.get(key) or "").strip()
+        if words:
+            out[key] = words[:200]
+    return out
 
 
 def load() -> dict:
@@ -165,9 +209,53 @@ def interval(item: dict = None) -> float:
     is set. An item with a feed does not.
     """
     chosen = minutes()
-    if item is not None and not item.get("feed"):
-        chosen = max(chosen, SLOW_FLOOR)
+    if item is not None:
+        # A channel that posts once a month does not need the same rhythm as
+        # one that posts daily, and the setting is only the starting point.
+        own = (item.get("opts") or {}).get("every")
+        if own in MINUTES:
+            chosen = own
+        if not item.get("feed"):
+            chosen = max(chosen, SLOW_FLOOR)
     return chosen * 60.0
+
+
+def wanted(item: dict, entry: dict) -> bool:
+    """
+    Whether this new video is one the person asked to hear about.
+
+    A video that fails a filter is still written down as seen - otherwise it
+    would be found again on every check for the rest of time. It is simply not
+    announced and not downloaded.
+
+    A rule can only be applied to something that is known. The feed carries a
+    date and the engine does not, so a date rule lets an undated video
+    through: silently dropping everything a rule cannot judge would be a much
+    worse answer than showing it.
+    """
+    opts = item.get("opts") or {}
+    title = str(entry.get("title") or "").lower()
+
+    words = [w.strip().lower() for w in str(opts.get("title_has", "")).split(",")]
+    words = [w for w in words if w]
+    if words and not any(w in title for w in words):
+        return False
+
+    banned = [w.strip().lower() for w in str(opts.get("title_not", "")).split(",")]
+    banned = [w for w in banned if w]
+    if banned and any(w in title for w in banned):
+        return False
+
+    after = opts.get("after")
+    published = entry.get("published") or 0
+    if after and published:
+        try:
+            floor = datetime.strptime(after, "%Y-%m-%d").timestamp()
+        except ValueError:
+            return True
+        if published < floor:
+            return False
+    return True
 
 
 # --------------------------------------------------------------------------
@@ -233,8 +321,25 @@ def read_feed(feed_url: str) -> list:
                     "url": "https://www.youtube.com/watch?v=" + video_id,
                     "title": title or "Untitled",
                     "duration": None,
-                    "thumbnail": thumb})
+                    "thumbnail": thumb,
+                    "published": _published(entry)})
     return out
+
+
+def _published(entry) -> float:
+    """
+    When the feed says this went up, or 0 when it does not say.
+
+    Zero is not "a long time ago" - it means unknown, and every rule that
+    depends on a date has to treat it that way.
+    """
+    text = (entry.findtext("a:published", "", _NS) or "").strip()
+    if not text:
+        return 0.0
+    try:
+        return datetime.fromisoformat(text).timestamp()
+    except ValueError:
+        return 0.0
 
 
 # --------------------------------------------------------------------------
@@ -334,6 +439,66 @@ def set_auto(item_id: str, auto: bool) -> bool:
     return True
 
 
+def set_options(item_id: str, raw: dict) -> bool:
+    """Replace one followed thing's own options. Absent means "use the setting"."""
+    data = load()
+    item = _find(data, item_id)
+    if not item:
+        return False
+    item["opts"] = clean_options(raw)
+    save(data)
+    return True
+
+
+def export_items() -> list:
+    """
+    The followed list, in the shape import wants it back.
+
+    Deliberately not the whole file: `known` is four hundred video ids per
+    item and means nothing on another machine, where the first check writes
+    its own baseline anyway.
+    """
+    return [{"url": i["url"], "kind": i.get("kind", "channel"),
+             "title": i.get("title", ""), "auto": bool(i.get("auto")),
+             "opts": clean_options(i.get("opts") or {})}
+            for i in load()["items"]]
+
+
+def import_items(rows: list) -> dict:
+    """
+    Add followed things from an exported list, skipping what is already there.
+
+    Each one is added the ordinary way, so it gets its own baseline and its
+    own feed worked out. `auto` is carried across but the master switch is
+    not: importing a list must never start downloading on its own.
+    """
+    added, skipped, failed = 0, 0, 0
+    for row in (rows or [])[:MAX_ITEMS]:
+        if not isinstance(row, dict):
+            failed += 1
+            continue
+        try:
+            result = add(str(row.get("url", "")), str(row.get("kind", "")))
+        except ValueError:
+            skipped += 1
+            continue
+        except Exception:                   # noqa: BLE001
+            failed += 1
+            continue
+        if result.get("choose"):
+            # A bare channel address needs a section picked, and nobody is
+            # standing here to pick one.
+            skipped += 1
+            continue
+        item_id = result["item"]["id"]
+        if row.get("opts"):
+            set_options(item_id, row["opts"])
+        if row.get("auto"):
+            set_auto(item_id, True)
+        added += 1
+    return {"added": added, "skipped": skipped, "failed": failed}
+
+
 def clear_new(item_id: str, video_id: str = "") -> bool:
     """
     Take one video, or all of them, off the "new" list.
@@ -418,9 +583,15 @@ def check(item_id: str, full: bool = False) -> dict:
         return {"ok": False, "error": "Not being followed."}
 
     known = set(item.get("known") or [])
-    found = []
+    found, seen = [], []
     for entry in entries:
         if not entry.get("id") or entry["id"] in known:
+            continue
+        # Everything unseen is written down, filtered or not. A video a rule
+        # turned away is still a video this check has looked at, and leaving
+        # it out of `known` would find it again on every check for ever.
+        seen.append(entry["id"])
+        if not wanted(item, entry):
             continue
         found.append({
             "id": entry["id"],
@@ -431,11 +602,12 @@ def check(item_id: str, full: bool = False) -> dict:
             "found": time.time(),
         })
 
+    if seen:
+        item["known"] = (seen + list(item.get("known") or []))[:KNOWN_CAP]
     if found:
         # Newest first, and every id recorded whether or not the user acts on
         # it - the list is "what is new", not "what is waiting".
         item["fresh"] = (found + item.get("fresh", []))[:FRESH_CAP]
-        item["known"] = ([f["id"] for f in found] + list(item.get("known") or []))[:KNOWN_CAP]
 
     if title:
         item["title"] = title
@@ -479,12 +651,15 @@ def _auto_download(item: dict, found: list, settings: dict) -> list:
         manager = getattr(app, "manager", None)
         if manager is None:
             return []
-        quality = settings.get("default_quality", "best")
+        opts = item.get("opts") or {}
+        quality = opts.get("quality") or settings.get("default_quality", "best")
+        where = {"dest_dir": opts["dest_dir"]} if opts.get("dest_dir") else {}
         taken = []
         for video in found[:AUTO_MAX_PER_CHECK]:
             manager.add(url=video["url"], title=video.get("title", ""),
                         thumbnail=video.get("thumbnail", ""),
-                        uploader=item.get("uploader", ""), quality=quality)
+                        uploader=item.get("uploader", ""), quality=quality,
+                        opts=dict(where))
             taken.append(video)
         return taken
     except Exception:                       # noqa: BLE001
@@ -641,6 +816,10 @@ def _public(item: dict) -> dict:
         # which it is rather than leaving the difference invisible.
         "feed": bool(item.get("feed")),
         "auto": bool(item.get("auto")),
+        "opts": item.get("opts") or {},
+        # What this one actually works out to, after its own setting and the
+        # floor that applies without a feed. The row shows this rather than
+        # the number that was chosen, because those are not always the same.
         "every": int(interval(item) // 60),
         "watching": len(item.get("known") or []),
         "new": item.get("fresh", []),
@@ -657,6 +836,10 @@ def state() -> dict:
         "choices": list(MINUTES),
         "auto": bool(settings.get("watch_auto")),
         "autoMax": AUTO_MAX_PER_CHECK,
+        # Read from the engine rather than written out again here, so a rung
+        # added there cannot become one no followed channel is able to name.
+        "qualities": [{"id": k, "label": v}
+                      for k, v in engine.QUALITY_LABELS.items()],
         "slowFloor": SLOW_FLOOR,
         "state": _status["state"],
         "busy": _status["busy"],

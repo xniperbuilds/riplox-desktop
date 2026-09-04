@@ -3172,6 +3172,81 @@
     return "in " + Math.round(left / 86400) + " d";
   }
 
+  /* One followed channel's own settings, folded away until asked for. Every
+     field falls back to the setting above when it is left empty, so "not set"
+     and "set to the same thing" are the same state rather than two. */
+  /* The fields, once. The server keeps the same list and drops anything not
+     on it, so a field named here and not there would take a value and lose
+     it without a word. One list on each side, and a test that compares them. */
+  var WATCH_OPTS = [
+    { key: "every", name: "Check every", from: "intervals" },
+    { key: "quality", name: "Quality", from: "qualities" },
+    { key: "dest_dir", name: "Save to", type: "text", hint: "The usual folder" },
+    { key: "after", name: "Only after", type: "date" },
+    { key: "title_has", name: "Title has", type: "text", hint: "any of these words" },
+    { key: "title_not", name: "Title has not", type: "text", hint: "none of these words" }
+  ];
+
+  function watchOptions(it, s) {
+    var o = it.opts || {};
+    var lists = {
+      intervals: (s.choices || []).map(function (m) {
+        return { id: String(m),
+                 label: m < 60 ? m + " minutes"
+                      : m === 60 ? "1 hour"
+                      : (m / 60) + " hours" };
+      }),
+      qualities: s.qualities || []
+    };
+
+    var fields = WATCH_OPTS.map(function (f) {
+      var head = '<label class="more-field"><span>' + esc(f.name) + "</span>";
+      if (f.from) {
+        // "Use the setting above" is the first choice rather than a separate
+        // checkbox: empty and "the same as the setting" are one state.
+        var list = [{ id: "", label: "Use the setting above" }].concat(lists[f.from]);
+        return head + '<select data-opt="' + f.key + '" data-id="' + esc(it.id) + '">' +
+          list.map(function (x) {
+            return '<option value="' + esc(x.id) + '"' +
+              (String(o[f.key] || "") === String(x.id) ? " selected" : "") + ">" +
+              esc(x.label) + "</option>";
+          }).join("") + "</select></label>";
+      }
+      return head + '<input type="' + f.type + '" class="text-input" data-opt="' +
+        f.key + '" data-id="' + esc(it.id) + '" value="' + esc(o[f.key] || "") +
+        '" placeholder="' + esc(f.hint || "") + '"></label>';
+    });
+
+    return '<details class="more watch-opts"><summary>Settings for this one</summary>' +
+      '<div class="more-body">' +
+        '<div class="more-row">' + fields.slice(0, 2).join("") + "</div>" +
+        '<div class="more-row">' + fields.slice(2, 4).join("") + "</div>" +
+        '<div class="more-row">' + fields.slice(4).join("") + "</div>" +
+        '<p class="more-note">A video a rule turns away is still marked as seen, ' +
+        'so it will not come back. Dates only apply where the site gives one.</p>' +
+      "</div></details>";
+  }
+
+  // Saved as each field is left, not on a button: a panel with a Save button
+  // that nobody presses is a panel that quietly does nothing.
+  function saveWatchOptions(id) {
+    var panel = document.querySelector('.watch-item [data-id="' + id + '"]');
+    if (!panel) return;
+    var row = panel.closest(".watch-item");
+    var opts = {};
+    row.querySelectorAll("[data-opt]").forEach(function (el) {
+      if (el.value) opts[el.dataset.opt] = el.value;
+    });
+    api("/api/watch/options", { id: id, opts: opts }).then(function (res) {
+      if (res.ok) toast("Saved");
+    });
+  }
+
+  $("watchList").addEventListener("change", function (e) {
+    var field = e.target.closest("[data-opt]");
+    if (field) saveWatchOptions(field.dataset.id);
+  });
+
   function renderWatch(s) {
     watchState = s;
     $("setWatch").classList.toggle("on", s.on);
@@ -3217,7 +3292,13 @@
         "</div>";
     }).join("");
 
-    $("watchList").innerHTML = s.items.map(function (it) {
+    // This screen refreshes on a timer. Redrawing the list while someone has
+    // a panel open, or a word half typed into it, would throw both away - so
+    // the rest of the screen keeps updating and the list waits.
+    var busy = $("watchList").contains(document.activeElement)
+               || $("watchList").querySelector("details[open]");
+
+    var rows = s.items.map(function (it) {
       var fresh = it.new || [];
 
       var trouble = it.error
@@ -3255,8 +3336,9 @@
             '">Remove</button>' +
         // The videos themselves are in the one list above. What stays here is
         // the channel and what is true of it.
-        "</div>" + trouble + "</div>";
+        "</div>" + trouble + watchOptions(it, s) + "</div>";
     }).join("");
+    if (!busy) $("watchList").innerHTML = rows;
 
     $("watchBadge").textContent = s.new;
     $("watchBadge").hidden = !s.new;
@@ -3321,6 +3403,30 @@
     }
     askFirst(function () {
       saveSetting({ watch: true }).then(loadWatch);
+    });
+  });
+
+  $("watchExport").addEventListener("click", function () {
+    api("/api/watch/export", {}).then(function (res) {
+      if (res.cancelled) return;
+      if (!res.ok) { toast(res.error || "Could not save it.", "bad"); return; }
+      toast("Saved " + res.count + (res.count === 1 ? " channel" : " channels"), "good");
+    });
+  });
+
+  // Every imported line is looked up at the site, so this is slow and says so
+  // rather than looking frozen.
+  $("watchImport").addEventListener("click", function () {
+    toast("Reading that list…");
+    api("/api/watch/import", {}).then(function (res) {
+      if (res.cancelled) return;
+      if (!res.ok) { toast(res.error || "Could not read it.", "bad"); return; }
+      var r = res.result || {};
+      var say = r.added + " added";
+      if (r.skipped) say += ", " + r.skipped + " already there";
+      if (r.failed) say += ", " + r.failed + " could not be read";
+      toast(say, r.added ? "good" : "bad");
+      renderWatch(res.state);
     });
   });
 

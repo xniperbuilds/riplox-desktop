@@ -234,6 +234,138 @@ check("at the quality that was set",
       all(a["quality"] == "1080" for a in fake.added))
 
 
+print("\n-- one channel's own settings ----------------------------------------")
+
+kept = watch.clean_options({"every": 15, "quality": "1080",
+                            "dest_dir": "D:\\Clips", "after": "2026-01-01",
+                            "title_has": "review", "title_not": "trailer"})
+check("everything usable is kept", len(kept) == 6, kept)
+
+check("an interval we do not offer is dropped",
+      "every" not in watch.clean_options({"every": 7}))
+check("a quality that does not exist is dropped",
+      "quality" not in watch.clean_options({"quality": "9000"}))
+check("a date that is not a date is dropped",
+      "after" not in watch.clean_options({"after": "last tuesday"}))
+check("an empty value is not stored as an empty value",
+      watch.clean_options({"dest_dir": "  ", "title_has": ""}) == {})
+check("and a key nobody recognises never gets in",
+      "sudo" not in watch.clean_options({"sudo": "yes"}))
+
+# The per-channel interval beats the setting, but the floor still wins over
+# both - that floor is the reason the fast choices can exist at all.
+engine.save_settings({"watch_minutes": 1440})
+check("a channel can be checked more often than the setting",
+      watch.interval({"feed": "f", "opts": {"every": 15}}) == 900)
+check("but not one the engine has to fetch",
+      watch.interval({"feed": "", "opts": {"every": 15}}) == watch.SLOW_FLOOR * 60)
+
+
+print("\n-- rules about which videos count -------------------------------------")
+
+def entry(title, published=0):
+    return {"id": "x", "title": title, "published": published}
+
+
+plain = {"opts": {}}
+check("with no rules everything counts", watch.wanted(plain, entry("anything")))
+
+has = {"opts": {"title_has": "review, tested"}}
+check("a word rule lets a matching title through",
+      watch.wanted(has, entry("Laptop review 2026")))
+check("and turns away one that matches none of them",
+      not watch.wanted(has, entry("Vlog number nine")))
+check("matching is not case sensitive",
+      watch.wanted(has, entry("LAPTOP REVIEW")))
+
+nope = {"opts": {"title_not": "trailer, #shorts"}}
+check("a banned word turns a video away",
+      not watch.wanted(nope, entry("Official trailer")))
+check("and leaves the rest alone", watch.wanted(nope, entry("Full episode")))
+
+JAN = 1_767_225_600.0          # 2026-01-01, near enough for a comparison
+dated = {"opts": {"after": "2026-01-01"}}
+check("something older than the date is turned away",
+      not watch.wanted(dated, entry("old", JAN - 86400 * 30)))
+check("something newer is not", watch.wanted(dated, entry("new", JAN + 86400 * 30)))
+# The engine path has no date at all. Dropping everything a rule cannot judge
+# would hide videos rather than filter them.
+check("and something with no date at all still counts",
+      watch.wanted(dated, entry("undated", 0)))
+
+
+print("\n-- a filtered video does not come back --------------------------------")
+
+# This is the whole reason `known` and `fresh` are separate lists: a video a
+# rule turned away has still been looked at.
+src_check = (SRC / "watch.py").read_text(encoding="utf-8")
+check("everything unseen is written down before the rules run",
+      "seen.append(entry[\"id\"])" in src_check
+      and src_check.index("seen.append") < src_check.index("if not wanted("))
+
+
+print("\n-- the feed's date ----------------------------------------------------")
+
+check("the published date is read out of the feed",
+      entries[0]["published"] > 0)
+check("for every entry that has one", entries[1]["published"] > 0)
+
+ODD = FEED.replace(b"2026-09-03T10:00:00+00:00", b"the third of September")
+watch.urllib.request.urlopen = lambda *a, **k: FakeResponse(ODD)
+odd = watch.read_feed("https://example.invalid/feed")
+# Zero means unknown, not 1970 - every date rule has to be able to tell the
+# difference, or an unreadable date would look like the oldest video there is.
+check("a date that cannot be read becomes unknown, not ancient",
+      odd[0]["published"] == 0.0)
+check("and the entry is still read", odd[0]["id"] == "aaaaaaaaaaa")
+watch.urllib.request.urlopen = lambda *a, **k: FakeResponse(FEED)
+
+
+print("\n-- taking the list somewhere else -------------------------------------")
+
+watch.save({"items": [watch._migrate({
+    "id": "one", "url": "https://www.youtube.com/channel/" + CHANNEL,
+    "title": "A channel", "auto": True, "known": ["a"] * 400,
+    "opts": {"quality": "1080"}})]})
+
+rows = watch.export_items()
+check("the list exports one row per followed thing", len(rows) == 1)
+check("with its address, its options and its download switch",
+      rows[0]["url"].endswith(CHANNEL) and rows[0]["opts"] == {"quality": "1080"}
+      and rows[0]["auto"] is True)
+# Four hundred video ids mean nothing on another machine, where the first
+# check writes its own baseline anyway.
+check("and without the seen list, which would not travel",
+      "known" not in rows[0])
+
+
+print("\n-- the panel and the reader agree ------------------------------------")
+
+# The panel is authored in JavaScript and read in Python, and nothing makes
+# the two agree by itself. A field named on one side and not the other fails
+# in the quietest possible way: the box is there, it accepts a value, and the
+# value is dropped on the way in.
+APP_JS = (SRC / "static" / "js" / "app.js").read_text(encoding="utf-8")
+import re as _re                                            # noqa: E402
+
+block = _re.search(r"var WATCH_OPTS = \[(.*?)\];", APP_JS, _re.S)
+check("the panel's field list is where this expects it", bool(block))
+authored = set(_re.findall(r'key: "([a-z_]+)"', block.group(1) if block else ""))
+check("the panel offers at least one field", authored, authored)
+check("every field the panel offers is one the reader keeps",
+      authored <= set(watch.OPTION_KEYS),
+      sorted(authored - set(watch.OPTION_KEYS)))
+check("and every option the reader keeps has a field",
+      set(watch.OPTION_KEYS) <= authored,
+      sorted(set(watch.OPTION_KEYS) - authored))
+
+# The same trap one level up: a class used in the script with no rule in the
+# stylesheet renders as an unstyled block. The repo already has a test for
+# that across the whole file; this is the one this feature added.
+CSS = (SRC / "static" / "css" / "app.css").read_text(encoding="utf-8")
+check("the panel's own class is styled", ".watch-opts" in CSS)
+
+
 print("\n-- the promise -------------------------------------------------------")
 
 src = (SRC / "watch.py").read_text(encoding="utf-8")
