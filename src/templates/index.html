@@ -534,6 +534,12 @@
         </label>
         <button type="button" class="ghost small" id="plInvert">Invert</button>
         <span class="pl-count" id="plCount"></span>
+        <!-- A long channel is read a page at a time, and every page is a
+             request: the first hundred take seconds, all of it can take a
+             minute and a half. So the first hundred arrive straight away and
+             the rest is a button, pressed by whoever actually wants it. -->
+        <button type="button" class="ghost small" id="plLoadAll" hidden>
+          Load them all</button>
       </div>
       <!-- What a page read left out, and why. Four reasons said as four
            different things: "48 left out" would be true and useless. Only

@@ -1122,7 +1122,8 @@ def check_proxy(raw) -> str:
     return ""
 
 
-def _base_args(settings: dict, cookie_path=None, batch: bool = False) -> list:
+def _base_args(settings: dict, cookie_path=None, batch: bool = False,
+               polite: bool = True) -> list:
     exe = ytdlp_path()
     if exe is None:
         raise EngineMissing("yt-dlp binary not found")
@@ -1176,7 +1177,12 @@ def _base_args(settings: dict, cookie_path=None, batch: bool = False) -> list:
         except Exception:
             pass               # a missing helper must never stop a download
 
-    if (settings or {}).get("polite_mode", True):
+    # `polite=False` is for the one read a person is sitting and waiting for.
+    # The pause exists for bursts - a playlist being grabbed, a timer checking
+    # channels - and a channel listing pays it once per page of results, which
+    # measured 86.7s against 38.2s on the same channel. Reading one link is
+    # not a burst, and the cost lands entirely on someone watching a spinner.
+    if polite and (settings or {}).get("polite_mode", True):
         # Bulk grabs off a playlist are exactly the burst pattern that gets an
         # IP asked to prove it is a person. A short pause costs nothing.
         args += ["--sleep-requests", "0.75"]
@@ -2272,10 +2278,22 @@ def extra_args(settings: dict, quality: str, trimmed: bool = False) -> list:
     return args
 
 
-def analyze(url: str, settings: dict) -> dict:
+# How much of a long list the first read asks for. A channel is walked a page
+# at a time and each page is a request, so "all of it" is minutes: the same
+# channel measured 86.7s whole against 3.3s for the first hundred. Nobody
+# reads past the first screen before pressing something, and the rest is one
+# button away - so the wait belongs to the person who asked for all of it.
+ANALYZE_LIMIT = 100
+
+
+def analyze(url: str, settings: dict, limit: int = ANALYZE_LIMIT) -> dict:
     """
     Inspect a URL without downloading.
     Returns a single video dict, or a playlist dict with entries.
+
+    `limit` caps how many entries a playlist or channel comes back with; pass
+    0 for all of them. A capped result says so, so the screen can offer the
+    rest rather than quietly showing a hundred of eight hundred.
     """
     # The same ladder a download climbs. Reading a link failed on a passing
     # bot check and stopped there, while queueing the very same link retried
@@ -2288,10 +2306,15 @@ def analyze(url: str, settings: dict) -> dict:
     cookie_path, temp_cookie, _account = open_cookies(settings, url)
     try:
         for index, client in enumerate(plans):
-            args = _base_args(settings, cookie_path)
+            # Somebody is watching this one happen, so it does not pay the
+            # pause meant for bursts.
+            args = _base_args(settings, cookie_path, polite=False)
             if client:
                 args += ["--extractor-args", f"youtube:player_client={client}"]
-            args += ["-J", "--flat-playlist", "--no-progress", url]
+            args += ["-J", "--flat-playlist", "--no-progress"]
+            if limit and limit > 0:
+                args += ["--playlist-end", str(int(limit))]
+            args += [url]
 
             try:
                 out = _run(args, timeout=120)
@@ -2341,11 +2364,22 @@ def analyze(url: str, settings: dict) -> dict:
                 ],
             }
 
+        # A list that came back exactly as long as the cap is a list that was
+        # cut off - there is no way to tell from here whether it stopped at a
+        # hundred or happens to be a hundred, so the screen is told "there may
+        # be more" rather than either lie. `playlist_count`, where the site
+        # gives one, settles it properly.
+        total = info.get("playlist_count")
+        more = bool(limit and len(entries) >= limit
+                    and (not isinstance(total, int) or total > len(entries)))
+
         return {
             "kind": "playlist",
             "title": info.get("title") or "Playlist",
             "uploader": info.get("uploader") or info.get("channel") or "",
             "count": len(entries),
+            "more": more,
+            "total": total if isinstance(total, int) else 0,
             "thumbnail": _pick_thumb(info) or (_pick_thumb(entries[0]) if entries else ""),
             "entries": [
                 {
@@ -3518,6 +3552,34 @@ _SILENCE_LIMIT = 900.0
 # same engine. Without this, every site except YouTube got exactly one try.
 _PLAIN_RETRIES = ["", "", ""]
 
+# 🔴 The connection broke - which says nothing at all about the player client
+# being used. Climbing the ladder here was the bug behind "best available
+# went to an https error halfway and came back 360p": the fallback clients
+# are only ever offered small formats, so a Wi-Fi hiccup silently bought a
+# worse file. These are retried on the SAME rung; only a refusal moves down.
+_NETWORK_TROUBLE = (
+    "read timed out", "timed out", "timeout", "connection reset",
+    "unable to connect", "connection aborted", "connection refused",
+    "temporary failure in name resolution", "getaddrinfo", "network is unreachable",
+    "remote end closed", "incompleteread", "ssl", "eof occurred",
+    "unable to download webpage",
+    # urllib wraps the real reason - a DNS failure, a refused socket - inside
+    # "<urlopen error ...>", so the words below it are often the only ones
+    # that survive into the log.
+    "urlopen error",
+)
+
+# How many times one rung is tried again for a broken connection before the
+# ladder is spent on it. Three is enough for a switch between Wi-Fi and
+# mobile; more would keep a genuinely dead link busy for minutes.
+_SAME_RUNG_TRIES = 3
+
+
+def _is_network_trouble(text: str) -> bool:
+    low = (text or "").lower()
+    return any(marker in low for marker in _NETWORK_TROUBLE)
+
+
 _TRANSIENT = (
     "not a bot", "login_required", "429", "too many requests",
     "temporarily", "try again later", "unable to download webpage",
@@ -4432,6 +4494,11 @@ _ASKED_HEIGHT = {"4320": 4320, "2160": 2160, "1440": 1440, "1080": 1080,
 # proof-of-origin token can be minted, so anything taller did not come from a
 # degraded route and needs no second look.
 _FALLBACK_CEILING = 360
+
+# How close to the request still counts as answering it. 1080 asked and 1080
+# given is exact; sites do sometimes hand back the rung just below, and asking
+# the site again over that would spend a listing to say almost nothing.
+_SHORT_ENOUGH = 0.9
 
 
 def best_height(url: str, settings: dict, cookie_path=None) -> int:
@@ -5386,8 +5453,35 @@ class DownloadManager:
 
         for index, client in enumerate(plans):
             job.attempt = index + 1
-            if self._attempt(job, settings, client) or job.cancelled:
-                return job.status == "done"
+
+            # 🔴 A broken connection is retried on THIS rung. The rungs below
+            # are different player clients, chosen to get past a refusal, and
+            # they are only ever offered small formats - so spending one on a
+            # Wi-Fi hiccup answers "best available" with 360p and calls it
+            # done. Reported from real use: an https error halfway through,
+            # and the file that arrived was a fraction of what was asked for.
+            for again in range(_SAME_RUNG_TRIES):
+                if self._attempt(job, settings, client) or job.cancelled:
+                    return job.status == "done"
+                if not _is_network_trouble(job.log):
+                    break                  # a refusal - that is what rungs are for
+                # The network leaving, or changing, is already handled better
+                # elsewhere: the job goes back on the queue and starts again
+                # with fresh URLs. Asked first so this loop never competes
+                # with it.
+                if self._network_went(job) or again + 1 >= _SAME_RUNG_TRIES:
+                    break
+                job.status = "starting"
+                job.error = ""
+                job.speed = job.eta = ""
+                deadline = time.monotonic() + 2 + 3 * again
+                while time.monotonic() < deadline:
+                    if job.cancelled:
+                        job.status = "paused" if job.paused else "cancelled"
+                        return False
+                    time.sleep(0.2)
+            if job.cancelled or job.status in ("queued", "paused", "cancelled"):
+                return False
 
             # ⚠ Asked BEFORE another rung is spent. The whole ladder used to
             # run inside about twenty seconds - shorter than a Wi-Fi-to-mobile
@@ -5444,12 +5538,27 @@ class DownloadManager:
             return ""
 
         height = int(getattr(job, "height", 0) or 0)
-        if not height or height > _FALLBACK_CEILING:
+        if not height:
             return ""
 
         asked = _ASKED_HEIGHT.get(job.quality, 0)
         if asked and height >= asked:
             return ""            # they asked for small and got small
+
+        # ⚠️ This used to stop at 360p, because that was the ceiling measured
+        # on the fallback clients of the day. It made the check true and
+        # narrow: a request for 4K answered with 720p walked straight past it
+        # and went green. Which heights a degraded route can reach is a fact
+        # with a shelf life; "far short of what was asked" is not. Anything
+        # visibly below the request is now worth the one listing it costs to
+        # find out - and a listing is only spent when a fallback rung was
+        # used at all, which is rare.
+        if asked and height >= asked * _SHORT_ENOUGH:
+            return ""            # near enough - not worth a request to confirm
+        if not asked and height > _FALLBACK_CEILING:
+            # "max" and "best" name no number, so there is nothing to be short
+            # of until the answer is small enough to be suspicious on its own.
+            return ""
 
         # Now, and only now, is it worth a request: ask the main route what
         # this video actually has. Costs one listing, on a path that should be

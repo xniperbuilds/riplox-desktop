@@ -180,7 +180,8 @@ def whats_new() -> list:
 
 @app.post("/api/analyze")
 def api_analyze():
-    url = (request.json or {}).get("url", "").strip()
+    body = request.json or {}
+    url = body.get("url", "").strip()
     if not url:
         return jsonify({"ok": False, "error": "Paste a link first."}), 400
     if not url.lower().startswith(("http://", "https://")):
@@ -192,8 +193,13 @@ def api_analyze():
     if not url.split("://", 1)[1].strip(" /"):
         return jsonify({"ok": False, "error": "That link has no site in it."}), 400
 
+    # "All of it" is a second, slower read that only happens when it is asked
+    # for. The first one is capped so a channel comes back in seconds instead
+    # of a minute and a half.
+    limit = 0 if body.get("all") else engine.ANALYZE_LIMIT
+
     try:
-        info = engine.analyze(url, engine.load_settings())
+        info = engine.analyze(url, engine.load_settings(), limit=limit)
     except engine.EngineMissing:
         return jsonify({"ok": False, "error": "Download engine is missing. Reinstall Riplox."}), 500
     except RuntimeError as exc:

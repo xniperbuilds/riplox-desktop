@@ -1,7 +1,8 @@
 # Riplox Desktop
 
-A free video downloader for Windows that your phone can drive. Share a link from
-any app and your PC downloads it — or paste a link here and keep the file.
+A free, open-source **yt-dlp GUI for Windows**. Paste a link and keep the file, or
+send a video from your phone — share a link from any app and the PC downloads it,
+with no Docker, no server to run and no account.
 
 Works with YouTube, TikTok, Instagram, Facebook, X, Reddit and around a
 thousand other sites.

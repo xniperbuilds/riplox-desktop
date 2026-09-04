@@ -7,6 +7,7 @@
   var labels = S.labels || {};
 
   var current = null;      // analyzed video or playlist
+  var lastAnalyzed = "";   // the link that produced it, for "Load them all"
   var quality = settings.default_quality || "best";
   var pollTimer = null;
   var clipTimer = null;
@@ -231,15 +232,21 @@
     grabPage($("urlInput").value.trim());
   });
 
-  function analyze(url) {
+  // `all` asks for the whole of a long list. The first read is capped so a
+  // channel appears in seconds; this is the second, slower one, and only
+  // happens when somebody presses for it.
+  function analyze(url, all) {
     if (!url) { toast("Paste a link first.", "bad"); return; }
 
     $("analyzeError").hidden = true;
     $("preview").hidden = true;
     $("playlistWrap").hidden = true;
     setBusy(true);
+    // Kept because "Load them all" has to ask for the same link again, and a
+    // playlist result carries no address of its own to ask with.
+    lastAnalyzed = url;
 
-    api("/api/analyze", { url: url }).then(function (res) {
+    api("/api/analyze", { url: url, all: !!all }).then(function (res) {
       setBusy(false);
       if (!res.ok) {
         var box = $("analyzeError");
@@ -1156,7 +1163,12 @@
 
     $("plAll").checked = rows.length > 0 && pickedHere === rows.length;
     $("plAll").indeterminate = pickedHere > 0 && pickedHere < rows.length;
-    $("plCount").textContent = count + " of " + total + " selected";
+    $("plCount").textContent = count + " of " + total + " selected"
+      + (current && current.more
+         ? (current.total ? " · first " + total + " of " + current.total
+                          : " · first " + total)
+         : "");
+    $("plLoadAll").hidden = !(current && current.more);
 
     var btn = $("downloadBtn");
     btn.disabled = count === 0;
@@ -1241,6 +1253,12 @@
       pollJobs();
     });
   }
+
+  $("plLoadAll").addEventListener("click", function () {
+    if (!lastAnalyzed) return;
+    toast("Reading the whole list — this one is slow.");
+    analyze(lastAnalyzed, true);
+  });
 
   $("playlistBox").addEventListener("click", function (e) {
     var li = e.target.closest("li");
