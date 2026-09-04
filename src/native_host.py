@@ -33,7 +33,7 @@ APP_NAME = "RiploxDesktop"
 # and tests/test_host_version.py fails the moment it drifts from app.VERSION -
 # the extension reads this number to decide whether to tell somebody their
 # Riplox is too old, so a stale copy here becomes a wrong message there.
-VERSION = "1.5.0"
+VERSION = "1.6.0"
 MAX_MESSAGE = 1024 * 1024          # a link, not a payload
 INBOX_CAP = 200
 
