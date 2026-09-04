@@ -335,6 +335,9 @@
       ["duplicates", "Repeated on the page", skipped.duplicates || 0],
       ["unsupported", "No reader for the site", skipped.unsupported || 0]
     ];
+    // Deliberately not a chip of its own: a chip is a group you can open, and
+    // there would be nothing behind this one - the answers are already rows
+    // in the list, each carrying its own "asked the server" tag.
 
     grabGroups = { known: known,
                    duplicates: left.duplicates || [],
@@ -1047,7 +1050,12 @@
         '<li data-i="' + i + '">' +
           '<input type="checkbox" class="pl-check" checked>' +
           "<b>" + (i + 1) + "</b>" +
-          "<span>" + esc(entries[i].title) + "</span>" +
+          "<span>" + esc(entries[i].title) +
+            // This row is not here because its address looked like a file -
+            // it is here because the server was asked and answered like one.
+            // A guess that says so can be checked; one that does not cannot.
+            (entries[i].asked ? ' <em class="tag">asked the server</em>' : "") +
+          "</span>" +
           "<em>" + esc(fmtDuration(entries[i].duration)) + "</em>" +
           '<button type="button" class="pl-get" title="Download just this one">&#8595;</button>' +
         "</li>");
@@ -4452,6 +4460,14 @@
   bindToggle("setAutoPaste", "auto_paste");
   bindToggle("setPace", "pace_sites");
   bindToggle("setWatchAuto", "watch_auto");
+  bindToggle("setDrop", "drop_on");
+
+  $("dropOpen").addEventListener("click", function () {
+    api("/api/drop/open", {}).then(function (res) {
+      if (!res.ok) { toast(res.error || "Could not open it.", "bad"); return; }
+      toast("Drop a file of links in there");
+    });
+  });
   // On the Failed page rather than in Settings - it is about that page, and
   // this is where someone is standing when they decide they want it.
   bindToggle("setFailedTidy", "failed_clear_on_success");

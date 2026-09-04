@@ -56,7 +56,8 @@ thousand other sites.
 | Cover picture | Choose from the ones the site offers instead of taking its default; kept beside the file and put inside it where the format allows |
 | Convert | Anything already on the disk: MP3, M4A, OPUS, FLAC or WAV for the sound, or MP4, MKV, MOV and WebM for the video, with an optional shrink to 1080p, 720p or 480p and a short GIF. Remuxed rather than re-encoded when the codec already fits, so an MP4 into an MKV finishes in a second. Never scaled up, and the original is never touched |
 | Following | Follow a channel or playlist and be told what is new — read from the site's own published feed where there is one, so it can be checked every fifteen minutes and a hundred can be followed. Nothing downloads unless you turn that on for that channel |
-| Find on a page | Point it at a page and it lists every media link on it, in the same screen playlists use |
+| Find on a page | Point it at a page and it lists every media link on it, in the same screen playlists use. An address that gives nothing away — no extension, a site with no reader — is asked about rather than assumed to be navigation, and a row that got in that way says so |
+| Drop folder | Optional. A folder anything on this PC can write into: a file of links, one per line or JSON, and Riplox queues them. Read files are renamed, never deleted |
 | Schedule | Hold new downloads outside chosen hours, or give one download its own start time — 02:00 means tonight, and the row says how long it is waiting. A download already running is never cut off |
 | Send to Riplox | Share a link from your phone or another PC and this one downloads it — see below |
 | Start with Windows | Optional, and it starts into the tray rather than onto your screen |

@@ -581,6 +581,11 @@ DEFAULT_SETTINGS = {
     # finds them while hidden, so nothing becomes unreachable.
     "show_advanced": False,
     "auto_paste": True,              # watch clipboard for links
+    # A folder anything on this PC can drop a list of links into. Off until
+    # it is asked for: a folder that quietly queues whatever appears in it is
+    # not something to switch on for somebody.
+    "drop_on": False,
+    "drop_dir": "",                  # empty means the one beside the app data
     "auto_download": False,          # queue a copied link without asking
     # Which sites instant download is allowed to act on. Empty means all of
     # them, which is what it did before this existed - and that is the one
@@ -2455,6 +2460,131 @@ _MEDIA_EXT = (
     ".mpd", ".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg", ".opus", ".wma",
 )
 _SKIP_SCHEME = ("mailto:", "javascript:", "tel:", "data:", "#")
+
+# An address with no extension on a site nobody has an extractor for is not
+# necessarily navigation - plenty of files are served from a bare path, and a
+# download link on a small site almost always is. The only way to know is to
+# ask, so a few of them are asked: HEAD, short timeout, strictly capped.
+#
+# The rule below is the one JDownloader arrived at after years of it, read out
+# of its own source rather than guessed: the shape of the answer decides, not
+# the shape of the address.
+_PROBE_LIMIT = 12             # per page. A page must not become a scan.
+_PROBE_TIMEOUT = 6
+_PROBE_MIN_BYTES = 2 * 1024 * 1024
+
+
+def looks_downloadable(headers, status: int, path: str = "") -> bool:
+    """
+    Do these response headers describe a file rather than a page?
+
+    Never true for HTML. Otherwise, in order: a Content-Disposition that is
+    not an inline page, a media content type, no type at all but a real
+    length and byte ranges, or simply something far too big to be a page.
+    """
+    if status not in (200, 206):
+        return False
+
+    ctype = (headers.get("Content-Type") or "").split(";")[0].strip().lower()
+    if ctype in ("text/html", "application/xhtml+xml"):
+        return False
+
+    disposition = (headers.get("Content-Disposition") or "").strip()
+    if disposition and not disposition.lower().startswith("inline"):
+        return True
+
+    if ctype.startswith(("video/", "audio/", "image/")) or ctype in (
+            "application/octet-stream", "binary/octet-stream"):
+        return True
+
+    try:
+        length = int(headers.get("Content-Length") or 0)
+    except (TypeError, ValueError):
+        length = 0
+
+    ranges = "bytes" in (headers.get("Accept-Ranges") or "").lower()
+    if not ctype and length > 0 and ranges:
+        return True
+    # Nothing that reads as text is a download, however big it is.
+    if length >= _PROBE_MIN_BYTES and not ctype.startswith("text/"):
+        return True
+    return False
+
+
+# Addresses that are plainly a page. Asking about these would spend the whole
+# allowance on navigation and never find a file.
+_PAGE_EXT = (".html", ".htm", ".php", ".asp", ".aspx", ".jsp", ".xml", ".rss",
+             ".json", ".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".svg",
+             ".webp", ".ico", ".woff", ".woff2", ".ttf")
+
+
+def _worth_probing(path: str) -> bool:
+    """
+    Is this address worth one question?
+
+    Only when its own shape says nothing: no extension at all, or one nobody
+    recognises. Something ending .html is a page and something ending .mp4 was
+    already kept; neither needs asking about.
+    """
+    tail = path.rsplit("/", 1)[-1]
+    if not tail:
+        return False                      # a directory, not a file
+    if path.endswith(_PAGE_EXT) or path.endswith(_MEDIA_EXT):
+        return False
+    return True
+
+
+def _probe_many(items: list, proxy: str = "") -> list:
+    """
+    Ask about several at once, and keep the ones that answered like a file.
+
+    On threads because these are waits, not work, and a dozen one after
+    another at six seconds each is a minute and a half of somebody watching a
+    spinner.
+    """
+    if not items:
+        return []
+    keep, lock = [], threading.Lock()
+
+    def ask(item):
+        if _probe_one(item["url"], proxy):
+            with lock:
+                keep.append(item)
+
+    threads = [threading.Thread(target=ask, args=(i,), daemon=True) for i in items]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=_PROBE_TIMEOUT + 2)
+    # Back in the order they appeared on the page, not the order they replied.
+    order = {id(i): n for n, i in enumerate(items)}
+    return sorted(keep, key=lambda i: order.get(id(i), 0))
+
+
+def _probe_one(url: str, proxy: str = "") -> bool:
+    """One HEAD. Any failure at all means "leave it where it was"."""
+    request = urllib.request.Request(url, method="HEAD", headers={
+        "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                       "AppleWebKit/537.36 (KHTML, like Gecko) "
+                       "Chrome/124.0 Safari/537.36"),
+    })
+    try:
+        # ⚠️ Through urlopen when there is no proxy, deliberately. A custom
+        # opener would be a second door out of this module - one the rest of
+        # the app's tests do not know about - and the page read beside it
+        # already goes through urlopen. One door, one place to stub.
+        if proxy:
+            opener = urllib.request.build_opener(urllib.request.ProxyHandler(
+                {"http": proxy, "https": proxy}))
+            response = opener.open(request, timeout=_PROBE_TIMEOUT)
+        else:
+            response = urllib.request.urlopen(request, timeout=_PROBE_TIMEOUT)
+        with response:
+            return looks_downloadable(response.headers,
+                                      getattr(response, "status", 200),
+                                      urlsplit(url).path)
+    except Exception:                     # noqa: BLE001
+        return False
 _GRAB_CAP = 300               # a page with more than this is a listing, not a
                               # page, and the list stops being useful anyway
 _GRAB_BYTES = 3 * 1024 * 1024
@@ -2549,6 +2679,7 @@ def grab(url: str, settings: dict) -> dict:
     read_ms = int((time.time() - started) * 1000)
 
     entries, seen = [], {page.rstrip("/")}
+    maybe = []                # asked about afterwards, a few of them
     skipped = {"duplicates": 0, "unsupported": 0, "capped": 0}
     # The links themselves, not only how many. A count can be printed; a list
     # can be looked at, which is the difference between "48 left out" and
@@ -2578,13 +2709,20 @@ def grab(url: str, settings: dict) -> dict:
         site = site_of(full)
         # Worth listing if a site we know serves media from it, or if the
         # address is plainly a media file. Everything else on a page is
-        # navigation.
+        # navigation - or is it? See `maybe` below.
         if not (path.endswith(_MEDIA_EXT) or site in known_sites()):
+            # Held for a second look. A file served from a bare path - no
+            # extension, on a site with no extractor - is indistinguishable
+            # from navigation until something asks, and asking is cheap when
+            # it is capped.
+            if _worth_probing(path):
+                maybe.append({"url": full, "title": title[:120], "site": site,
+                              "bare": bare, "away": site != site_of(page)})
             # A page's own navigation was never a candidate, so it is not
             # something that was "left out" - counting it would put "48 from
             # sites Riplox has no reader for" under every page and make the
             # line worth ignoring. Only links that leave the site count.
-            if site != site_of(page):
+            elif site != site_of(page):
                 skipped["unsupported"] += 1
                 if len(left_out["unsupported"]) < LEFT_CAP:
                     left_out["unsupported"].append(
@@ -2606,6 +2744,49 @@ def grab(url: str, settings: dict) -> dict:
             skipped["capped"] = 1
             break
 
+    # Now, and only now, the ones that could not be judged from their address.
+    # After the loop so the cheap answers are already in and the count below
+    # is honest, and capped so a page of two hundred links is still one page
+    # read plus a dozen questions - not a scan of somebody's site.
+    probed = 0
+    won = []
+    if maybe and len(entries) < _GRAB_CAP:
+        won = _probe_many(maybe[:_PROBE_LIMIT],
+                          clean_proxy(settings.get("proxy")))
+        probed = len(maybe[:_PROBE_LIMIT])
+
+    # ⚠️ Everything that was held back and did not make it has to land in the
+    # count, exactly where it would have landed before it was held. Asking
+    # about a link and not liking the answer is not a reason for it to vanish
+    # from the page's account of itself - which is what happened when this was
+    # first written, and what the existing test caught.
+    kept = {id(i) for i in won}
+    for item in maybe:
+        if id(item) in kept or not item["away"]:
+            continue
+        skipped["unsupported"] += 1
+        if len(left_out["unsupported"]) < LEFT_CAP:
+            left_out["unsupported"].append(
+                {"url": item["url"], "title": item["title"], "site": item["site"]})
+
+    if won:
+        for item in won:
+            if item["bare"] in seen or len(entries) >= _GRAB_CAP:
+                continue
+            seen.add(item["bare"])
+            entries.append({
+                "url": item["url"],
+                "title": item["title"] or item["url"].rsplit("/", 1)[-1] or item["site"],
+                "duration": None,
+                "thumbnail": "",
+                "timestamp": None,
+                "site": item["site"],
+                # Said out loud on the row: this one is here because the
+                # server was asked, not because the address looked like
+                # anything. A guess that announces itself is checkable.
+                "asked": True,
+            })
+
     if not entries:
         raise RuntimeError("Nothing downloadable was found on that page.")
 
@@ -2621,6 +2802,9 @@ def grab(url: str, settings: dict) -> dict:
         "entries": entries,
         "skipped": skipped,
         "left_out": left_out,
+        # How many addresses could not be judged by their shape and were asked
+        # about. Shown so the page's own account of itself stays complete.
+        "asked": probed,
         # The address that was actually read, after any redirect - which is
         # not always the one that was pasted.
         "page": page,

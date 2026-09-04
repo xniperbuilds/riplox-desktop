@@ -1111,6 +1111,24 @@
         <p class="sched-say" id="schedSay"></p>
       </div>
 
+      <!-- The one way in that needs nothing installed and nothing running:
+           a file. Everything else that can start a download needs Riplox
+           itself - the window, the clipboard, the extension, a paired phone -
+           and a script or a scheduled task has none of those. -->
+      <div class="field">
+        <div class="field-text">
+          <label>Download anything dropped in a folder</label>
+          <span>Write a file of links into it and Riplox queues them. One link
+                per line, or JSON for a script. Read files are renamed, never
+                deleted.</span>
+        </div>
+        <div class="row-gap">
+          <button class="ghost small" id="dropOpen">Open the folder</button>
+          <button class="toggle {% if settings.drop_on %}on{% endif %}"
+                  id="setDrop" role="switch"><i></i></button>
+        </div>
+      </div>
+
       <!-- Two switches, deliberately. This one only makes the other one
            possible; a channel still has to be told to download on its own,
            on its own row. One switch would mean turning this on quietly

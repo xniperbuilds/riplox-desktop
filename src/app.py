@@ -31,6 +31,7 @@ import engine
 import native_host
 import potoken
 import sharing
+import dropfolder
 import watch
 
 APP_TITLE = "Riplox"
@@ -878,12 +879,51 @@ def api_set_settings():
         sharing.apply_setting(bool(saved.get("sharing")))
     if "watch" in patch:
         watch.apply_setting(bool(saved.get("watch")))
+    if "drop_on" in patch:
+        dropfolder.apply_setting(bool(saved.get("drop_on")))
     return jsonify({"ok": True, "settings": saved})
 
 
 # --------------------------------------------------------------------------
 # Watching a channel or playlist
 # --------------------------------------------------------------------------
+
+def _queue_dropped(url: str, quality: str = "", opts: dict = None) -> None:
+    """
+    One link out of a dropped file, onto the queue.
+
+    Given to dropfolder rather than imported by it, so that module never has
+    to know what a manager is - and so a test can hand it something else.
+    """
+    settings = engine.load_settings()
+    manager.add(url=url, title=url,
+                quality=quality or settings.get("default_quality", "best"),
+                opts=opts or {}, origin="drop")
+
+
+@app.post("/api/drop/state")
+def api_drop_state():
+    return jsonify({"ok": True, "state": dropfolder.state()})
+
+
+@app.post("/api/drop/open")
+def api_drop_open():
+    """Show the folder, making it first if it is not there yet."""
+    where = dropfolder.folder()
+    try:
+        where.mkdir(parents=True, exist_ok=True)
+        os.startfile(str(where))                       # noqa: S606
+    except OSError as exc:
+        return jsonify({"ok": False, "error": str(exc)[:160]}), 400
+    return jsonify({"ok": True, "path": str(where)})
+
+
+@app.post("/api/drop/now")
+def api_drop_now():
+    """Read whatever is waiting, without waiting for the timer."""
+    return jsonify({"ok": True, "queued": dropfolder.sweep(),
+                    "state": dropfolder.state()})
+
 
 @app.post("/api/watch/state")
 def api_watch_state():
@@ -2346,6 +2386,10 @@ def shutdown_children() -> None:
         watch.stop()
     except Exception:
         pass
+    try:
+        dropfolder.stop()
+    except Exception:
+        pass
 
 
 def main() -> None:
@@ -2383,6 +2427,10 @@ def main() -> None:
         sharing.start()
     if engine.load_settings().get("watch"):
         watch.start()
+    # Anything on this PC that can write a file can hand Riplox a download.
+    dropfolder.set_sink(_queue_dropped)
+    if engine.load_settings().get("drop_on"):
+        dropfolder.start()
 
     port = 5010 if dev else free_port()
 

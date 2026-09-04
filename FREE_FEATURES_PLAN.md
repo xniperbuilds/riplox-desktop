@@ -166,6 +166,40 @@ followed channel that downloads on its own should be able to do it overnight.
   like any other and only the metadata differs. Low value, low cost — do it if
   it ever blocks a comparison, not before.
 
+## Borrowed from JDownloader
+
+Four mechanisms were read out of JDownloader's own source and judged against
+this app. Two are in; two are not, and the reasons are worth keeping.
+
+**In: asking the server about an address.** JDownloader's link crawler decides
+what is downloadable from the *answer*, not the address — response code, then
+`Content-Disposition`, then content type, then a length with byte ranges, then
+simply something far too big to be a page. "Find on a page" now does the same
+for the addresses it cannot judge otherwise, capped at a dozen questions per
+page so a page never becomes a scan of somebody's site.
+
+**In: a folder that anything can write into.** JDownloader's `.crawljob` file
+is its cheapest interface by a distance — no API, no auth, just a file — and
+it is the only way in that a script or a scheduled task can use, because every
+other one needs the app itself. Same idea here, with the two shapes people
+actually write: a line per link, or JSON.
+
+**Out: reading the clipboard's HTML flavour.** JDownloader reads the
+`text/html` clipboard alongside the plain text, which carries a `SourceURL:`
+the browser wrote — so links copied as part of a page resolve against the page
+they came from. It is genuinely clever and it is worth doing. It is also
+`CF_HTML` through `ctypes` on a thread that currently touches none of that,
+and this app's clipboard watcher is one of the few things that must never
+throw. Worth its own change, not a corner of this one.
+
+**Out: the dynamic chunk splitter.** JDownloader keeps a byte map of the file
+and sends each finishing connection back to the largest gap, which is better
+than splitting a file into N parts up front. It does that because it *is* the
+downloader. Riplox is not — yt-dlp fetches, with `concurrent_fragments` set to
+16. Copying this would mean writing a second HTTP downloader beside the engine
+that already works, to win on a case the engine already handles. Not worth it,
+and it would be the largest untested surface in the app.
+
 ## Never
 
 **DRM-protected streaming.** It is where the money in this category is, and it
