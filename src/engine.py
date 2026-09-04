@@ -23,7 +23,7 @@ import time
 import urllib.request
 import uuid
 import zipfile
-from datetime import datetime
+from datetime import datetime, timedelta
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
@@ -599,12 +599,21 @@ DEFAULT_SETTINGS = {
     "write_thumbnail": False,
     "theme": "auto",                 # auto | light | dark
 
-    # --- Watching for new videos ----------------------------------------
+    # --- Following channels ---------------------------------------------
     "watch": False,                  # master switch for the checks
     # Not a preference - a record that the warning about repeated automated
     # requests was read. The screen shows it until this is true.
     "watch_ack": False,
-    "watch_hours": 12,               # how often one item may be checked
+    "watch_hours": 12,               # kept only so older files still read
+    # How often one item may be checked, in minutes. Something with a
+    # published feed can be asked often; anything the engine has to fetch
+    # keeps a floor of its own whatever this says. WATCH_MINUTES below is the
+    # list this has to be one of.
+    "watch_minutes": 60,
+    # Downloading on its own. Off, and it stays off until it is turned on
+    # here AND on the channel itself - two switches, because "it downloaded
+    # something I did not ask for" is the one complaint this must never earn.
+    "watch_auto": False,
 
     # --- Send to Riplox -------------------------------------------------
     "sharing": False,                # master switch for the phone channel
@@ -614,6 +623,11 @@ DEFAULT_SETTINGS = {
     # Keys and paired devices live in their own file, never in settings.json,
     # so a settings backup can never carry someone's pairing to another PC.
 }
+
+# The intervals following may be set to, in minutes. Here rather than in
+# watch.py because load_settings has to read an older file's hours against it,
+# and watch.py imports this module rather than the other way round.
+WATCH_MINUTES = (15, 60, 360, 1440)
 
 _settings_lock = threading.Lock()
 
@@ -641,6 +655,19 @@ def load_settings() -> dict:
     # key there, so `"first_run_done" not in s` is never true.
     if saved and "first_run_done" not in saved:
         s["first_run_done"] = True
+
+    # The same trap, and for the same reason: following used to be set in
+    # hours, and the default above has already put the minutes key into `s`,
+    # so asking `s` would never see that the file predates it. Somebody who
+    # chose "every 24 hours" must not quietly start being checked hourly.
+    # Their choice is honoured as closely as the list still allows.
+    if saved and "watch_minutes" not in saved and "watch_hours" in saved:
+        try:
+            wanted = int(saved.get("watch_hours") or 0) * 60
+        except (TypeError, ValueError):
+            wanted = 0
+        fits = [m for m in WATCH_MINUTES if m <= wanted]
+        s["watch_minutes"] = max(fits) if fits else min(WATCH_MINUTES)
     # Never trust a stale path from a previous machine.
     try:
         Path(s["download_dir"]).mkdir(parents=True, exist_ok=True)
@@ -1611,6 +1638,7 @@ QUALITY_LABELS = {
     # it is a bigger, less playable file that survives being uploaded again,
     # and the name has to carry that or it will be picked by mistake.
     "max": "Max",
+    "4320": "8K · 4320p",
     "2160": "4K · 2160p",
     "1440": "2K · 1440p",
     "1080": "Full HD · 1080p",
@@ -2604,6 +2632,11 @@ def peek(url: str, settings: dict, limit: int = 30) -> dict:
         "title": info.get("title") or "",
         "uploader": info.get("uploader") or info.get("channel") or "",
         "thumbnail": _pick_thumb(info),
+        # Both identifiers, unchanged, for whoever needs to name this thing
+        # somewhere else - a published feed, for one. Nothing is derived here
+        # because what counts as a usable id is not this function's business.
+        "id": info.get("id") or "",
+        "channel_id": info.get("channel_id") or "",
         # A bare channel URL answers with its tabs, not its videos. The caller
         # has to be told, because watching a tab list would never see a new
         # video appear.
@@ -3021,7 +3054,7 @@ def _available_qualities(info: dict, settings: dict = None) -> dict:
     best_real = max(real) if real else 0
 
     rungs, notes = [], {}
-    for key in ("2160", "1440", "1080", "720", "480", "360"):
+    for key in ("4320", "2160", "1440", "1080", "720", "480", "360"):
         target = int(key)
         if any(h >= target for h in real):
             rungs.append(key)
@@ -3033,6 +3066,24 @@ def _available_qualities(info: dict, settings: dict = None) -> dict:
             # Skipped otherwise: offering it would promise a file we would not
             # deliver, and "download this video" means the video.
 
+    # h264 is a tie-break in the selector, not a filter, so a height that
+    # exists only as VP9 or AV1 comes back as VP9 or AV1 - and above 1080p
+    # that is usually the case, while at 4320p it always is. The chip says so
+    # rather than letting the file say it later, in a player that will not
+    # open it. Only heights that really exist are judged: a rung reachable
+    # only through an upscale makes no claim either way.
+    friendly = set()
+    for f in info.get("formats") or []:
+        h = f.get("height")
+        if isinstance(h, int) and re.match(r"^(avc1|h264)", str(f.get("vcodec") or "")):
+            friendly.add(h)
+
+    modern = []
+    for key in rungs:
+        at_or_below = [h for h in real if h <= int(key)]
+        if at_or_below and max(at_or_below) not in friendly:
+            modern.append(key)
+
     # Shown on the chip so nobody meets a 3.6 GB download by surprise - which
     # is exactly what "highest" means on an 8K video.
     sizes = {}
@@ -3042,7 +3093,7 @@ def _available_qualities(info: dict, settings: dict = None) -> dict:
             sizes[key] = human_bytes(found)
 
     return {"rungs": ["best", "max"] + rungs + ["mp3"],
-            "upscaled": notes, "sizes": sizes}
+            "upscaled": notes, "sizes": sizes, "noH264": modern}
 
 
 # What the engine says when Instagram is refusing the post rather than the
@@ -3923,6 +3974,29 @@ def _minutes(text: str, fallback: int) -> int:
     return hour * 60 + minute
 
 
+def next_time_at(text: str, now=None) -> float:
+    """
+    "HH:MM" as the next moment it will actually be, or 0.0 for nothing asked.
+
+    Today when it is still ahead, tomorrow when it has gone by. "02:00" typed
+    at nine in the morning is a request for tonight, not for right now, and
+    reading it the other way would start the very download the user was
+    trying to put off.
+    """
+    text = str(text or "").strip()
+    if not text:
+        return 0.0
+    minutes = _minutes(text, -1)
+    if minutes < 0:
+        return 0.0
+    now = now or datetime.now()
+    when = now.replace(hour=minutes // 60, minute=minutes % 60,
+                       second=0, microsecond=0)
+    if when <= now:
+        when += timedelta(days=1)
+    return when.timestamp()
+
+
 def schedule_allows(settings: dict, now=None) -> bool:
     """
     May a new download start right now?
@@ -4350,7 +4424,7 @@ def _is_transient(text: str) -> bool:
 # The height each named quality is asking for. "best" and "max" name no
 # number - they ask for whatever the site has - which is why they are absent,
 # and why the check below has to go and look rather than compare.
-_ASKED_HEIGHT = {"2160": 2160, "1440": 1440, "1080": 1080,
+_ASKED_HEIGHT = {"4320": 4320, "2160": 2160, "1440": 1440, "1080": 1080,
                  "720": 720, "480": 480, "360": 360}
 
 # Above this a fallback route's answer is not worth questioning. Measured
@@ -4458,7 +4532,7 @@ class Job:
                  "start", "end", "exact", "stage", "paused", "kind", "conv",
                  "opts", "origin", "streams", "parts", "sent_cookies", "tried_signed_in",
                  "account", "retry_at", "auto_retries", "height", "started_on",
-                 "net_waits",
+                 "net_waits", "start_after",
                  # When the engine last said ANYTHING, and whether it went
                  # quiet for so long that we gave up on it. See _SILENCE_LIMIT.
                  "heard", "went_quiet",
@@ -4547,6 +4621,10 @@ class Job:
         # have been used. Only ever set for a refusal that is known to pass.
         self.retry_at = 0.0
         self.auto_retries = 0
+        # Not before this time, when the user has named one. The window in
+        # Settings says "not during the day"; this says "this one, at two in
+        # the morning" - a different question, and neither answers the other.
+        self.start_after = 0.0
         # Converting shares the queue with downloading: same progress, same
         # Cancel, same notifications, nothing new to invent.
         self.kind = "download"
@@ -4614,6 +4692,11 @@ class Job:
             # out loud because a row that sits there saying "failed" while a
             # retry is coming is the app keeping a secret.
             "retryIn": max(0, int(self.retry_at - time.time())) if self.retry_at else 0,
+            # Seconds until a start time the user set arrives, or 0. Same
+            # reason as retryIn: a row that waits without saying why reads as
+            # a row that is stuck.
+            "startsIn": (max(0, int(self.start_after - time.time()))
+                         if self.start_after else 0),
         }
 
 
@@ -4690,6 +4773,10 @@ class DownloadManager:
                      # is the device whose allowance it counts against. A
                      # restored job used to quietly lose both.
                      "opts": j.opts, "origin": j.origin,
+                     # A start time outlives a restart, or "at two in the
+                     # morning" would quietly become "now" the next time the
+                     # app opened.
+                     "start_after": j.start_after,
                      # Written for the browser extension, which reads this file
                      # to put a count on its toolbar icon. It was looking for a
                      # status that was never saved here, so it read every queue
@@ -4726,6 +4813,10 @@ class DownloadManager:
                           bool(item.get("batch")), item.get("start", ""),
                           item.get("end", ""), bool(item.get("exact")),
                           item.get("opts"), item.get("origin", ""))
+                try:
+                    job.start_after = float(item.get("start_after") or 0)
+                except (TypeError, ValueError):
+                    job.start_after = 0.0
                 job.status = "paused"
                 self._jobs[job.id] = job
                 self._order.append(job.id)
@@ -4774,9 +4865,15 @@ class DownloadManager:
 
     def add(self, url, title="", thumbnail="", quality="best", uploader="",
             batch=False, start="", end="", exact=False, opts=None,
-            origin="") -> Job:
+            origin="", start_after=0.0) -> Job:
         job = Job(url, title, thumbnail, quality, uploader, batch, start, end,
                   exact, opts, origin)
+        # Set before the job is visible to anything else. Setting it on the
+        # way out instead leaves a gap - the job is queued, the workers have
+        # been woken, and one of them can start it in the moment before its
+        # start time is written. Measured, not imagined: a test caught a
+        # 2 a.m. download beginning immediately.
+        job.start_after = float(start_after or 0.0)
 
         with self._lock:
             # The same link at the same quality writes the same file, so two
@@ -4799,19 +4896,26 @@ class DownloadManager:
         self._wake.set()
         return job
 
-    def add_convert(self, source, fmt: str, quality: str, target_dir="") -> Job:
+    def add_convert(self, source, fmt: str, quality: str, target_dir="",
+                    scale: str = "") -> Job:
         """Queue a file already on disk for conversion, not a download."""
         source = Path(source)
         job = Job(str(source), title=source.name, quality=fmt)
         job.kind = "convert"
         job.conv = {"source": str(source), "fmt": fmt, "quality": quality,
-                    "target_dir": str(target_dir or source.parent)}
+                    "target_dir": str(target_dir or source.parent),
+                    "scale": str(scale or "")}
 
         with self._lock:
             for existing in self._jobs.values():
+                # Same file, same format, same height is the same job. A
+                # different height is not - asking for 1080p and 720p of one
+                # video is two answers, and merging them would silently drop
+                # the second.
                 if (existing.kind == "convert"
                         and existing.conv.get("source") == str(source)
                         and existing.conv.get("fmt") == fmt
+                        and existing.conv.get("scale", "") == str(scale or "")
                         and existing.status in self.ACTIVE):
                     return existing
             self._jobs[job.id] = job
@@ -4953,6 +5057,11 @@ class DownloadManager:
             for jid in self._order:
                 job = self._jobs.get(jid)
                 if not job or job.status != "queued":
+                    continue
+
+                # A start time the user set holds back that one row and
+                # nothing else: the rest of the queue carries on around it.
+                if job.start_after and job.start_after > now:
                     continue
 
                 # A site that has already refused, or one that was asked
@@ -5755,7 +5864,8 @@ class DownloadManager:
         spec = job.conv
 
         result = convert.run(spec["source"], spec["target_dir"], spec["fmt"],
-                             spec["quality"], job=job)
+                             spec["quality"], job=job,
+                             scale=spec.get("scale", ""))
 
         if result.get("cancelled") or job.cancelled:
             job.status = "paused" if job.paused else "cancelled"

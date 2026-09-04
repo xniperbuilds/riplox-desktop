@@ -103,7 +103,7 @@ SITES = engine.known_sites()
 
 # Highest first. A cap is "no better than this", so the answer to a request
 # above the cap is the cap, not a refusal.
-_QUALITY_ORDER = ("best", "2160", "1440", "1080", "720", "480", "360")
+_QUALITY_ORDER = ("best", "4320", "2160", "1440", "1080", "720", "480", "360")
 
 # Measured, not guessed: urllib's default "Python-urllib/3.11" is refused by
 # Cloudflare's bot rules with a 403, so the relay would never have connected

@@ -61,12 +61,12 @@
       </svg>
       <span class="tab-label">Convert</span>
     </button>
-    <button class="tab" data-view="watch" role="tab" title="Watch">
+    <button class="tab" data-view="watch" role="tab" title="Following">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="12" cy="12" r="8.2"/><path d="M12 7.4V12l3 1.8"/>
       </svg>
-      <span class="tab-label">Watch</span>
+      <span class="tab-label">Following</span>
       <em class="badge" id="watchBadge" hidden>0</em>
     </button>
     <button class="tab" data-view="sharing" role="tab" title="Sharing">
@@ -137,7 +137,7 @@
     <div>
       <label>Still works</label>
       <p>Downloads up to 720p · MP3 where the site already offers it ·
-        playlists and whole pages · watching channels · links sent from a
+        playlists and whole pages · following channels · links sent from a
         phone · your library</p>
     </div>
     <div>
@@ -320,6 +320,21 @@
               <span>Subtitles</span>
               <select id="optSubLang"></select>
             </label>
+          </div>
+        </div>
+
+        <!-- One download, at a time you name. Different from the hours in
+             Settings, which hold back everything: this holds back what you
+             are queueing right now, and nothing else. A time that has gone
+             by today means tonight. -->
+        <div class="more-sec">
+          <div class="more-row between">
+            <label class="more-field">
+              <span>Start at</span>
+              <input type="time" id="optStartAt" class="text-input">
+            </label>
+            <span class="more-note" id="startAtNote">Leave empty to start
+              straight away.</span>
           </div>
         </div>
 
@@ -668,12 +683,14 @@
   <!-- ============================ CONVERT ============================ -->
   <section class="view" id="view-convert">
     <div class="view-head">
-      <h2>Convert to audio</h2>
+      <h2>Convert</h2>
       <button class="ghost small" id="convPick">Choose files from this PC…</button>
     </div>
 
-    <p class="conv-note">Pulls the sound out of anything already on your
-      computer. The original is never touched.</p>
+    <p class="conv-note">Turns anything already on your computer into another
+      format — the sound out of a video, one video container into another, or
+      a short GIF. The original is never touched, and nothing is ever made
+      bigger than it already is.</p>
 
     <div class="conv-controls">
       <label class="conv-field">
@@ -683,6 +700,13 @@
       <label class="conv-field">
         <span>Quality</span>
         <select id="convQuality"></select>
+      </label>
+      <!-- Video only. A height above what the file already is would do
+           nothing, so "Keep" is the first choice and the list only goes
+           down from there. -->
+      <label class="conv-field" id="convScaleField" hidden>
+        <span>Size</span>
+        <select id="convScale"></select>
       </label>
       <label class="conv-field conv-where">
         <input type="checkbox" id="convBeside" checked>
@@ -704,43 +728,48 @@
     <ul class="conv-list" id="convList"></ul>
   </section>
 
-  <!-- ============================= WATCH ============================= -->
+  <!-- =========================== FOLLOWING =========================== -->
   <section class="view" id="view-watch">
     <div class="view-head">
-      <h2>Watch</h2>
+      <h2>Following</h2>
       <div class="row-gap">
         <span class="share-state" id="watchState">off</span>
         <button class="toggle" id="setWatch" role="switch"
-                title="Check watched links for new videos"><i></i></button>
+                title="Check the channels you follow for new videos"><i></i></button>
       </div>
     </div>
 
-    <p class="conv-note">Riplox checks the channels and playlists you add here
-      and tells you what is new. It never downloads anything on its own.</p>
+    <p class="conv-note">Riplox checks the channels and playlists you follow
+      and tells you what is new. Where a channel publishes a feed, that is what
+      is read — a public page, no sign-in, nothing a site objects to. Nothing
+      is downloaded unless you turn that on for a channel yourself.</p>
 
     <div class="watch-add">
       <input type="url" id="watchUrl" class="text-input"
              placeholder="Paste a channel or playlist link" autocomplete="off">
-      <button class="ghost small" id="addChannel">Add channel</button>
-      <button class="ghost small" id="addPlaylist">Add playlist</button>
+      <button class="ghost small" id="addChannel">Follow channel</button>
+      <button class="ghost small" id="addPlaylist">Follow playlist</button>
     </div>
     <p class="warn" id="watchError" hidden></p>
 
     <div class="watch-pick" id="watchPick" hidden>
-      <p class="more-note">That is a whole channel. Pick the section to watch —
+      <p class="more-note">That is a whole channel. Pick the section to follow —
         a channel's front page never changes when a video is posted.</p>
       <div class="chips" id="watchTabs"></div>
     </div>
 
     <div class="view-head sub-head">
-      <h3>Watching <span class="lib-count" id="watchCount"></span></h3>
+      <h3>Following <span class="lib-count" id="watchCount"></span></h3>
       <div class="row-gap">
         <label class="watch-every">Check every
+          <!-- The two fastest apply to anything with a feed. A channel the
+               engine has to fetch keeps a six-hour floor whatever is chosen
+               here, and its row says which of the two it is. -->
           <select id="watchHours">
-            <option value="6">6 hours</option>
-            <option value="12">12 hours</option>
-            <option value="24">24 hours</option>
-            <option value="48">2 days</option>
+            <option value="15">15 minutes</option>
+            <option value="60">1 hour</option>
+            <option value="360">6 hours</option>
+            <option value="1440">24 hours</option>
           </select>
         </label>
         <button class="ghost small" id="watchCheckAll">Check now</button>
@@ -748,7 +777,7 @@
     </div>
 
     <div class="empty" id="watchEmpty">
-      <p>Nothing being watched.</p>
+      <p>You are not following anything yet.</p>
       <span>Paste a channel or playlist link above.</span>
     </div>
     <!-- Everything new from everything watched, in one list. Per-channel lists
@@ -772,27 +801,28 @@
     <details class="more" id="watchHelp">
       <summary>If YouTube starts asking whether you are a bot</summary>
       <div class="more-body">
-        <p class="more-note">This is the one thing watching can cause. It is
-          usually temporary and it does not break anything — ordinary downloads
-          keep working. In order:</p>
+        <p class="more-note">This is the one thing following can cause, and only
+          for a channel with no feed to read — those are fetched with the
+          engine. It is usually temporary and it does not break anything —
+          ordinary downloads keep working. In order:</p>
         <!-- Each step is a control rather than a route to memorise. The three
              that live in Settings still say where they are, because knowing
              that is worth as much as arriving there. -->
         <div class="more-sec step">
           <div class="step-text">
             <label>1 · Slow it down</label>
-            <p class="more-note">Check every 24 hours instead. Every watched
-              item is another request, so fewer and slower is the whole fix.</p>
+            <p class="more-note">Check every 24 hours instead. Every channel you
+              follow is another request, so fewer and slower is the whole fix.</p>
           </div>
           <button class="ghost small" id="botSlow">Check every 24 h</button>
         </div>
         <div class="more-sec step">
           <div class="step-text">
             <label>2 · Wait it out</label>
-            <p class="more-note">Turn Watch off for a day. These blocks lift on
+            <p class="more-note">Turn Following off for a day. These blocks lift on
               their own far more often than not.</p>
           </div>
-          <button class="ghost small" id="botPause">Turn Watch off</button>
+          <button class="ghost small" id="botPause">Turn Following off</button>
         </div>
         <div class="more-sec step">
           <div class="step-text">
@@ -1071,6 +1101,20 @@
           <span>00</span><span>06</span><span>12</span><span>18</span><span>24</span>
         </div>
         <p class="sched-say" id="schedSay"></p>
+      </div>
+
+      <!-- Two switches, deliberately. This one only makes the other one
+           possible; a channel still has to be told to download on its own,
+           on its own row. One switch would mean turning this on quietly
+           enrolled every channel already followed. -->
+      <div class="field">
+        <div class="field-text">
+          <label>Let followed channels download on their own</label>
+          <span>Off, and downloading still has to be turned on for each
+                channel separately. At most three new videos per check.</span>
+        </div>
+        <button class="toggle {% if settings.watch_auto %}on{% endif %}"
+                id="setWatchAuto" role="switch"><i></i></button>
       </div>
 
       <!-- The number is not a guess: two maintained downloaders allow about
@@ -1604,8 +1648,8 @@
 
       <div class="field sub-field">
         <div class="field-text">
-          <label>Something new to watch</label>
-          <span>When a watched channel posts. Nothing is downloaded.</span>
+          <label>Something new from a channel you follow</label>
+          <span>When a channel you follow posts. Nothing is downloaded.</span>
         </div>
         <button class="toggle {% if settings.notify_watch %}on{% endif %}"
                 id="setNotifyWatch" role="switch"><i></i></button>
@@ -1811,28 +1855,33 @@
   </div>
 </div>
 
-<!-- Shown once, before watching is ever switched on. The button below stays
+<!-- Shown once, before Following is ever switched on. The button below stays
      dead for fifteen seconds on purpose: this is the only feature in Riplox
      that makes repeated requests on its own, and the one that can get a
      Google account limited. It should not be possible to click past it. -->
 <div class="scrim" id="watchWarn" hidden>
   <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="watchWarnTitle">
-    <h3 id="watchWarnTitle">Read this before turning watching on</h3>
+    <h3 id="watchWarnTitle">Read this before turning Following on</h3>
     <ul class="dlg-list">
-      <li><b>This is automated.</b> Riplox will ask the site for each watched
-        channel's newest videos on a timer, on its own, for as long as it is
-        on.</li>
-      <li><b>Sites push back on that.</b> YouTube can answer a repeated
-        automated request with “Sign in to confirm you're not a bot”. If you
-        have signed in through Riplox, heavy use can get <i>that account</i>
-        limited — not just this app.</li>
-      <li><b>Nothing downloads by itself.</b> Riplox only shows you what is
-        new. Every download is still a button you press.</li>
-      <li><b>It is kept as small as it can be:</b> the newest 30 items only,
-        one check at a time, at least 90 seconds apart, and once every 12 hours
-        per channel by default.</li>
-      <li><b>If it does happen</b>, the fix is on this page, under <i>“If
-        YouTube starts asking whether you are a bot”</i>. It is usually
+      <li><b>This is automated.</b> Riplox will check each channel you follow
+        on a timer, on its own, for as long as it is on.</li>
+      <li><b>Most of it is a published feed.</b> YouTube publishes one for
+        every channel and playlist: a public page, no sign-in, about ten
+        kilobytes. Reading it is not the kind of request a site objects to,
+        which is why those can be checked every fifteen minutes.</li>
+      <li><b>The rest is the engine, and that is the part with a risk.</b>
+        Anything with no feed to read is fetched the way a download is.
+        YouTube can answer a repeated automated request with “Sign in to
+        confirm you're not a bot”, and if you have signed in through Riplox,
+        heavy use can get <i>that account</i> limited — not just this app. So
+        those are checked at most every six hours, one at a time, ninety
+        seconds apart, whatever the setting above says.</li>
+      <li><b>Nothing downloads unless you say so.</b> A followed channel lists
+        what is new and stops there. Downloading on its own has to be turned
+        on twice — once in Settings, and once on the channel itself — and even
+        then it takes at most three new videos per check.</li>
+      <li><b>If a bot check does happen</b>, the fix is on this page, under
+        <i>“If YouTube starts asking whether you are a bot”</i>. It is usually
         temporary, and ordinary downloads keep working.</li>
     </ul>
     <div class="dlg-foot">

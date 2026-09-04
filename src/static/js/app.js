@@ -496,6 +496,11 @@
     // so on the chip. "1440p" over a 480p source is the app lying about the
     // file it is about to hand over.
     var upscaled = (info && info.upscaled) || {};
+    // Heights this site serves only as VP9 or AV1 - always the case at 8K.
+    // Said on the chip beforehand rather than discovered afterwards, in a
+    // player that will not open the file.
+    var modern = {};
+    ((info && info.noH264) || []).forEach(function (q) { modern[q] = true; });
     // Shown before anything is pressed. "Highest" on an 8K video is 3.4 GB,
     // and finding that out from the progress bar is finding out too late.
     var sizes = (info && info.sizes) || {};
@@ -531,7 +536,7 @@
       // separators.
       var note = auto
         ? [WHY[q], resolves(q)].filter(Boolean).join(" · ")
-        : "";
+        : (modern[q] ? "VP9 or AV1" : "");
       return '<button type="button" class="chip' +
         (auto ? " auto" : "") +
         (q === "mp3" ? " audio" : "") +
@@ -1869,6 +1874,9 @@
     // The extras ride along with the main choice rather than replacing it,
     // so the video is still what the row says it is.
     if (quality !== "mp3" && $("alsoAudio").checked) body.also = ["mp3"];
+    // Belongs to the request, not to opts: it decides when the queue may
+    // start these rows, not what the download itself does.
+    if ($("optStartAt").value) body.start_at = $("optStartAt").value;
     applyCut(body);
     if (current.kind !== "playlist" && $("trimOn").checked) {
       var range = readTrim();
@@ -2175,6 +2183,13 @@
       if (j.clip) bits.push(["clip", j.clip]);
     } else {
       bits.push(["", j.qualityLabel]);
+      // A row that sits still without saying why reads as a row that is
+      // stuck. This one is waiting for a time the user chose.
+      if (j.startsIn) {
+        bits.push(["", "starts in " + (j.startsIn >= 3600
+          ? Math.round(j.startsIn / 3600) + " h"
+          : Math.max(1, Math.round(j.startsIn / 60)) + " min")]);
+      }
       if (j.clip) bits.push(["clip", j.clip]);
       if (j.status === "done" && j.size) bits.push(["", j.size]);
     }
@@ -2814,17 +2829,27 @@
 
   var convFiles = [];        // {path, name, size, picked}
   var convReady = false;
+  var convVideoFormats = {}; // which ids in the Format box are video ones
 
   function loadConvert() {
     if (!convReady) {
       api("/api/convert/formats").then(function (res) {
         if (!res.ok) return;
-        $("convFormat").innerHTML = res.formats.map(function (f) {
-          return '<option value="' + f.id + '">' + esc(f.label) + "</option>";
-        }).join("");
-        $("convQuality").innerHTML = res.quality.map(function (q) {
-          return '<option value="' + q.id + '">' + esc(q.label) + "</option>";
-        }).join("");
+        function opts(list) {
+          return list.map(function (f) {
+            return '<option value="' + f.id + '">' + esc(f.label) + "</option>";
+          }).join("");
+        }
+        // Grouped, because "MP3" and "MP4" one after another in a flat list
+        // is the single easiest mis-click in this screen.
+        convVideoFormats = {};
+        (res.video || []).forEach(function (f) { convVideoFormats[f.id] = true; });
+        $("convFormat").innerHTML =
+          '<optgroup label="Audio">' + opts(res.formats || []) + "</optgroup>" +
+          '<optgroup label="Video">' + opts(res.video || []) + "</optgroup>";
+        $("convQuality").innerHTML = opts(res.quality || []);
+        $("convScale").innerHTML = '<option value="">Keep as it is</option>' +
+          opts(res.scales || []);
         syncQualityBox();
       });
       convReady = true;
@@ -2841,10 +2866,13 @@
     });
   }
 
-  // FLAC and WAV have no bitrate to choose, so the box would be a lie.
+  // FLAC and WAV have no bitrate to choose, and a GIF has neither a bitrate
+  // nor a height of its own - so those boxes would be lies.
   function syncQualityBox() {
     var fmt = $("convFormat").value;
-    $("convQuality").disabled = (fmt === "flac" || fmt === "wav");
+    var isVideo = !!convVideoFormats[fmt] && fmt !== "gif";
+    $("convQuality").disabled = (fmt === "flac" || fmt === "wav" || fmt === "gif");
+    $("convScaleField").hidden = !isVideo;
   }
 
   function renderConvert() {
@@ -2905,6 +2933,7 @@
       paths: paths,
       format: $("convFormat").value,
       quality: $("convQuality").value,
+      scale: $("convScale").value,
       beside: $("convBeside").checked
     }).then(function (res) {
       if (!res.ok) { toast(res.error || "Could not start.", "bad"); return; }
@@ -3152,7 +3181,7 @@
       : "on";
     $("watchState").classList.toggle("on", s.on);
 
-    $("watchHours").value = String(s.hours);
+    $("watchHours").value = String(s.minutes);
     $("watchCount").textContent = s.items.length
       ? s.items.length + " of " + s.max : "";
     $("watchCheckAll").disabled = !s.items.length || s.sweeping;
@@ -3203,12 +3232,22 @@
           '<div class="who"><b>' + esc(it.title) +
             (it.paused ? ' <em class="tag">paused</em>' : "") + "</b>" +
             '<span>' + esc(it.kind) +
+            // Which of the two ways this one is read. It decides how often it
+            // can be checked, so leaving it invisible would make the interval
+            // look arbitrary on half the list.
+            (it.feed ? " · feed" : " · engine") +
+            (it.auto ? " · downloads" : "") +
             (it.watching ? " · " + it.watching + " seen" : "") +
             " · checked " + when(it.checked) +
             // Only where it can be worked out and is still ahead: a paused
             // item has no next check, and neither has one never checked.
             (nextCheck(it, s) ? " · next " + nextCheck(it, s) : "") +
             (fresh.length ? " · " + fresh.length + " new" : "") + "</span></div>" +
+          '<button class="ghost small" data-auto="' + esc(it.id) + '" data-to="' +
+            (it.auto ? "0" : "1") + '" title="' +
+            (it.auto ? "New videos download on their own"
+                     : "New videos are listed, not downloaded") + '">' +
+            (it.auto ? "Downloading" : "Download new") + "</button>" +
           '<button class="ghost small" data-check="' + esc(it.id) + '">Check</button>' +
           '<button class="ghost small" data-wpause="' + esc(it.id) + '" data-to="' +
             (it.paused ? "0" : "1") + '">' + (it.paused ? "Resume" : "Pause") + "</button>" +
@@ -3286,8 +3325,26 @@
   });
 
   $("watchHours").addEventListener("change", function (e) {
-    saveSetting({ watch_hours: parseInt(e.target.value, 10) })
+    saveSetting({ watch_minutes: parseInt(e.target.value, 10) })
       .then(function (res) { if (!res.ok) return; toast("Saved"); loadWatch(); });
+  });
+
+  // Downloading on its own, for one channel. It needs the switch in Settings
+  // as well, so this says so rather than appearing to work and doing nothing.
+  $("watchList").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-auto]");
+    if (!btn) return;
+    var on = btn.dataset.to === "1";
+    api("/api/watch/auto", { id: btn.dataset.auto, auto: on })
+      .then(function (res) {
+        if (!res.ok) return;
+        renderWatch(res.state);
+        if (on && !res.state.auto) {
+          toast("Turn on downloading in Settings as well.", "bad");
+        } else {
+          toast(on ? "New videos will download" : "New videos will be listed only");
+        }
+      });
   });
 
   function watchAdd(url, kind) {
@@ -3455,15 +3512,15 @@
   }
 
   $("botSlow").addEventListener("click", function () {
-    $("watchHours").value = "24";
-    saveSetting({ watch_hours: 24 }).then(function (res) {
+    $("watchHours").value = "1440";
+    saveSetting({ watch_minutes: 1440 }).then(function (res) {
       if (res && res.ok) toast("Checking every 24 hours");
       loadWatch();
     });
   });
 
   $("botPause").addEventListener("click", function () {
-    if (!$("setWatch").classList.contains("on")) { toast("Watch is already off"); return; }
+    if (!$("setWatch").classList.contains("on")) { toast("Following is already off"); return; }
     $("setWatch").click();
   });
 
@@ -4270,6 +4327,7 @@
   }
   bindToggle("setAutoPaste", "auto_paste");
   bindToggle("setPace", "pace_sites");
+  bindToggle("setWatchAuto", "watch_auto");
   // On the Failed page rather than in Settings - it is about that page, and
   // this is where someone is standing when they decide they want it.
   bindToggle("setFailedTidy", "failed_clear_on_success");

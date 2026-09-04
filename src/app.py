@@ -350,6 +350,11 @@ def api_add():
             if re.fullmatch(r"[A-Za-z0-9\-]{1,20}", lang) and lang not in dubs:
                 dubs.append(lang)
 
+    # "Start at 02:00" is asked once and applies to everything queued by this
+    # press. Worked out here rather than per job so twenty rows of a playlist
+    # all wait for the same moment instead of drifting apart by milliseconds.
+    start_at = engine.next_time_at(body.get("start_at", ""))
+
     added = set()
     for item in items[:200]:
         url = (item.get("url") or "").strip()
@@ -384,6 +389,7 @@ def api_add():
                     end=end,
                     exact=exact,
                     opts=shape,
+                    start_after=start_at,
                 )
                 # add() returns the running job for a duplicate, so a set keeps
                 # the count honest instead of claiming we queued it twice.
@@ -476,6 +482,10 @@ def api_convert_formats():
     return jsonify({
         "ok": True,
         "formats": [{"id": k, "label": v["label"]} for k, v in convert.FORMATS.items()],
+        "video": ([{"id": k, "label": v["label"]}
+                   for k, v in convert.VIDEO_FORMATS.items()]
+                  + [{"id": "gif", "label": convert.GIF["label"]}]),
+        "scales": [{"id": k, "label": v["label"]} for k, v in convert.SCALES.items()],
         "quality": [{"id": k, "label": v["label"]} for k, v in convert.QUALITY.items()],
     })
 
@@ -527,10 +537,15 @@ def api_convert():
     fmt = str(body.get("format", "mp3")).lower()
     quality = str(body.get("quality", "high")).lower()
     beside = bool(body.get("beside", True))
+    # A height only means anything to a video format; asked for alongside MP3
+    # it is simply ignored rather than refused.
+    scale = str(body.get("scale", ""))
+    if convert.kind_of(fmt) != "video" or scale not in convert.SCALES:
+        scale = ""
 
     if not paths:
         return jsonify({"ok": False, "error": "Nothing chosen."}), 400
-    if fmt not in convert.FORMATS:
+    if not convert.kind_of(fmt):
         return jsonify({"ok": False, "error": "Unknown format."}), 400
 
     target_dir = "" if beside else engine.load_settings().get("download_dir", "")
@@ -540,7 +555,7 @@ def api_convert():
         source = Path(str(raw))
         if not source.exists():
             continue
-        manager.add_convert(source, fmt, quality, target_dir)
+        manager.add_convert(source, fmt, quality, target_dir, scale)
         added += 1
 
     if not added:
@@ -893,6 +908,14 @@ def api_watch_remove():
 def api_watch_pause():
     body = request.json or {}
     done = watch.set_paused(str(body.get("id", ""))[:24], bool(body.get("paused")))
+    return jsonify({"ok": done, "state": watch.state()})
+
+
+@app.post("/api/watch/auto")
+def api_watch_auto():
+    """Downloading on its own, for one followed channel. Off by default."""
+    body = request.json or {}
+    done = watch.set_auto(str(body.get("id", ""))[:24], bool(body.get("auto")))
     return jsonify({"ok": done, "state": watch.state()})
 
 

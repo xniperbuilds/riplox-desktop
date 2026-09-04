@@ -60,7 +60,13 @@ check("...and still offers best, which everything can do",
 print("\n-- and every rung the engine offers is in it ----------------------")
 # The engine is the authority on what a person can pick. Anything it offers
 # and this list omits is another silent swap waiting to happen.
-offered = set(engine.QUALITY_LABELS) - {"1440", "2160", "360"}
+#
+# The four excluded here are excluded for one reason: this list is what gets
+# shown when Riplox cannot see the video's formats, and offering a height most
+# videos do not have would manufacture the very swap this file is about. 4320
+# is the newest member of that group and the clearest case of it - almost
+# nothing is in 8K.
+offered = set(engine.QUALITY_LABELS) - {"1440", "2160", "360", "4320"}
 missing = sorted(q for q in offered if '"%s"' % q not in fallback)
 check("⭐ nothing the engine offers is missing from the fallback",
       not missing, "missing: %s" % missing if missing else fallback)

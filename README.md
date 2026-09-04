@@ -21,7 +21,11 @@ thousand other sites.
   Riplox entry. On the same Wi-Fi the link never leaves your network and needs
   no internet at all; anywhere else it travels sealed. Only the link travels —
   your PC fetches the video on its own connection, and never opens a port.
-- **No limits.** No download caps, no daily quota, no paid tier.
+- **No limits.** No download caps, no daily quota, no watermark, no account, no
+  paid tier. Nothing is held back for a licence: every quality the site has,
+  every video in a playlist, as many at once as you set, private and
+  members-only videos through your own sign-in, and a proxy if you use one —
+  all of it, in the only version there is.
 - **No bundled software.** The installer contains the app and nothing else.
 - **Plays anywhere.** Files come out as MP4, in H.264 wherever a site offers
   that resolution in H.264, so they open in Windows Media Player, WhatsApp and
@@ -38,7 +42,7 @@ thousand other sites.
 
 | | |
 |---|---|
-| Quality | 4K, 1440p, 1080p, 720p, 480p, 360p, or MP3 audio with cover art and tags |
+| Quality | 8K, 4K, 1440p, 1080p, 720p, 480p, 360p, or MP3 audio with cover art and tags. A rung is offered only where the video really has it, and one that exists only as VP9 or AV1 says so before you press anything |
 | Playlists | The whole playlist in one click, or tick only the ones you want — filter by title, sort by length or name, take the first N, invert, shift-click ranges, and a download button on each row |
 | Channels | A channel link opens its sections — Videos, Shorts, Live — and any one of them behaves as an ordinary playlist |
 | Queue | Several at once, with live speed and ETA, real pause and resume, and a speed limit |
@@ -49,10 +53,10 @@ thousand other sites.
 | Subtitles | Download or embed them — the ones somebody wrote, the machine-written ones, or both — keep chapters, or skip sponsor segments |
 | Dubbed audio | Take one language, or every dub the video has, each as its own file |
 | Cover picture | Choose from the ones the site offers instead of taking its default; kept beside the file and put inside it where the format allows |
-| Convert | Turn anything already on the disk into MP3, M4A, OPUS, FLAC or WAV — remuxed rather than re-encoded when the codec already fits |
-| Watch | Follow a channel or playlist and be told what is new. It never downloads on its own |
+| Convert | Anything already on the disk: MP3, M4A, OPUS, FLAC or WAV for the sound, or MP4, MKV, MOV and WebM for the video, with an optional shrink to 1080p, 720p or 480p and a short GIF. Remuxed rather than re-encoded when the codec already fits, so an MP4 into an MKV finishes in a second. Never scaled up, and the original is never touched |
+| Following | Follow a channel or playlist and be told what is new — read from the site's own published feed where there is one, so it can be checked every fifteen minutes and a hundred can be followed. Nothing downloads unless you turn that on for that channel |
 | Find on a page | Point it at a page and it lists every media link on it, in the same screen playlists use |
-| Schedule | Hold new downloads outside chosen hours. A download already running is never cut off |
+| Schedule | Hold new downloads outside chosen hours, or give one download its own start time — 02:00 means tonight, and the row says how long it is waiting. A download already running is never cut off |
 | Send to Riplox | Share a link from your phone or another PC and this one downloads it — see below |
 | Start with Windows | Optional, and it starts into the tray rather than onto your screen |
 | Tray | Closing the window keeps downloads running, with progress on the taskbar button and a notification when each file lands |
@@ -167,17 +171,26 @@ browser: it registers `riploxsend://` when it installs, and the pairing page
 asks which one the code is for. The code works once, so pairing the browser
 would spend it and leave the app needing a second one.
 
-### Watching a channel
+### Following a channel
 
-Add a channel or a playlist and Riplox checks it on a timer and lists what it
-has not seen before. **It never downloads by itself** — every download is still
-a button you press.
+Follow a channel or a playlist and Riplox checks it on a timer and lists what
+it has not seen before. **Nothing downloads unless you turn that on for that
+channel** — and even then it needs the switch in Settings as well, and takes at
+most three new videos per check.
 
-Repeated automated requests are what sites answer with "are you a bot", so this
-is kept deliberately small: the newest 30 items only, one check at a time, at
-least 90 seconds apart, once every 12 hours per item by default. The screen
-says all of this before it can be switched on, and carries the fix if it ever
-happens.
+Most of it is not scraping at all. YouTube publishes an Atom feed for every
+channel and every playlist; where one can be worked out, that is what a routine
+check reads — a public page, no sign-in, about ten kilobytes — so those can be
+checked as often as every fifteen minutes, and you can follow a hundred things.
+
+The engine is still used for three jobs the feed cannot do: the first look when
+you follow something (a feed holds only the newest fifteen), an occasional full
+check to catch what the feed missed, and any site that has no feed. Those are
+the requests a site can answer with "are you a bot", so they keep the old
+limits — at most every six hours, one at a time, ninety seconds apart, whatever
+the interval is set to. Each row says which of the two it is. The screen
+explains all of this before following can be switched on, and carries the fix
+if a bot check ever happens.
 
 ### AI-upscaled video
 
