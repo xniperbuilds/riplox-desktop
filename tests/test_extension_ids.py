@@ -97,9 +97,17 @@ check("the roadmap exists", bool(roadmap))
 check("and no longer lists the store extension as upcoming",
       "Chrome Web Store" not in roadmap,
       "still there" if "Chrome Web Store" in roadmap else "gone")
-# It is in the release notes instead, which is where a shipped thing belongs.
-check("What's new claims it instead",
-      "Chrome Web Store" in (ROOT / "src" / "whatsnew.json")
+# ⚠️ This used to read whatsnew.json, and it expired the moment v1.5.0 was
+# tagged: that panel is built from "<newest tag>..HEAD", so it carries THIS
+# release and nothing else, and the store shipped in 1.5.0. Asserting a past
+# announcement against a file that only ever holds the current one would fail
+# on every release from now on, for no defect at all.
+#
+# What the pair was protecting is worth keeping: something that has shipped
+# must be offered, not left in the roadmap as though it were still coming. So
+# that is what is checked now - the app itself offers it.
+check("and the app offers it instead",
+      "Chrome Web Store" in (ROOT / "src" / "templates" / "index.html")
       .read_text(encoding="utf-8"))
 
 print("\n-- the finish page offers the button " + "-" * 32)

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Riplox",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0OEw8CuG+O2wr/n3HwbibJl3+rz1KFyy5J+CYe93YlXwPxqM6t3+CppE7L0FP3jb+rnEdYLBFXU6Ss82q6HINwgsGcJbgTDy/aPzYKnIywvGdZuPdrqtwvwVGGQdh6oY6v0U5+hQTVCS9FjHtnKlP7dd9mSMyFzIqYJD8m+Ci1TY6/8CeyDf4TjBD5Lc81YC/3ORkxbRBku9ybh5rNl6ir+U0vZe/TcBsA6zIFFEj3f66Oltsf/0b8IsivLK1uezRi4/IFNM8VfgQqAoVZ+nQFct43mbba4ArXeynAXEXNtjapMBGnnC4SbQ4a45mV+Pf2htYDl+62Zhqe/Ok2AE1QIDAQAB",
   "description": "Send the page you are on to Riplox on this PC. The download happens in Riplox, not in the browser.",
   "icons": {

@@ -1,0 +1,1032 @@
+{
+  "artifact": "Riplox Desktop 1.6.0 @ 30c2b8c (branch free-features-and-feed) - the change surface since v1.5.0",
+  "generated": "2026-09-04 19:54:41",
+  "strength": 2,
+  "factors": {
+    "settings": [
+      "fresh",
+      "v150",
+      "corrupt"
+    ],
+    "watchfile": [
+      "absent",
+      "v150_items",
+      "v160_items"
+    ],
+    "link": [
+      "video",
+      "playlist_small",
+      "playlist_exact_limit",
+      "channel_root",
+      "channel_big",
+      "non_youtube"
+    ],
+    "quality": [
+      "max",
+      "q4320",
+      "q2160",
+      "mp3"
+    ],
+    "trouble": [
+      "none",
+      "network_blip",
+      "refused",
+      "network_gone"
+    ],
+    "following": [
+      "off",
+      "on_feed",
+      "on_engine",
+      "on_auto"
+    ],
+    "drop": [
+      "off",
+      "on_valid",
+      "on_junk"
+    ],
+    "convert": [
+      "none",
+      "audio",
+      "video",
+      "gif"
+    ],
+    "copies": [
+      "one",
+      "two"
+    ],
+    "restart": [
+      "no",
+      "after_queue"
+    ]
+  },
+  "constraints": [
+    [
+      "link=non_youtube",
+      "quality=q4320"
+    ],
+    [
+      "link=non_youtube",
+      "following=on_feed"
+    ],
+    [
+      "link=playlist_small",
+      "quality=q4320"
+    ],
+    [
+      "link=channel_root",
+      "quality=q4320"
+    ],
+    [
+      "link=channel_big",
+      "quality=q4320"
+    ],
+    [
+      "link=playlist_exact_limit",
+      "quality=q4320"
+    ],
+    [
+      "following=off",
+      "watchfile=v160_items"
+    ],
+    [
+      "settings=corrupt",
+      "following=on_auto"
+    ],
+    [
+      "settings=corrupt",
+      "drop=on_valid"
+    ],
+    [
+      "settings=corrupt",
+      "drop=on_junk"
+    ]
+  ],
+  "gates": [
+    {
+      "when": [
+        "following=on_auto",
+        "settings=v150"
+      ],
+      "why": "auto-download needs BOTH the per-channel switch and watch_auto in Settings, and an upgraded 1.5.0 file has neither - the app refuses before _auto_download is reached",
+      "tested_at": "the two-switch guard itself, as its own case"
+    },
+    {
+      "when": [
+        "convert=video",
+        "link=non_youtube"
+      ],
+      "why": "convert reads a file already on disk; it has no link at all",
+      "tested_at": "convert cases, which take a file rather than a link"
+    }
+  ],
+  "risk": [
+    "settings",
+    "watchfile",
+    "trouble",
+    "following"
+  ],
+  "full_cross_product": 165888,
+  "tuples_total": 533,
+  "tuples_covered": 533,
+  "uncovered_tuples": [],
+  "mutation_checks": [
+    {
+      "broke": "the exclusive-create claim replaced by a plain create - two sweeps both take the file",
+      "detected": true,
+      "caught_by": "2,4,17,18",
+      "recorded": "2026-09-04 20:24:01"
+    },
+    {
+      "broke": "network trouble spends a client rung again",
+      "detected": true,
+      "caught_by": "2,4",
+      "recorded": "2026-09-04 20:24:02"
+    },
+    {
+      "broke": "the first read stops asking for one page",
+      "detected": true,
+      "caught_by": "1",
+      "recorded": "2026-09-04 20:24:02"
+    }
+  ],
+  "cases": [
+    {
+      "id": 1,
+      "kind": "grid",
+      "values": {
+        "settings": "fresh",
+        "watchfile": "absent",
+        "link": "video",
+        "quality": "max",
+        "trouble": "none",
+        "following": "off",
+        "drop": "off",
+        "convert": "none",
+        "copies": "one",
+        "restart": "no"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   fresh install takes the new default  [minutes=60]\n  ok   downloading on its own is off\n  ok   the drop folder is off\n  ok   no list means no items\n  ok   the folder is not swept while it is off\n  ok   the first read is capped\n  ok   and does not pay the pause meant for bursts",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 2,
+      "kind": "grid",
+      "values": {
+        "settings": "fresh",
+        "watchfile": "v150_items",
+        "link": "playlist_small",
+        "quality": "q2160",
+        "trouble": "network_blip",
+        "following": "on_feed",
+        "drop": "on_valid",
+        "convert": "audio",
+        "copies": "two",
+        "restart": "after_queue"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   fresh install takes the new default  [minutes=60]\n  ok   downloading on its own is off\n  ok   the drop folder is off\n  ok   the list opens  [items=1]\n  ok   an old item gains feed\n  ok   an old item gains feed_fail\n  ok   an old item gains full_checked\n  ok   an old item gains auto\n  ok   an old item gains opts\n  ok   and keeps what it already knew  [['v1', 'v2']]\n  ok   the screen can draw it\n  ok   something with a feed follows the setting\n  ok   the links were queued  [queued=['https://a.test/1', 'https://b.test/2']]\n  ok   and none of them twice  [queued=['https://a.test/1', 'https://b.test/2']]",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 3,
+      "kind": "grid",
+      "values": {
+        "settings": "fresh",
+        "watchfile": "v160_items",
+        "link": "playlist_exact_limit",
+        "quality": "mp3",
+        "trouble": "refused",
+        "following": "on_engine",
+        "drop": "on_junk",
+        "convert": "video",
+        "copies": "one",
+        "restart": "after_queue"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   fresh install takes the new default  [minutes=60]\n  ok   downloading on its own is off\n  ok   the drop folder is off\n  ok   the list opens  [items=1]\n  ok   an old item gains feed\n  ok   an old item gains feed_fail\n  ok   an old item gains full_checked\n  ok   an old item gains auto\n  ok   an old item gains opts\n  ok   and keeps what it already knew  [['v1', 'v2']]\n  ok   the screen can draw it\n  ok   something without a feed keeps the six-hour floor  [seconds=21600.0]\n  ok   a file with no links queued nothing  [queued=[]]\n  ok   and was set aside with the reason",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 4,
+      "kind": "grid",
+      "values": {
+        "settings": "v150",
+        "watchfile": "absent",
+        "link": "playlist_small",
+        "quality": "mp3",
+        "trouble": "network_gone",
+        "following": "off",
+        "drop": "on_valid",
+        "convert": "gif",
+        "copies": "two",
+        "restart": "no"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   an upgraded 1.5.0 file keeps its 24 hours  [minutes=1440]\n  ok   and does not arrive with downloading switched on\n  ok   and its old settings survive\n  ok   no list means no items\n  ok   the links were queued  [queued=['https://a.test/1', 'https://b.test/2']]\n  ok   and none of them twice  [queued=['https://a.test/1', 'https://b.test/2']]\n  ok   the file was renamed rather than deleted\n  ok   a second sweep does not read it again  [queued=[]]\n  ok   a network that left is handled where it already was, not here  [asked=2]\n  ok   a gif is capped before the file is read\n  ok   the original is never the target\n  ok   the first read is capped\n  ok   and does not pay the pause meant for bursts",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 5,
+      "kind": "grid",
+      "values": {
+        "settings": "v150",
+        "watchfile": "v150_items",
+        "link": "video",
+        "quality": "q4320",
+        "trouble": "refused",
+        "following": "on_feed",
+        "drop": "off",
+        "convert": "video",
+        "copies": "two",
+        "restart": "no"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   an upgraded 1.5.0 file keeps its 24 hours  [minutes=1440]\n  ok   and does not arrive with downloading switched on\n  ok   and its old settings survive\n  ok   the list opens  [items=1]\n  ok   an old item gains feed\n  ok   an old item gains feed_fail\n  ok   an old item gains full_checked\n  ok   an old item gains auto\n  ok   an old item gains opts\n  ok   and keeps what it already knew  [['v1', 'v2']]\n  ok   the screen can draw it\n  ok   something with a feed follows the setting\n  ok   the folder is not swept while it is off\n  ok   a refusal moves down a rung at once  [clients=['', 'tv_simply,tv_embedded', 'mweb,visionos']]",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 6,
+      "kind": "grid",
+      "values": {
+        "settings": "v150",
+        "watchfile": "v160_items",
+        "link": "channel_root",
+        "quality": "max",
+        "trouble": "network_blip",
+        "following": "on_engine",
+        "drop": "off",
+        "convert": "audio",
+        "copies": "one",
+        "restart": "no"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   an upgraded 1.5.0 file keeps its 24 hours  [minutes=1440]\n  ok   and does not arrive with downloading switched on\n  ok   and its old settings survive\n  ok   the list opens  [items=1]\n  ok   an old item gains feed\n  ok   an old item gains feed_fail\n  ok   an old item gains full_checked\n  ok   an old item gains auto\n  ok   an old item gains opts\n  ok   and keeps what it already knew  [['v1', 'v2']]\n  ok   the screen can draw it\n  ok   something without a feed keeps the six-hour floor  [seconds=86400.0]\n  ok   the folder is not swept while it is off\n  ok   a broken connection is retried on the same client  [clients=['', '', '', 'tv_simply,tv_embedded', 'tv_simply,tv_embedded']]",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 7,
+      "kind": "grid",
+      "values": {
+        "settings": "corrupt",
+        "watchfile": "absent",
+        "link": "playlist_exact_limit",
+        "quality": "q2160",
+        "trouble": "none",
+        "following": "on_feed",
+        "drop": "off",
+        "convert": "gif",
+        "copies": "one",
+        "restart": "after_queue"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   an unreadable settings file does not stop the app  [minutes=60]\n  ok   and every new key still has a value\n  ok   no list means no items\n  ok   something with a feed follows the setting\n  ok   the folder is not swept while it is off\n  ok   a gif is capped before the file is read\n  ok   the original is never the target\n  ok   the first read is capped\n  ok   and does not pay the pause meant for bursts\n  ok   the queue comes back  [jobs=1]\n  ok   and a start time survives the restart  [start_after=1788538673.0064495]",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 8,
+      "kind": "grid",
+      "values": {
+        "settings": "corrupt",
+        "watchfile": "v150_items",
+        "link": "channel_root",
+        "quality": "mp3",
+        "trouble": "none",
+        "following": "off",
+        "drop": "off",
+        "convert": "none",
+        "copies": "two",
+        "restart": "after_queue"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   an unreadable settings file does not stop the app  [minutes=60]\n  ok   and every new key still has a value\n  ok   the list opens  [items=1]\n  ok   an old item gains feed\n  ok   an old item gains feed_fail\n  ok   an old item gains full_checked\n  ok   an old item gains auto\n  ok   an old item gains opts\n  ok   and keeps what it already knew  [['v1', 'v2']]\n  ok   the screen can draw it\n  ok   the folder is not swept while it is off\n  ok   the first read is capped\n  ok   and does not pay the pause meant for bursts\n  ok   the queue comes back  [jobs=1]",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 9,
+      "kind": "grid",
+      "values": {
+        "settings": "corrupt",
+        "watchfile": "v160_items",
+        "link": "video",
+        "quality": "q4320",
+        "trouble": "network_gone",
+        "following": "on_engine",
+        "drop": "off",
+        "convert": "none",
+        "copies": "one",
+        "restart": "after_queue"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   an unreadable settings file does not stop the app  [minutes=60]\n  ok   and every new key still has a value\n  ok   the list opens  [items=1]\n  ok   an old item gains feed\n  ok   an old item gains feed_fail\n  ok   an old item gains full_checked\n  ok   an old item gains auto\n  ok   an old item gains opts\n  ok   and keeps what it already knew  [['v1', 'v2']]\n  ok   the screen can draw it\n  ok   something without a feed keeps the six-hour floor  [seconds=21600.0]\n  ok   the folder is not swept while it is off\n  ok   a network that left is handled where it already was, not here  [asked=2]\n  ok   the first read is capped",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 10,
+      "kind": "grid",
+      "values": {
+        "convert": "audio",
+        "drop": "on_junk",
+        "settings": "v150",
+        "watchfile": "absent",
+        "link": "channel_big",
+        "quality": "q2160",
+        "trouble": "none",
+        "following": "off",
+        "copies": "two",
+        "restart": "no"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   an upgraded 1.5.0 file keeps its 24 hours  [minutes=1440]\n  ok   and does not arrive with downloading switched on\n  ok   and its old settings survive\n  ok   no list means no items\n  ok   a file with no links queued nothing  [queued=[]]\n  ok   and was set aside with the reason\n  ok   a second sweep does not read it again  [queued=[]]\n  ok   the picture is dropped for audio\n  ok   the original is never the target\n  ok   the first read is capped\n  ok   and does not pay the pause meant for bursts",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 11,
+      "kind": "grid",
+      "values": {
+        "convert": "audio",
+        "following": "on_auto",
+        "settings": "fresh",
+        "watchfile": "absent",
+        "link": "non_youtube",
+        "quality": "mp3",
+        "trouble": "network_blip",
+        "drop": "on_junk",
+        "copies": "one",
+        "restart": "no"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   fresh install takes the new default  [minutes=60]\n  ok   downloading on its own is off\n  ok   the drop folder is off\n  ok   no list means no items\n  ok   both switches on, so it downloads  [took=3]\n  ok   never more than the cap in one check  [took=3]\n  ok   and nothing at all with the channel switch off\n  ok   a file with no links queued nothing  [queued=[]]\n  ok   and was set aside with the reason\n  ok   a second sweep does not read it again  [queued=[]]\n  ok   a broken connection is retried on the same client  [clients=['', '', '', 'tv_simply,tv_embedded', 'tv_simply,tv_embedded']]\n  ok   the picture is dropped for audio\n  ok   the original is never the target\n  ok   the first read is capped",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 12,
+      "kind": "grid",
+      "values": {
+        "convert": "audio",
+        "link": "playlist_exact_limit",
+        "settings": "v150",
+        "watchfile": "v150_items",
+        "quality": "max",
+        "trouble": "network_gone",
+        "following": "on_feed",
+        "drop": "on_junk",
+        "copies": "two",
+        "restart": "after_queue"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   an upgraded 1.5.0 file keeps its 24 hours  [minutes=1440]\n  ok   and does not arrive with downloading switched on\n  ok   and its old settings survive\n  ok   the list opens  [items=1]\n  ok   an old item gains feed\n  ok   an old item gains feed_fail\n  ok   an old item gains full_checked\n  ok   an old item gains auto\n  ok   an old item gains opts\n  ok   and keeps what it already knew  [['v1', 'v2']]\n  ok   the screen can draw it\n  ok   something with a feed follows the setting\n  ok   a file with no links queued nothing  [queued=[]]\n  ok   and was set aside with the reason",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 13,
+      "kind": "grid",
+      "values": {
+        "convert": "audio",
+        "link": "video",
+        "settings": "corrupt",
+        "watchfile": "absent",
+        "quality": "q4320",
+        "trouble": "network_blip",
+        "following": "off",
+        "drop": "off",
+        "copies": "one",
+        "restart": "no"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   an unreadable settings file does not stop the app  [minutes=60]\n  ok   and every new key still has a value\n  ok   no list means no items\n  ok   the folder is not swept while it is off\n  ok   a broken connection is retried on the same client  [clients=['', '', '', 'tv_simply,tv_embedded', 'tv_simply,tv_embedded']]\n  ok   the picture is dropped for audio\n  ok   the original is never the target\n  ok   the first read is capped\n  ok   and does not pay the pause meant for bursts",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 14,
+      "kind": "grid",
+      "values": {
+        "convert": "audio",
+        "trouble": "refused",
+        "settings": "corrupt",
+        "watchfile": "absent",
+        "link": "playlist_small",
+        "quality": "max",
+        "following": "on_engine",
+        "drop": "off",
+        "copies": "one",
+        "restart": "no"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   an unreadable settings file does not stop the app  [minutes=60]\n  ok   and every new key still has a value\n  ok   no list means no items\n  ok   something without a feed keeps the six-hour floor  [seconds=21600.0]\n  ok   the folder is not swept while it is off\n  ok   a refusal moves down a rung at once  [clients=['', 'tv_simply,tv_embedded', 'mweb,visionos']]\n  ok   the picture is dropped for audio\n  ok   the original is never the target\n  ok   the first read is capped\n  ok   and does not pay the pause meant for bursts",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 15,
+      "kind": "grid",
+      "values": {
+        "convert": "gif",
+        "drop": "on_junk",
+        "settings": "fresh",
+        "watchfile": "v150_items",
+        "link": "channel_root",
+        "quality": "max",
+        "trouble": "refused",
+        "following": "on_auto",
+        "copies": "one",
+        "restart": "after_queue"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   fresh install takes the new default  [minutes=60]\n  ok   downloading on its own is off\n  ok   the drop folder is off\n  ok   the list opens  [items=1]\n  ok   an old item gains feed\n  ok   an old item gains feed_fail\n  ok   an old item gains full_checked\n  ok   an old item gains auto\n  ok   an old item gains opts\n  ok   and keeps what it already knew  [['v1', 'v2']]\n  ok   the screen can draw it\n  ok   both switches on, so it downloads  [took=3]\n  ok   never more than the cap in one check  [took=3]\n  ok   and nothing at all with the channel switch off",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 16,
+      "kind": "grid",
+      "values": {
+        "convert": "gif",
+        "following": "on_engine",
+        "settings": "fresh",
+        "watchfile": "v160_items",
+        "link": "channel_big",
+        "quality": "q2160",
+        "trouble": "network_gone",
+        "drop": "on_valid",
+        "copies": "one",
+        "restart": "after_queue"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   fresh install takes the new default  [minutes=60]\n  ok   downloading on its own is off\n  ok   the drop folder is off\n  ok   the list opens  [items=1]\n  ok   an old item gains feed\n  ok   an old item gains feed_fail\n  ok   an old item gains full_checked\n  ok   an old item gains auto\n  ok   an old item gains opts\n  ok   and keeps what it already knew  [['v1', 'v2']]\n  ok   the screen can draw it\n  ok   something without a feed keeps the six-hour floor  [seconds=21600.0]\n  ok   the links were queued  [queued=['https://a.test/1', 'https://b.test/2']]\n  ok   and none of them twice  [queued=['https://a.test/1', 'https://b.test/2']]",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 17,
+      "kind": "grid",
+      "values": {
+        "convert": "gif",
+        "link": "non_youtube",
+        "settings": "v150",
+        "watchfile": "v160_items",
+        "quality": "max",
+        "trouble": "none",
+        "following": "on_engine",
+        "drop": "on_valid",
+        "copies": "two",
+        "restart": "after_queue"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   an upgraded 1.5.0 file keeps its 24 hours  [minutes=1440]\n  ok   and does not arrive with downloading switched on\n  ok   and its old settings survive\n  ok   the list opens  [items=1]\n  ok   an old item gains feed\n  ok   an old item gains feed_fail\n  ok   an old item gains full_checked\n  ok   an old item gains auto\n  ok   an old item gains opts\n  ok   and keeps what it already knew  [['v1', 'v2']]\n  ok   the screen can draw it\n  ok   something without a feed keeps the six-hour floor  [seconds=86400.0]\n  ok   the links were queued  [queued=['https://a.test/1', 'https://b.test/2']]\n  ok   and none of them twice  [queued=['https://a.test/1', 'https://b.test/2']]",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 18,
+      "kind": "grid",
+      "values": {
+        "convert": "gif",
+        "link": "video",
+        "settings": "fresh",
+        "watchfile": "absent",
+        "quality": "q4320",
+        "trouble": "none",
+        "following": "on_auto",
+        "drop": "on_valid",
+        "copies": "two",
+        "restart": "no"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   fresh install takes the new default  [minutes=60]\n  ok   downloading on its own is off\n  ok   the drop folder is off\n  ok   no list means no items\n  ok   both switches on, so it downloads  [took=3]\n  ok   never more than the cap in one check  [took=3]\n  ok   and nothing at all with the channel switch off\n  ok   the links were queued  [queued=['https://a.test/1', 'https://b.test/2']]\n  ok   and none of them twice  [queued=['https://a.test/1', 'https://b.test/2']]\n  ok   the file was renamed rather than deleted\n  ok   a second sweep does not read it again  [queued=[]]\n  ok   a gif is capped before the file is read\n  ok   the original is never the target\n  ok   the first read is capped",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 19,
+      "kind": "grid",
+      "values": {
+        "convert": "gif",
+        "trouble": "network_blip",
+        "settings": "fresh",
+        "watchfile": "absent",
+        "link": "playlist_exact_limit",
+        "quality": "max",
+        "following": "off",
+        "drop": "on_valid",
+        "copies": "one",
+        "restart": "no"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   fresh install takes the new default  [minutes=60]\n  ok   downloading on its own is off\n  ok   the drop folder is off\n  ok   no list means no items\n  ok   the links were queued  [queued=['https://a.test/1', 'https://b.test/2']]\n  ok   and none of them twice  [queued=['https://a.test/1', 'https://b.test/2']]\n  ok   the file was renamed rather than deleted\n  ok   a second sweep does not read it again  [queued=[]]\n  ok   a broken connection is retried on the same client  [clients=['', '', '', 'tv_simply,tv_embedded', 'tv_simply,tv_embedded']]\n  ok   a gif is capped before the file is read\n  ok   the original is never the target\n  ok   the first read is capped\n  ok   and does not pay the pause meant for bursts",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 20,
+      "kind": "grid",
+      "values": {
+        "convert": "none",
+        "drop": "on_junk",
+        "settings": "v150",
+        "watchfile": "absent",
+        "link": "playlist_small",
+        "quality": "q2160",
+        "trouble": "refused",
+        "following": "off",
+        "copies": "one",
+        "restart": "no"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   an upgraded 1.5.0 file keeps its 24 hours  [minutes=1440]\n  ok   and does not arrive with downloading switched on\n  ok   and its old settings survive\n  ok   no list means no items\n  ok   a file with no links queued nothing  [queued=[]]\n  ok   and was set aside with the reason\n  ok   a second sweep does not read it again  [queued=[]]\n  ok   a refusal moves down a rung at once  [clients=['', 'tv_simply,tv_embedded', 'mweb,visionos']]\n  ok   the first read is capped\n  ok   and does not pay the pause meant for bursts",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 21,
+      "kind": "grid",
+      "values": {
+        "convert": "none",
+        "drop": "on_valid",
+        "settings": "fresh",
+        "watchfile": "absent",
+        "link": "channel_root",
+        "quality": "q2160",
+        "trouble": "network_blip",
+        "following": "on_feed",
+        "copies": "one",
+        "restart": "no"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   fresh install takes the new default  [minutes=60]\n  ok   downloading on its own is off\n  ok   the drop folder is off\n  ok   no list means no items\n  ok   something with a feed follows the setting\n  ok   the links were queued  [queued=['https://a.test/1', 'https://b.test/2']]\n  ok   and none of them twice  [queued=['https://a.test/1', 'https://b.test/2']]\n  ok   the file was renamed rather than deleted\n  ok   a second sweep does not read it again  [queued=[]]\n  ok   a broken connection is retried on the same client  [clients=['', '', '', 'tv_simply,tv_embedded', 'tv_simply,tv_embedded']]\n  ok   the first read is capped\n  ok   and does not pay the pause meant for bursts",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 22,
+      "kind": "grid",
+      "values": {
+        "convert": "none",
+        "following": "on_auto",
+        "settings": "fresh",
+        "watchfile": "v160_items",
+        "link": "playlist_small",
+        "quality": "q2160",
+        "trouble": "none",
+        "drop": "off",
+        "copies": "one",
+        "restart": "no"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   fresh install takes the new default  [minutes=60]\n  ok   downloading on its own is off\n  ok   the drop folder is off\n  ok   the list opens  [items=1]\n  ok   an old item gains feed\n  ok   an old item gains feed_fail\n  ok   an old item gains full_checked\n  ok   an old item gains auto\n  ok   an old item gains opts\n  ok   and keeps what it already knew  [['v1', 'v2']]\n  ok   the screen can draw it\n  ok   both switches on, so it downloads  [took=3]\n  ok   never more than the cap in one check  [took=3]\n  ok   and nothing at all with the channel switch off",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 23,
+      "kind": "grid",
+      "values": {
+        "convert": "none",
+        "link": "channel_big",
+        "settings": "corrupt",
+        "watchfile": "v150_items",
+        "quality": "max",
+        "trouble": "network_blip",
+        "following": "on_feed",
+        "drop": "off",
+        "copies": "one",
+        "restart": "no"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   an unreadable settings file does not stop the app  [minutes=60]\n  ok   and every new key still has a value\n  ok   the list opens  [items=1]\n  ok   an old item gains feed\n  ok   an old item gains feed_fail\n  ok   an old item gains full_checked\n  ok   an old item gains auto\n  ok   an old item gains opts\n  ok   and keeps what it already knew  [['v1', 'v2']]\n  ok   the screen can draw it\n  ok   something with a feed follows the setting\n  ok   the folder is not swept while it is off\n  ok   a broken connection is retried on the same client  [clients=['', '', '', 'tv_simply,tv_embedded', 'tv_simply,tv_embedded']]\n  ok   the first read is capped",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 24,
+      "kind": "grid",
+      "values": {
+        "convert": "none",
+        "link": "non_youtube",
+        "settings": "corrupt",
+        "watchfile": "v150_items",
+        "quality": "q2160",
+        "trouble": "refused",
+        "following": "off",
+        "drop": "off",
+        "copies": "one",
+        "restart": "no"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   an unreadable settings file does not stop the app  [minutes=60]\n  ok   and every new key still has a value\n  ok   the list opens  [items=1]\n  ok   an old item gains feed\n  ok   an old item gains feed_fail\n  ok   an old item gains full_checked\n  ok   an old item gains auto\n  ok   an old item gains opts\n  ok   and keeps what it already knew  [['v1', 'v2']]\n  ok   the screen can draw it\n  ok   the folder is not swept while it is off\n  ok   a refusal moves down a rung at once  [clients=['', 'tv_simply,tv_embedded', 'mweb,visionos']]\n  ok   the first read is capped\n  ok   and does not pay the pause meant for bursts",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 25,
+      "kind": "grid",
+      "values": {
+        "convert": "none",
+        "link": "playlist_exact_limit",
+        "settings": "fresh",
+        "watchfile": "absent",
+        "quality": "max",
+        "trouble": "none",
+        "following": "on_auto",
+        "drop": "off",
+        "copies": "one",
+        "restart": "no"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   fresh install takes the new default  [minutes=60]\n  ok   downloading on its own is off\n  ok   the drop folder is off\n  ok   no list means no items\n  ok   both switches on, so it downloads  [took=3]\n  ok   never more than the cap in one check  [took=3]\n  ok   and nothing at all with the channel switch off\n  ok   the folder is not swept while it is off\n  ok   the first read is capped\n  ok   and does not pay the pause meant for bursts",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 26,
+      "kind": "grid",
+      "values": {
+        "convert": "video",
+        "drop": "on_valid",
+        "settings": "fresh",
+        "watchfile": "absent",
+        "link": "playlist_small",
+        "quality": "max",
+        "trouble": "none",
+        "following": "off",
+        "copies": "one",
+        "restart": "no"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   fresh install takes the new default  [minutes=60]\n  ok   downloading on its own is off\n  ok   the drop folder is off\n  ok   no list means no items\n  ok   the links were queued  [queued=['https://a.test/1', 'https://b.test/2']]\n  ok   and none of them twice  [queued=['https://a.test/1', 'https://b.test/2']]\n  ok   the file was renamed rather than deleted\n  ok   a second sweep does not read it again  [queued=[]]\n  ok   h264 into an mkv is a remux\n  ok   and subtitles are carried, not dropped\n  ok   the original is never the target\n  ok   the first read is capped\n  ok   and does not pay the pause meant for bursts",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 27,
+      "kind": "grid",
+      "values": {
+        "convert": "video",
+        "following": "on_auto",
+        "settings": "fresh",
+        "watchfile": "absent",
+        "link": "channel_big",
+        "quality": "q2160",
+        "trouble": "network_gone",
+        "drop": "off",
+        "copies": "one",
+        "restart": "no"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   fresh install takes the new default  [minutes=60]\n  ok   downloading on its own is off\n  ok   the drop folder is off\n  ok   no list means no items\n  ok   both switches on, so it downloads  [took=3]\n  ok   never more than the cap in one check  [took=3]\n  ok   and nothing at all with the channel switch off\n  ok   the folder is not swept while it is off\n  ok   a network that left is handled where it already was, not here  [asked=2]\n  ok   h264 into an mkv is a remux\n  ok   and subtitles are carried, not dropped\n  ok   the original is never the target\n  ok   the first read is capped\n  ok   and does not pay the pause meant for bursts",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 28,
+      "kind": "grid",
+      "values": {
+        "convert": "video",
+        "link": "channel_root",
+        "settings": "corrupt",
+        "watchfile": "v160_items",
+        "quality": "max",
+        "trouble": "network_blip",
+        "following": "on_feed",
+        "drop": "off",
+        "copies": "one",
+        "restart": "no"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   an unreadable settings file does not stop the app  [minutes=60]\n  ok   and every new key still has a value\n  ok   the list opens  [items=1]\n  ok   an old item gains feed\n  ok   an old item gains feed_fail\n  ok   an old item gains full_checked\n  ok   an old item gains auto\n  ok   an old item gains opts\n  ok   and keeps what it already knew  [['v1', 'v2']]\n  ok   the screen can draw it\n  ok   something with a feed follows the setting\n  ok   the folder is not swept while it is off\n  ok   a broken connection is retried on the same client  [clients=['', '', '', 'tv_simply,tv_embedded', 'tv_simply,tv_embedded']]\n  ok   h264 into an mkv is a remux",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 29,
+      "kind": "grid",
+      "values": {
+        "drop": "on_junk",
+        "link": "video",
+        "settings": "fresh",
+        "watchfile": "absent",
+        "quality": "q4320",
+        "trouble": "none",
+        "following": "off",
+        "convert": "none",
+        "copies": "one",
+        "restart": "no"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   fresh install takes the new default  [minutes=60]\n  ok   downloading on its own is off\n  ok   the drop folder is off\n  ok   no list means no items\n  ok   a file with no links queued nothing  [queued=[]]\n  ok   and was set aside with the reason\n  ok   a second sweep does not read it again  [queued=[]]\n  ok   the first read is capped\n  ok   and does not pay the pause meant for bursts",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 30,
+      "kind": "grid",
+      "values": {
+        "drop": "on_valid",
+        "trouble": "refused",
+        "settings": "fresh",
+        "watchfile": "absent",
+        "link": "channel_big",
+        "quality": "mp3",
+        "following": "on_feed",
+        "convert": "none",
+        "copies": "one",
+        "restart": "no"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   fresh install takes the new default  [minutes=60]\n  ok   downloading on its own is off\n  ok   the drop folder is off\n  ok   no list means no items\n  ok   something with a feed follows the setting\n  ok   the links were queued  [queued=['https://a.test/1', 'https://b.test/2']]\n  ok   and none of them twice  [queued=['https://a.test/1', 'https://b.test/2']]\n  ok   the file was renamed rather than deleted\n  ok   a second sweep does not read it again  [queued=[]]\n  ok   a refusal moves down a rung at once  [clients=['', 'tv_simply,tv_embedded', 'mweb,visionos']]\n  ok   the first read is capped\n  ok   and does not pay the pause meant for bursts",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 31,
+      "kind": "grid",
+      "values": {
+        "following": "on_engine",
+        "watchfile": "v150_items",
+        "settings": "fresh",
+        "link": "video",
+        "quality": "q2160",
+        "trouble": "none",
+        "drop": "off",
+        "convert": "none",
+        "copies": "one",
+        "restart": "no"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   fresh install takes the new default  [minutes=60]\n  ok   downloading on its own is off\n  ok   the drop folder is off\n  ok   the list opens  [items=1]\n  ok   an old item gains feed\n  ok   an old item gains feed_fail\n  ok   an old item gains full_checked\n  ok   an old item gains auto\n  ok   an old item gains opts\n  ok   and keeps what it already knew  [['v1', 'v2']]\n  ok   the screen can draw it\n  ok   something without a feed keeps the six-hour floor  [seconds=21600.0]\n  ok   the folder is not swept while it is off\n  ok   the first read is capped",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 32,
+      "kind": "grid",
+      "values": {
+        "link": "channel_root",
+        "trouble": "network_gone",
+        "settings": "fresh",
+        "watchfile": "absent",
+        "quality": "max",
+        "following": "off",
+        "drop": "off",
+        "convert": "none",
+        "copies": "one",
+        "restart": "no"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   fresh install takes the new default  [minutes=60]\n  ok   downloading on its own is off\n  ok   the drop folder is off\n  ok   no list means no items\n  ok   the folder is not swept while it is off\n  ok   a network that left is handled where it already was, not here  [asked=2]\n  ok   the first read is capped\n  ok   and does not pay the pause meant for bursts",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 33,
+      "kind": "grid",
+      "values": {
+        "link": "non_youtube",
+        "trouble": "network_gone",
+        "settings": "fresh",
+        "watchfile": "absent",
+        "quality": "max",
+        "following": "off",
+        "drop": "off",
+        "convert": "none",
+        "copies": "one",
+        "restart": "no"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   fresh install takes the new default  [minutes=60]\n  ok   downloading on its own is off\n  ok   the drop folder is off\n  ok   no list means no items\n  ok   the folder is not swept while it is off\n  ok   a network that left is handled where it already was, not here  [asked=2]\n  ok   the first read is capped\n  ok   and does not pay the pause meant for bursts",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 34,
+      "kind": "grid",
+      "values": {
+        "link": "video",
+        "quality": "mp3",
+        "settings": "fresh",
+        "watchfile": "absent",
+        "trouble": "none",
+        "following": "off",
+        "drop": "off",
+        "convert": "none",
+        "copies": "one",
+        "restart": "no"
+      },
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "  ok   fresh install takes the new default  [minutes=60]\n  ok   downloading on its own is off\n  ok   the drop folder is off\n  ok   no list means no items\n  ok   the folder is not swept while it is off\n  ok   the first read is capped\n  ok   and does not pay the pause meant for bursts",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 35,
+      "kind": "repro",
+      "name": "bug-channel-timeout",
+      "values": {},
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "tests/test_youtube_speed_and_ladder.py - 'the first read asks for one page'",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 36,
+      "kind": "repro",
+      "name": "bug-https-then-360p",
+      "values": {},
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "tests/test_youtube_speed_and_ladder.py - 'a broken connection is tried again on the same client'",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 37,
+      "kind": "repro",
+      "name": "bug-slow-single-analyze",
+      "values": {},
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "tests/test_youtube_speed_and_ladder.py - 'a read somebody is waiting for does not' pause",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 38,
+      "kind": "repro",
+      "name": "bug-quality-guard-narrow",
+      "values": {},
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "tests/test_youtube_speed_and_ladder.py - '4K asked, 720p given - now said too'",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 39,
+      "kind": "repro",
+      "name": "bug-watch-hours-migration",
+      "values": {},
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "tests/test_following.py - \"an older file's hours are read as minutes\"",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 40,
+      "kind": "repro",
+      "name": "bug-start-after-race",
+      "values": {},
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "tests/test_free_features.py - 'no worker started it in the gap while it was being queued'",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 41,
+      "kind": "repro",
+      "name": "bug-probe-vanish",
+      "values": {},
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "tests/test_page_probe_and_drop.py - 'a link that was asked about and refused is still counted'",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 42,
+      "kind": "repro",
+      "name": "bug-probe-second-door",
+      "values": {},
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "tests/test_page_probe_and_drop.py - the whole file runs with urlopen stubbed and no network",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 43,
+      "kind": "repro",
+      "name": "bug-unknown-setting-dropped",
+      "values": {},
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "tests/test_defaults_that_bite.py - the new keys are in DEFAULT_SETTINGS",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 44,
+      "kind": "sequence",
+      "name": "seq-upgrade-then-follow",
+      "values": {},
+      "steps": [
+        "start with a 1.5.0 settings.json and a 1.5.0 watch.json",
+        "load settings - the interval must come from watch_hours, not the default",
+        "load the watch list - every item must gain feed/opts/auto/full_checked",
+        "check one item - it must not announce the whole back catalogue"
+      ],
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "casegrid runner - every settings=v150 + watchfile=v150_items case",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 45,
+      "kind": "sequence",
+      "name": "seq-drop-twice",
+      "values": {},
+      "steps": [
+        "write a file of links into the drop folder",
+        "sweep - the links are queued and the file becomes .done",
+        "sweep again - nothing is queued a second time"
+      ],
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "runner - 'a second sweep does not read it again'; tests - 'four sweeps at once queue each link exactly once'",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 46,
+      "kind": "sequence",
+      "name": "seq-convert-onto-itself",
+      "values": {},
+      "steps": [
+        "take an mp4 already on disk",
+        "convert it to mp4",
+        "the original must still be there and the output must be a different file"
+      ],
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "tests/test_free_features.py - 'a file is never converted on top of itself'",
+      "note": "",
+      "updated": ""
+    },
+    {
+      "id": 47,
+      "kind": "sequence",
+      "name": "seq-ladder-blip-then-refusal",
+      "values": {},
+      "steps": [
+        "a download fails with a network error - the same client is tried again",
+        "it fails again with a refusal - now the ladder moves down",
+        "the rung that ran must be the second one, not the fourth"
+      ],
+      "safety": "SAFE",
+      "status": "PROVEN",
+      "evidence": "runner trouble=network_blip and trouble=refused cases",
+      "note": "",
+      "updated": ""
+    }
+  ]
+}

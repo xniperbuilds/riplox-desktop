@@ -1,0 +1,96 @@
+{
+  "artifact": "Riplox Desktop 1.6.0 @ 30c2b8c (branch free-features-and-feed) - the change surface since v1.5.0",
+
+  "note": "Modelled on the diff, not the whole app: the 1-Sep grid covered the UI. Nazim's complaint is that releases pass their tests and still ship bugs - all three of today's real bugs (channel timeout, https then 360p, slow analyze) passed 1541 unit tests. Those were SITUATIONS, so the factors below are states and conditions, not functions.",
+
+  "factors": {
+    "settings": ["fresh", "v150", "corrupt"],
+    "watchfile": ["absent", "v150_items", "v160_items"],
+    "link": ["video", "playlist_small", "playlist_exact_limit", "channel_root", "channel_big", "non_youtube"],
+    "quality": ["max", "q4320", "q2160", "mp3"],
+    "trouble": ["none", "network_blip", "refused", "network_gone"],
+    "following": ["off", "on_feed", "on_engine", "on_auto"],
+    "drop": ["off", "on_valid", "on_junk"],
+    "convert": ["none", "audio", "video", "gif"],
+    "copies": ["one", "two"],
+    "restart": ["no", "after_queue"]
+  },
+
+  "note_added_factors": "copies and restart came out of the audit. Both earn their place from this release rather than from theory: the drop folder is new shared state that two copies would sweep at once, and a start time is the first thing this app persists that has to survive a restart to mean anything. Two copies fighting over a port has already happened once here.",
+
+  "risk": ["settings", "watchfile", "trouble", "following"],
+
+  "constraints": [
+    ["link=non_youtube", "quality=q4320"],
+    ["link=non_youtube", "following=on_feed"],
+    ["link=playlist_small", "quality=q4320"],
+    ["link=channel_root", "quality=q4320"],
+    ["link=channel_big", "quality=q4320"],
+    ["link=playlist_exact_limit", "quality=q4320"],
+    ["following=off", "watchfile=v160_items"],
+    ["settings=corrupt", "following=on_auto"],
+    ["settings=corrupt", "drop=on_valid"],
+    ["settings=corrupt", "drop=on_junk"]
+  ],
+
+  "gates": [
+    {
+      "when": ["following=on_auto", "settings=v150"],
+      "why": "auto-download needs BOTH the per-channel switch and watch_auto in Settings, and an upgraded 1.5.0 file has neither - the app refuses before _auto_download is reached",
+      "tested_at": "the two-switch guard itself, as its own case"
+    },
+    {
+      "when": ["convert=video", "link=non_youtube"],
+      "why": "convert reads a file already on disk; it has no link at all",
+      "tested_at": "convert cases, which take a file rather than a link"
+    }
+  ],
+
+  "repros": [
+    {"name": "bug-channel-timeout", "why": "4-Sep: a channel link never finished reading. analyze() walked the whole channel and paid the politeness pause per page - 86.7s measured, past the 120s timeout on anything larger"},
+    {"name": "bug-https-then-360p", "why": "4-Sep: best available hit an https error halfway and came back small. A broken connection was in the same list as a refusal, so it spent a client rung, and those rungs only carry small formats"},
+    {"name": "bug-slow-single-analyze", "why": "4-Sep: one video took 5.3s to read; 2.3s of it was the burst pause on a read a person was waiting for"},
+    {"name": "bug-quality-guard-narrow", "why": "the guard stopped at 360p, so 4K asked and 720p delivered went green and said nothing"},
+    {"name": "bug-watch-hours-migration", "why": "load_settings fills defaults before merging the file, so the old watch_hours key could never be seen missing - a 24-hour choice would have become hourly in silence"},
+    {"name": "bug-start-after-race", "why": "manager.add wakes the workers, so setting start_after afterwards let a 2 a.m. download begin immediately"},
+    {"name": "bug-probe-vanish", "why": "a link the HEAD probe refused fell out of the page's own account of itself - sixty links in, twelve out, no mention of the rest"},
+    {"name": "bug-probe-second-door", "why": "the probe went out through a custom opener, so every test that stubs urlopen was quietly reaching the network"},
+    {"name": "bug-unknown-setting-dropped", "why": "save_settings drops a key that is not in DEFAULT_SETTINGS - a new setting that works for one run and then vanishes"}
+  ],
+
+  "sequences": [
+    {
+      "name": "seq-upgrade-then-follow",
+      "steps": [
+        "start with a 1.5.0 settings.json and a 1.5.0 watch.json",
+        "load settings - the interval must come from watch_hours, not the default",
+        "load the watch list - every item must gain feed/opts/auto/full_checked",
+        "check one item - it must not announce the whole back catalogue"
+      ]
+    },
+    {
+      "name": "seq-drop-twice",
+      "steps": [
+        "write a file of links into the drop folder",
+        "sweep - the links are queued and the file becomes .done",
+        "sweep again - nothing is queued a second time"
+      ]
+    },
+    {
+      "name": "seq-convert-onto-itself",
+      "steps": [
+        "take an mp4 already on disk",
+        "convert it to mp4",
+        "the original must still be there and the output must be a different file"
+      ]
+    },
+    {
+      "name": "seq-ladder-blip-then-refusal",
+      "steps": [
+        "a download fails with a network error - the same client is tried again",
+        "it fails again with a refusal - now the ladder moves down",
+        "the rung that ran must be the second one, not the fourth"
+      ]
+    }
+  ]
+}

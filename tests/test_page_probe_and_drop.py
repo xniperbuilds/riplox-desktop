@@ -246,6 +246,67 @@ check("the folder is off until it is asked for",
       engine.DEFAULT_SETTINGS["drop_on"] is False)
 
 
+print("\n-- two sweeps at once ------------------------------------------------")
+
+# 🔴 Found by the release grid, not by this file: the timer sweeps every few
+# seconds while Check now can sweep on the request thread, and two copies of
+# Riplox watch the same folder. Reading first and renaming afterwards meant
+# both read it, both queued its links, and everything in the file downloaded
+# twice. The claim is a rename now, which exactly one caller can win.
+import threading                                            # noqa: E402
+
+race = []
+race_lock = threading.Lock()
+
+
+def race_sink(url, quality="", opts=None):
+    with race_lock:
+        race.append(url)
+
+
+dropfolder.set_sink(race_sink)
+(where / "both.txt").write_text(
+    "https://a.test/1\nhttps://b.test/2\nhttps://c.test/3\n", encoding="utf-8")
+
+threads = [threading.Thread(target=dropfolder.sweep) for _ in range(4)]
+for t in threads:
+    t.start()
+for t in threads:
+    t.join(timeout=20)
+
+check("four sweeps at once queue each link exactly once",
+      sorted(race) == ["https://a.test/1", "https://b.test/2", "https://c.test/3"],
+      race)
+check("and the file ends up under its own name, not the claimed one",
+      (where / "both.txt.done").exists()
+      and not list(where.glob("*" + dropfolder.TAKING)),
+      [p.name for p in where.iterdir()][:8])
+
+# A copy of Riplox that died mid-sweep would leave a file wearing a name
+# nothing looks at. After long enough that no honest sweep could still hold
+# it, it gets its own name back rather than sitting there for ever.
+race.clear()
+(where / "stuck.txt").write_text("https://d.test/4\n", encoding="utf-8")
+held = where / ("stuck.txt" + dropfolder.TAKING)
+held.write_text("999999", encoding="utf-8")
+dropfolder.sweep()
+check("a file somebody else is holding is left alone", race == [], race)
+
+os.utime(held, (0, 0))                        # long enough ago to be nobody's
+dropfolder.sweep()
+check("a lock left behind by a crash stops holding it",
+      race == ["https://d.test/4"], race)
+
+# The measurement this whole mechanism rests on: os.replace was tried first
+# and, on this machine, let all four callers "succeed" on the same file in 299
+# of 300 rounds. An exclusive create won exactly once in all 300.
+first = dropfolder._claim(where / "readme.md")
+second = dropfolder._claim(where / "readme.md")
+check("only one caller can claim the same file",
+      first is not None and second is None)
+first.unlink(missing_ok=True)
+
+
 print("\n" + "=" * 68)
 print(f"  {len(PASS)} passed, {len(FAIL)} failed")
 for name in FAIL:
