@@ -1452,6 +1452,55 @@ def pull_to_file(url: str, part: Path, headers: dict, deadline: float,
     return have
 
 
+def sums_url_for(zip_url: str) -> str:
+    """Where yt-dlp publishes the digests for that download."""
+    return zip_url.rsplit("/", 1)[0] + "/SHA2-256SUMS"
+
+
+def digest_from_sums(text: str, name: str) -> str:
+    """The digest for one filename out of a SHA2-256SUMS body, or ""."""
+    for line in (text or "").splitlines():
+        parts = line.split()
+        # "<64 hex>  <name>", and the name may carry a * for binary mode.
+        if len(parts) >= 2 and len(parts[0]) == 64:
+            if parts[-1].lstrip("*") == name:
+                return parts[0].lower()
+    return ""
+
+
+def file_digest(path: Path) -> str:
+    import hashlib
+    sha = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for block in iter(lambda: fh.read(1 << 20), b""):
+            sha.update(block)
+    return sha.hexdigest()
+
+
+def _verify_engine_zip(part: Path, zip_url: str) -> str:
+    """"ok", "mismatch ...", or "unchecked ..." - see the caller for the rule."""
+    name = zip_url.rsplit("/", 1)[-1]
+    try:
+        _engine_say(message="Checking the download")
+        request = urllib.request.Request(sums_url_for(zip_url),
+                                         headers={"User-Agent": "Riplox"})
+        # Through the proxy, for the same reason the zip itself is: somebody
+        # who set one did so because this connection cannot reach something.
+        proxy = clean_proxy(load_settings().get("proxy"))
+        opener = (urllib.request.build_opener(urllib.request.ProxyHandler(
+            {"http": proxy, "https": proxy})) if proxy
+            else urllib.request.build_opener())
+        with opener.open(request, timeout=30) as response:
+            body = response.read(1 << 20).decode("utf-8", "replace")
+        want = digest_from_sums(body, name)
+    except Exception as exc:                                # noqa: BLE001
+        return f"unchecked: could not read the published digests ({exc})"
+    if not want:
+        return f"unchecked: no digest published for {name}"
+    got = file_digest(part)
+    return "ok" if got == want else f"mismatch: {got} against {want}"
+
+
 def _download_engine_zip(url: str, part: Path, deadline: float) -> int:
     """One attempt at the engine zip, reporting into the update button."""
     def say(done, total):
@@ -1540,6 +1589,26 @@ def update_engine(channel: str = "") -> dict:
 
     if failure:
         return finish(False, failure)
+
+    # ⚠️ Checked before it is unpacked, not after.
+    #
+    # potoken.py will not run a byte it has not verified - a pinned release and
+    # two SHA-256s, because it is a third-party binary. This is the engine that
+    # every download runs through, it updates itself by default since 3 Sep,
+    # and it had no check at all. yt-dlp publishes SHA2-256SUMS beside the zip,
+    # so a pin is not needed to verify it - only somewhere to read the number.
+    #
+    # Fails OPEN when the sums file cannot be read, and says so. A checksum
+    # that moves or 404s must not be able to stop engine updates: an engine
+    # that has fallen behind is the commonest reason a site stops working, and
+    # refusing every update over a missing side-file would trade a small risk
+    # for a certain one. It fails CLOSED on a mismatch, which is the case that
+    # actually means something.
+    said = _verify_engine_zip(part, _YTDLP_ZIP[channel])
+    if said.startswith("mismatch"):
+        part.unlink(missing_ok=True)
+        return finish(False, "That download did not match the checksum "
+                             "published beside it and was thrown away.")
 
     _engine_say(percent=100.0, message="Unpacking")
     try:
