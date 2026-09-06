@@ -3771,6 +3771,28 @@ def _is_network_trouble(text: str) -> bool:
     return any(marker in low for marker in _NETWORK_TROUBLE)
 
 
+# 🔴 Things that went wrong on THIS PC. They are not a verdict about a site,
+# and the health panel offers to say "whether it is the site or you".
+#
+# Found on a real install: Github sat there marked "down" because a Generic
+# download had produced a filename Windows would not open - the site had never
+# been the problem, and the panel said it was. Xniperbuilds was marked down
+# for "This site is not supported", which is Riplox declining rather than a
+# site failing.
+_LOCAL_TROUBLE = (
+    "unable to open for writing", "[errno", "no space left", "not enough space",
+    "access is denied", "permission denied", "being used by another process",
+    "ffmpeg not found", "could not save the file", "is not supported",
+    "invalid argument", "filename, directory name, or volume label",
+)
+
+
+def _is_local_trouble(text: str) -> bool:
+    """Did this fail on this machine rather than at the site?"""
+    low = (text or "").lower()
+    return any(marker in low for marker in _LOCAL_TROUBLE)
+
+
 _TRANSIENT = (
     "not a bot", "login_required", "429", "too many requests",
     "temporarily", "try again later", "unable to download webpage",
@@ -4438,8 +4460,13 @@ def note_health(url: str, state: str, why: str = "") -> None:
     _load_health()
     with _health_lock:
         _health_seq += 1
+        # ⚠️ Long enough to hold a reason that ends in a path. At 160 the one
+        # real failure this ever recorded was cut mid-filename - "unable to
+        # open for writing: [Errno 22] Invalid argument: 'C:\\Users\\...\\9b7c"
+        # - exactly where it started to be useful, and the job's own log had
+        # aged out of failed.json by the time anyone looked.
         _health[site] = {"state": state, "when": time.time(),
-                         "seq": _health_seq, "why": str(why or "")[:160]}
+                         "seq": _health_seq, "why": str(why or "")[:400]}
         snapshot = dict(_health)
     try:
         _health_file().write_text(json.dumps(snapshot), encoding="utf-8")
@@ -5570,7 +5597,14 @@ class DownloadManager:
             # No reason given: the state already says the engine was refused,
             # and repeating it beside itself reads as two separate facts.
             note_health(job.url, HEALTH_DOOR)
-        elif not job.cancelled:
+        elif not job.cancelled and not _is_local_trouble(job.error):
+            # ⚠️ Only a verdict about the SITE goes here. A filename this PC
+            # would not open, a full disk, a locked file - none of those are
+            # the site's doing, and the panel above this offers to say
+            # "whether it is the site or you". It said "you" as "them": one
+            # real install had Github marked down over an [Errno 22] on a
+            # path. The network-wait case is already excluded further up, for
+            # the same reason.
             note_health(job.url, HEALTH_DOWN, job.error)
 
     # Enough for a network that comes and goes; short of a machine that has
@@ -5730,6 +5764,19 @@ class DownloadManager:
 
         height = int(getattr(job, "height", 0) or 0)
         if not height:
+            # ⚠️ "" means "nothing wrong" everywhere else in this function, and
+            # this branch used it for "I could not look" - the two are not the
+            # same answer. job.height is written in one place only, from the
+            # engine's own path line, and only when it ends in a number; an
+            # older engine, or a site whose formats carry no height, leaves it
+            # at zero and this guard has been inert there the whole time with
+            # nothing said. It still returns "" - a warning built on no
+            # measurement would be worse - but it stops being silent about it.
+            job.log = (job.log or "") + (
+                "\n[riplox] the quality check could not run: the engine "
+                "reported no height for this file, so a fallback route being "
+                "asked for %s cannot be compared against what arrived.\n"
+                % job.quality)
             return ""
 
         asked = _ASKED_HEIGHT.get(job.quality, 0)
@@ -6184,9 +6231,19 @@ class DownloadManager:
         job.size = human_bytes(result.get("size", 0))
         job.title = Path(result["path"]).name
         job.stage = "copied" if result.get("copied") else ""
+        # ⚠️ The same eleven fields the other two writers use. This one wrote
+        # six, so a converted file arrived in the Library with no thumbnail,
+        # no uploader and no site - and sourceOf() in the window falls back to
+        # guessing from the folder, which reads as "Other". The identical
+        # mistake is written up four hundred lines below, on the path where it
+        # was fixed: "it was being dropped here - so the Accounts list was
+        # reading a field nothing ever wrote and stayed empty forever."
         add_history({
             "title": job.title, "url": spec["source"], "quality": spec["fmt"],
-            "size": job.size, "filepath": job.filepath,
+            "size": job.size, "bytes": int(result.get("size", 0) or 0),
+            "filepath": job.filepath,
+            "thumbnail": job.thumbnail, "uploader": job.uploader,
+            "from": job.origin, "site": site_of(spec["source"]),
             "when": datetime.now().isoformat(timespec="seconds"),
         })
 

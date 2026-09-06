@@ -435,9 +435,18 @@
                 </optgroup>
                 <optgroup label="Small formats only &mdash; 360p or less">
                   <option value="android_vr">android_vr</option>
-                  <option value="web_safari">web_safari</option>
                   <option value="ios">ios</option>
                   <option value="web">web</option>
+                </optgroup>
+                <!-- ⚠️ Re-measured 7 Sep 2026 on the same engine: web_safari
+                     no longer answers this format request at all - it returns
+                     "Requested format is not available" rather than the 180p
+                     it used to. Grouped with the small ones it promised a
+                     working download and delivered a failed one, so it says
+                     what it does now. The retry ladder dropped it for the
+                     same reason. -->
+                <optgroup label="Does not work today">
+                  <option value="web_safari">web_safari &mdash; no formats offered</option>
                 </optgroup>
               </select>
             </label>
@@ -1123,8 +1132,10 @@
         <div class="field-text">
           <label>Download anything dropped in a folder</label>
           <span>Write a file of links into it and Riplox queues them. One link
-                per line, or JSON for a script. Read files are renamed, never
-                deleted.</span>
+                per line, or JSON for a script — and JSON can also name a
+                quality and a folder to save into, so a file dropped here can
+                send downloads somewhere other than the folder above. Read
+                files are renamed, never deleted.</span>
         </div>
         <div class="row-gap">
           <button class="ghost small" id="dropOpen">Open the folder</button>

@@ -397,6 +397,14 @@ def make_invite(name: str = "") -> dict:
     ip = lan_ip()
     # The key rides in the fragment, which browsers never send to a server -
     # so the relay is handed the room and nothing else.
+    #
+    # ⚠️ True of what the relay RECEIVES, and worth being exact about: the
+    # relay also serves the page at /p/<room>, and that page is where the key
+    # is used - crypto.subtle.importKey on location.hash. So a relay serving
+    # different code would have it. The two native senders carry their own
+    # crypto and never load anything from the relay, so for them the guarantee
+    # is complete; for the web page it rests on the relay serving honest code,
+    # which is the ordinary shape of browser-delivered end-to-end crypto.
     url = (f"{relay_base()}/p/{data['room']}"
            f"#k={key}&c={invite['code']}"
            + (f"&l={ip}:{LAN_PORT}" if ip else ""))
