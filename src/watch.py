@@ -522,6 +522,20 @@ def clear_new(item_id: str, video_id: str = "") -> bool:
 # Checking
 # --------------------------------------------------------------------------
 
+def _first_seen(ids: list) -> list:
+    """Newest first, each id once, capped. Order is the point: the first
+    occurrence wins, so a fresh page stays at the front and the ids that fall
+    off the end are the genuinely oldest rather than yesterday's duplicates."""
+    out, seen = [], set()
+    for one in ids:
+        if one and one not in seen:
+            seen.add(one)
+            out.append(one)
+            if len(out) >= KNOWN_CAP:
+                break
+    return out
+
+
 def _look(item: dict, settings: dict) -> tuple:
     """
     One look at a followed thing: (entries, used, title).
@@ -603,7 +617,16 @@ def check(item_id: str, full: bool = False) -> dict:
         })
 
     if seen:
-        item["known"] = (seen + list(item.get("known") or []))[:KNOWN_CAP]
+        # ⚠️ De-duplicated, or the cap counts the same ids over and over. A
+        # check that finds nothing new still writes its whole page of ids to
+        # the front, so after a dozen checks the 400 slots held little but
+        # repeats of the newest thirty and anything older had fallen off the
+        # end. It did not bite, and only because PEEK is 30 and a feed returns
+        # 15 - a look never reaches back past what is still remembered. That
+        # is two constants agreeing by luck, not a guard; raise either one and
+        # old videos start returning as new, which with auto-download on is
+        # three re-downloads a check, for ever.
+        item["known"] = _first_seen(seen + list(item.get("known") or []))
     if found:
         # Newest first, and every id recorded whether or not the user acts on
         # it - the list is "what is new", not "what is waiting".
