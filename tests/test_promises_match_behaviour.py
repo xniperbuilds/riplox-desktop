@@ -99,6 +99,30 @@ if capped:
     check("README does not promise every finished file",
           "| every finished file" not in README)
 
+print("\n-- the two phone senders do not make the same promise " + "-" * 15)
+
+# The key rides in the URL fragment, which browsers do not send to a server -
+# so the relay never RECEIVES it. But the relay also serves the page that
+# USES it: crypto.subtle.importKey on location.hash. The native sender carries
+# its own crypto and loads nothing from the relay, so for it the guarantee is
+# complete; for the web page it rests on the relay serving honest code. That
+# is the ordinary shape of browser-delivered encryption, and the README is
+# where a privacy claim gets read, so it has to hold the distinction too.
+SHARING = flat((ROOT / "src" / "sharing.py").read_text(encoding="utf-8",
+                                                       errors="replace"))
+served_by_relay = "/p/" in SHARING
+check("the web page is served by the relay", served_by_relay)
+if served_by_relay:
+    check("sharing.py says so where the invite is built",
+          "for the web page it rests on the relay serving honest code"
+          in SHARING)
+    check("and the README tells the two senders apart",
+          "carries its own encryption and never loads code from the relay"
+          in README,
+          "a reader choosing between them has to be able to")
+    check("without overclaiming for the web page either",
+          "rests on the relay serving the code it says it does" in README)
+
 print("\n" + "=" * 68)
 print("  %d passed, %d failed" % (len(PASS), len(FAIL)))
 for name in FAIL:

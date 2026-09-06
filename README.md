@@ -120,6 +120,16 @@ Two ways in on the phone: a web page that needs nothing installed, or
 anything at all — source in [`send-android/`](send-android/). Both are offered
 from the pairing link. The relay is in [`relay/`](relay/).
 
+The difference between those two is worth stating plainly. **Riplox Send
+carries its own encryption and never loads code from the relay**, so the
+relay cannot obtain the key by any route. The **web page** encrypts in your
+browser using JavaScript the relay serves — the key itself still never leaves
+the phone, because it rides in the URL fragment and browsers do not send
+fragments to servers, but the guarantee then rests on the relay serving the
+code it says it does. That is the ordinary property of browser-delivered
+encryption rather than anything particular to Riplox, and it is why the app
+is the one to use if the relay is what you are worried about.
+
 Riplox Send keeps itself up to date without a store: it asks the relay what
 version is there and, if it is newer, offers it. The download is checked
 against the published SHA-256 as it arrives and thrown away if it does not
