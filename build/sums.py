@@ -59,6 +59,20 @@ def wanted() -> list:
          "Riplox_Setup_v%s.exe" % app, "the installer"),
         (here / ("Riplox_Portable_v%s.zip" % app),
          "Riplox_Portable_v%s.zip" % app, "the portable build"),
+        # ⚠️ The same two files under the names the WEBSITE serves. The buttons
+        # link to releases/latest/download/Riplox_Setup.exe, so those are what
+        # somebody actually downloads - and until now they appeared in no
+        # checksum at all. The site says "SHA-256 published"; a visitor who
+        # took that up was checking a file that was not on the list.
+        #
+        # Listing them here also gives release_check.py something to compare:
+        # a stable copy left over from the previous release passes every test
+        # it had - it is present, it resolves, it downloads - and is two days
+        # of software out of date. That happened once already.
+        (here / ("Riplox_Setup_v%s.exe" % app),
+         "Riplox_Setup.exe", "the installer, under the name the site links to"),
+        (here / ("Riplox_Portable_v%s.zip" % app),
+         "Riplox_Portable.zip", "the portable build, same"),
         (ROOT / "send-windows" / "dist_installer"
              / ("RiploxSend_Setup_v%s.exe" % send),
          "RiploxSend_Setup_v%s.exe" % send, "the Windows sender"),

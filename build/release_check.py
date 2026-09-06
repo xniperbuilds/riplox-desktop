@@ -80,6 +80,39 @@ def latest(repo):
         return json.load(r)
 
 
+def _versioned_twin(stable, tag, assets):
+    """The v-numbered asset this stable name is meant to be a copy of.
+
+    Riplox_Setup.exe -> Riplox_Setup_v1.6.0.exe, by the release's own tag, and
+    only when that file is actually on the release. Returns "" when there is
+    nothing to compare against - a release that carries no versioned twin is
+    not a case this can judge, and guessing would be worse than saying nothing.
+    """
+    stem, dot, ext = stable.rpartition(".")
+    if not dot:
+        return ""
+    want = "%s_v%s.%s" % (stem, tag.lstrip("v"), ext)
+    return want if want in assets else ""
+
+
+def stale_reason(stable, tag, assets):
+    """Why this stable copy is not this release's build, or "".
+
+    Same tag, same build, so the same number of bytes. A size costs nothing to
+    read and is enough to tell a fresh copy from one left behind - which is the
+    case that passes every other check in this file and still hands somebody
+    the previous release.
+    """
+    twin = _versioned_twin(stable, tag, assets)
+    if not twin:
+        return ""
+    mine, theirs = assets[stable].get("size"), assets[twin].get("size")
+    if mine == theirs:
+        return ""
+    return ("%s is %s bytes and %s is %s - the stable copy is not this "
+            "release's build" % (stable, mine, twin, theirs))
+
+
 def reachable(repo, name):
     """Ask for the first byte the way a visitor's browser would."""
     url = "https://github.com/%s/releases/latest/download/%s" % (repo, name)
@@ -116,14 +149,34 @@ def main():
             continue
 
         tag = rel.get("tag_name", "?")
-        names = [a["name"] for a in rel.get("assets", [])]
-        listed = name in names
+        assets = {a["name"]: a for a in rel.get("assets", [])}
+        names = list(assets)
+        listed = name in assets
 
         status, disp = reachable(repo, name)
         # 206 because the request asked for one byte; 200 is fine too.
         ok = listed and status in (200, 206) and "attachment" in disp
 
+        # 🔴 And the check this file did not have. Present, resolving and
+        # downloading is what it tested - all three of which a copy left over
+        # from the PREVIOUS release passes, while handing somebody software
+        # two days out of date. That is not a 404; it is quietly wrong, which
+        # is worse, and it happened on the 1.6.0 release.
+        #
+        # The versioned twin is the answer: same tag, same build, so the same
+        # number of bytes. A size is enough to catch a stale copy and costs no
+        # download; SHA256SUMS.txt now carries both names for anyone checking
+        # by hand.
+        stale = stale_reason(name, tag, assets) if listed else ""
+        if stale:
+            ok = False
+
         print("%-30s %-9s %s" % (repo, tag, "OK" if ok else "PROBLEM"))
+        if stale:
+            print("      " + stale)
+            print("      re-upload it from this build:")
+            print("      gh release upload %s <the v%s file renamed to %s> "
+                  "--clobber --repo %s" % (tag, tag.lstrip("v"), name, repo))
         if not listed:
             print("      the stable copy is missing. Upload it:")
             print("      gh release upload %s <file renamed to %s> --repo %s"
