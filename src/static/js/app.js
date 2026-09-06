@@ -24,12 +24,23 @@
   // be rebuilt on every chip click without re-reading the video.
   var qualitySizes = {};
 
+  /* ⚠️ The second handler is the whole point of this shape.
+     The .catch inside is on r.json(), so it answers a reply that is not JSON.
+     A REJECTED fetch - which is what a busy, restarting or stopped engine
+     looks like from here - had nothing at all. This is called from 104 places
+     and 91 of them already check res.ok; none of those branches could run,
+     because res never arrived. The queue's heartbeat was one of them, and it
+     stopped for good on the first poll that failed. Answering with a value
+     instead of rejecting makes every one of those checks start working. */
   function api(path, body) {
     return fetch(path, {
       method: body === undefined ? "GET" : "POST",
       headers: { "Content-Type": "application/json", "X-Riplox-Token": S.token || "" },
       body: body === undefined ? undefined : JSON.stringify(body)
-    }).then(function (r) { return r.json().catch(function () { return { ok: false, error: "Bad response." }; }); });
+    }).then(
+      function (r) { return r.json().catch(function () { return { ok: false, error: "Bad response." }; }); },
+      function () { return { ok: false, error: "The app lost contact with its engine." }; }
+    );
   }
 
   function toast(msg, kind) {
@@ -2429,15 +2440,25 @@
           : (active ? active + " active" : "ready");
       }
 
+      return active;
+    }).catch(function () { return 0; }).then(function (active) {
+      // A heartbeat that never stops. It used to give up whenever nothing was
+      // running, so a link arriving from a phone - or a queue restored at
+      // startup - sat there unseen until you switched tabs.
+      //
+      // ⚠️ And it still gave up on any poll that did not come back: the two
+      // lines below were the last statement of the success path, with an
+      // early return above them and a catch beside them, so one failed
+      // request killed the heartbeat with the same symptom as before.
+      // Rescheduling happens after BOTH outcomes now - the shape loadSharing
+      // has always used, and the one the bulk buttons use to re-enable
+      // themselves. active is 0 on a failed poll, which is the slow interval.
       clearTimeout(pollTimer);
       var visible = $("view-queue").classList.contains("is-active");
-      // A heartbeat that never stops. This used to give up entirely whenever
-      // nothing was running, so a link arriving from a phone - or a queue
-      // restored at startup - sat there unseen until you switched tabs.
       var wait = active > 0 ? (visible ? 700 : 1600) : (visible ? 2500 : 6000);
       pollTimer = setTimeout(pollJobs, wait);
       return active;
-    }).catch(function () { return 0; });
+    });
   }
 
   /* ------------------------------------------------------------- library */
@@ -3164,10 +3185,22 @@
     });
   }
 
+  // ⚠️ Asked, like the smaller things already were. Removing one followed
+  // channel asked; removing one sign-in asked; emptying the Failed list asked.
+  // This one deleted the whole library record outright - and it is the only
+  // record there is: the Library reads it, Accounts is built from its uploader
+  // field, Insights counts it, and Export writes it out.
   $("clearHistory").addEventListener("click", function () {
-    api("/api/history/clear", {}).then(function () {
-      loadHistory();
-      toast("History cleared");
+    ask("Clear the library? This deletes Riplox's record of what you have "
+        + "downloaded - the Library list, the Accounts totals and Insights "
+        + "all come from it, and it cannot be brought back.\n\nThe files "
+        + "themselves are not touched.",
+        { ok: "Clear the library", danger: true }).then(function (yes) {
+      if (!yes) return;
+      api("/api/history/clear", {}).then(function () {
+        loadHistory();
+        toast("Library cleared");
+      });
     });
   });
 
@@ -4947,10 +4980,19 @@
     });
   }
 
+  // ⚠️ Asked, for the same reason removing one account is. Found while fixing
+  // the all-sites button: this one deletes a stored session too, and signing
+  // back in means opening a browser window and typing a password again.
   function forgetSite(site, label) {
-    api("/api/cookies/forget", { site: site }).then(function (res) {
-      if (res.ok) renderCookies(res.cookies);
-      toast(label + " signed out");
+    ask("Sign out of " + label + "? Its saved session is deleted from this PC "
+        + "and signing back in means going through the browser again.",
+        { ok: "Sign out", danger: true }).then(function (yes) {
+      if (!yes) return;
+      api("/api/cookies/forget", { site: site }).then(function (res) {
+        if (res.ok) renderCookies(res.cookies);
+        toast(res.ok ? label + " signed out"
+                     : (res.error || "Could not sign out"), res.ok ? "" : "bad");
+      });
     });
   }
 
@@ -4961,10 +5003,20 @@
     });
   });
 
+  // ⚠️ Removing ONE account has always asked - "Remove this account? Its
+  // sign-in is deleted from this PC." Removing every one of them did not, and
+  // then said "Sign-in deleted" in the singular.
   $("forgetCookies").addEventListener("click", function () {
-    api("/api/cookies/forget", {}).then(function (res) {
-      if (res.ok) renderCookies(res.cookies);
-      toast("Sign-in deleted");
+    ask("Delete every sign-in on this PC? Each site has to be signed into "
+        + "again before private, members-only or age-restricted videos will "
+        + "download.",
+        { ok: "Delete all sign-ins", danger: true }).then(function (yes) {
+      if (!yes) return;
+      api("/api/cookies/forget", {}).then(function (res) {
+        if (res.ok) renderCookies(res.cookies);
+        toast(res.ok ? "All sign-ins deleted" : (res.error || "Could not delete them"),
+              res.ok ? "" : "bad");
+      });
     });
   });
 
