@@ -3879,6 +3879,25 @@ _NETWORK_TROUBLE = (
 # mobile; more would keep a genuinely dead link busy for minutes.
 _SAME_RUNG_TRIES = 3
 
+# 🔴 How many attempts may end no further on than the one before them.
+#
+# _SILENCE_LIMIT catches an engine that has stopped saying anything. It cannot
+# catch the opposite, and the opposite is what a 4K download does when it is
+# interrupted: measured here, an attempt fetched 70 MB and committed 8 of them,
+# because with sixteen fragments running at once the rest sit in .part-Frag
+# files that the next attempt deletes and fetches again. The bar moves the
+# whole time, so nothing was ever silent, and the job could spend all nine of
+# its attempts re-fetching the same bytes.
+#
+# So an attempt that peaks no higher than the best any attempt has reached is
+# an attempt that got nowhere. Two of those in a row and this stops - which
+# still allows a retry that genuinely resumes, because that one peaks higher.
+_NO_PROGRESS_LIMIT = 2
+
+# Below this, "further on" is noise: two attempts can differ by a fragment
+# without either having made progress worth continuing for.
+_PROGRESS_FLOOR = 4 * 1024 * 1024
+
 
 def _is_network_trouble(text: str) -> bool:
     low = (text or "").lower()
@@ -4935,6 +4954,11 @@ class Job:
                  # When the engine last said ANYTHING, and whether it went
                  # quiet for so long that we gave up on it. See _SILENCE_LIMIT.
                  "heard", "went_quiet",
+                 # The most this attempt fetched, and the most any attempt has.
+                 # Silence is not the only way a job can be going nowhere: one
+                 # that re-fetches the same bytes on every attempt is loud the
+                 # whole time. See _NO_PROGRESS_LIMIT.
+                 "attempt_peak", "best_peak", "stalled",
                  # Where the current fragment began: its index, and the byte
                  # count when it started. That pair is what lets the bar
                  # measure its way across a fragment instead of dividing by an
@@ -4986,6 +5010,9 @@ class Job:
         # saying anything for long enough that Riplox gave up waiting.
         self.heard = 0.0
         self.went_quiet = False
+        self.attempt_peak = 0.0
+        self.best_peak = 0.0
+        self.stalled = 0
         # Whether the last attempt actually carried a saved session. Recorded
         # rather than worked out again, because "would cookies be sent for
         # this URL" is a question with several answers and only one of them
@@ -5369,6 +5396,13 @@ class DownloadManager:
             # point - and the goes it had left are given back, because this is
             # someone saying "now", not "instead".
             job.retry_at = 0.0
+            # Including the goes the no-progress guard took. Someone pressing
+            # Retry has usually just changed something - the setting that
+            # message names, or the network - and a job that stopped for
+            # getting nowhere would otherwise be stopped again after two
+            # attempts, measured against a peak from before the change.
+            job.attempt_peak = job.best_peak = 0.0
+            job.stalled = 0
         self._save()
         self._wake.set()
         return True
@@ -5800,8 +5834,32 @@ class DownloadManager:
             # done. Reported from real use: an https error halfway through,
             # and the file that arrived was a fraction of what was asked for.
             for again in range(_SAME_RUNG_TRIES):
+                job.attempt_peak = 0.0
                 if self._attempt(job, settings, client) or job.cancelled:
                     return job.status == "done"
+
+                # 🔴 Did that attempt get any further than the best so far?
+                # An attempt that re-fetches the same bytes and stops in the
+                # same place is not progress, however loud it was - and the
+                # silence watchdog cannot see it, because it never went quiet.
+                if job.attempt_peak > job.best_peak + _PROGRESS_FLOOR:
+                    job.best_peak = job.attempt_peak
+                    job.stalled = 0
+                elif job.attempt_peak > 0:
+                    job.stalled += 1
+                    if job.stalled >= _NO_PROGRESS_LIMIT:
+                        job.status = "error"
+                        job.speed = job.eta = ""
+                        job.error = (
+                            f"Stopped after fetching about "
+                            f"{human_bytes(job.best_peak)} three times without "
+                            f"getting any further. Something is cutting this "
+                            f"download short and starting it over. Retry to try "
+                            f"again, or lower “Pieces per file” in "
+                            f"Settings - fewer pieces means less is thrown away "
+                            f"each time.")
+                        return False
+
                 if not _is_network_trouble(job.log):
                     break                  # a refusal - that is what rungs are for
                 # The network leaving, or changing, is already handled better
@@ -7010,6 +7068,13 @@ class DownloadManager:
             # says which one, so the numbers restarting is readable rather than
             # baffling.
             job.got = human_bytes(downloaded)
+
+        # The most this attempt has fetched. _run_engine compares it against
+        # what earlier attempts reached: an attempt that fetches as much as the
+        # last one and finishes no further on is not making progress, however
+        # busy it looks. See _NO_PROGRESS_LIMIT.
+        if downloaded > job.attempt_peak:
+            job.attempt_peak = downloaded
 
         job.speed = f"{human_bytes(_num(speed))}/s" if _num(speed) else ""
         job.eta = _human_time(_num(eta))
