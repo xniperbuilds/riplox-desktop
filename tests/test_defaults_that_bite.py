@@ -127,6 +127,39 @@ inside_a_view = re.search(r'<section class="view[^>]*>(?:(?!</section>).)*?id="u
 check("it is not inside any view", inside_a_view is None)
 check("it can be put off, not killed", 'id="updateLater"' in html)
 
+print("\n-- and the value that actually reaches the engine " + "-" * 20)
+
+# ⚠️ Everything above asks DEFAULT_SETTINGS. Nothing asked what the engine is
+# TOLD - and the only mention of --concurrent-fragments anywhere in tests/ was
+# a comment. So the call-site fallback still said 4 months after the default
+# became 16, and a partial settings dict or a garbage value quietly restored
+# the state that change was made to remove.
+
+
+def pieces(value=KeyError):
+    s = dict(engine.DEFAULT_SETTINGS)
+    if value is KeyError:
+        s.pop("fragments", None)
+    else:
+        s["fragments"] = value
+    args = [str(a) for a in engine.extra_args(s, "best")]
+    if "--concurrent-fragments" not in args:
+        return None
+    return args[args.index("--concurrent-fragments") + 1]
+
+
+want = str(D["fragments"])
+check("the default reaches the command line", pieces(D["fragments"]) == want,
+      pieces(D["fragments"]))
+check("a missing key falls back to the default, not a number typed here",
+      pieces() == want, pieces())
+check("so does a value that is not a number", pieces("x") == want, pieces("x"))
+check("and so does None", pieces(None) == want, pieces(None))
+check("a chosen value is honoured", pieces(8) == "8", pieces(8))
+check("more than the engine allows is capped at 16", pieces(32) == "16", pieces(32))
+check("zero and below become 1", pieces(0) == "1" and pieces(-5) == "1",
+      "%s / %s" % (pieces(0), pieces(-5)))
+
 print("\n" + "=" * 68)
 print("  %d passed, %d failed" % (len(PASS), len(FAIL)))
 for name in FAIL:

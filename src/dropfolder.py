@@ -128,14 +128,19 @@ def _finish(path: Path, suffix: str, note: str = "") -> None:
     `.bad` says it was not and has the reason inside.
     """
     target = path.with_name(path.name + suffix)
+    # ⚠️ The same name arriving twice has to step aside on BOTH branches. It
+    # only did on the second one: drop links.txt, have it rejected, drop it
+    # again, and the second .bad was written straight over the first - taking
+    # its links and the reason it failed with it. Four lines apart, one branch
+    # careful and the other not.
+    if target.exists():
+        target = path.with_name(f"{path.name}.{int(time.time())}{suffix}")
     try:
         if note:
             target.write_text(note + "\n\n" + path.read_text(
                 encoding="utf-8", errors="replace"), encoding="utf-8")
             path.unlink()
         else:
-            if target.exists():
-                target = path.with_name(f"{path.name}.{int(time.time())}{suffix}")
             os.replace(path, target)
     except OSError:
         pass                  # a folder we cannot write to is not a crash

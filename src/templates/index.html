@@ -698,8 +698,9 @@
 
     <p class="conv-note">Turns anything already on your computer into another
       format — the sound out of a video, one video container into another, or
-      a short GIF. The original is never touched, and nothing is ever made
-      bigger than it already is.</p>
+      a short GIF. The original is never touched, and nothing is ever scaled
+      up — asking for 1080p on a 720p video simply leaves it alone. A GIF or a
+      new container can still come out larger than what it was made from.</p>
 
     <div class="conv-controls">
       <label class="conv-field">
@@ -1304,7 +1305,9 @@
           <label>Never download the same video twice</label>
           <span>Skips anything already downloaded.
                 <b class="warn">Including one you want again at another
-                quality.</b></span>
+                quality.</b> Max and trimmed clips are the exception — those
+                are never skipped, because neither has a size the archive can
+                recognise.</span>
         </div>
         <button class="toggle {% if settings.skip_existing %}on{% endif %}"
                 id="setSkipExisting" role="switch"><i></i></button>

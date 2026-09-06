@@ -2224,11 +2224,18 @@ def extra_args(settings: dict, quality: str, trimmed: bool = False) -> list:
     audio_only = quality == "mp3"
     have_ff = has_ffmpeg()
 
-    fragments = settings.get("fragments", 4)
+    # ⚠️ Both fallbacks read DEFAULT_SETTINGS rather than repeating a number.
+    # They said 4 for months after the default became 16 - the exact value
+    # that was found on a machine hitting the repeated https failures - so a
+    # partial settings dict, or a garbage value, quietly restored the state
+    # the change was made to get rid of. Nothing tested this: the only
+    # mention of --concurrent-fragments in tests/ is a comment.
+    _pieces = DEFAULT_SETTINGS["fragments"]
+    fragments = settings.get("fragments", _pieces)
     try:
         fragments = max(1, min(16, int(fragments)))
     except (TypeError, ValueError):
-        fragments = 4
+        fragments = _pieces
     args += ["--concurrent-fragments", str(fragments)]
 
     # Leaves the rest of the connection usable while a download runs, which
