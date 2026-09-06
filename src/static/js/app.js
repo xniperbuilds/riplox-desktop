@@ -98,6 +98,34 @@
     dlgClose(dlgMode === "ask" ? false : dlgMode === "prompt" ? null : undefined);
   }
 
+  /* The one-time offer, on the first launch after an upgrade.
+     Two defaults moved on 3 Sep 2026 and could not reach anyone who already
+     had a settings file - a saved value wins over a default - so the people
+     the change was made for are exactly the ones who never got it. Offered,
+     not taken: the corner cross is the way out, and either answer stops it
+     being asked again. Only values still on the OLD default are touched. */
+  (function offerNewDefaults() {
+    var stale = S.staleDefaults || {};
+    var box = $("newDefaults");
+    if (!box || !Object.keys(stale).length) return;
+
+    function answer(path) {
+      box.hidden = true;
+      api(path, {}).then(function (res) {
+        if (res && res.ok && res.settings) S.settings = res.settings;
+      });
+    }
+
+    $("newDefaultsApply").addEventListener("click", function () {
+      answer("/api/settings/take-new");
+      toast("New settings applied", "good");
+    });
+    $("newDefaultsClose").addEventListener("click", function () {
+      answer("/api/settings/keep-old");
+    });
+    box.hidden = false;
+  })();
+
   function dlgOk() {
     dlgClose(dlgMode === "ask" ? true
       : dlgMode === "prompt" ? $("xdlgInput").value : undefined);

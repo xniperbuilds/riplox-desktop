@@ -2190,6 +2190,44 @@ button { font-family: var(--body); }
   font-size: 17px;
   font-weight: 600;
 }
+
+/* The one-time offer after an upgrade. One sentence and one button, with the
+   way out in the corner rather than beside it: a Cancel of equal weight makes
+   a choice out of something that is a recommendation. */
+.dlg-offer {
+  position: relative;
+  width: min(420px, 100%);
+  text-align: center;
+  padding: 34px 30px 30px;
+}
+.dlg-offer .dlg-msg {
+  margin: 0 0 22px;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+.dlg-big {
+  width: 100%;
+  padding: 14px 18px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.dlg-x {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-faint);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.dlg-x:hover { background: var(--line-soft); color: var(--ink); }
 .dlg-list { margin: 0; padding-left: 20px; }
 .dlg-list li {
   margin-bottom: 11px;

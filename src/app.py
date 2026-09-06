@@ -147,6 +147,9 @@ def index():
         # from one that is just where a file happened to land.
         sites=engine.known_sites(),
         whats_new=whats_new(),
+        # Settings still on a default that has moved since this copy was first
+        # set up. Empty for a fresh install and for anyone who has answered.
+        stale_defaults=engine.stale_defaults(),
         # One copy of the listing address. The rail's button reads this rather
         # than carrying its own, so the id cannot drift between them.
         store_url=STORE_URL,
@@ -568,6 +571,18 @@ def api_convert():
     if not added:
         return jsonify({"ok": False, "error": "None of those files are there."})
     return jsonify({"ok": True, "added": added})
+
+
+@app.post("/api/settings/take-new")
+def api_settings_take_new():
+    """Yes to the one-time offer: move the stale defaults on, and stop asking."""
+    return jsonify({"ok": True, "settings": engine.take_new_defaults()})
+
+
+@app.post("/api/settings/keep-old")
+def api_settings_keep_old():
+    """Closed without applying. Nothing changes except that it stops asking."""
+    return jsonify({"ok": True, "settings": engine.keep_old_defaults()})
 
 
 @app.post("/api/settings/export")

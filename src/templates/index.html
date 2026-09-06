@@ -1888,6 +1888,26 @@
      "127.0.0.1:50473 says" - which looks like something has gone wrong and
      puts a port number in front of the user for no reason. Same fix as
      Transport Ledger and RentLedger. -->
+<!-- Shown once, on the first launch after an upgrade, and only when a setting
+     is still sitting on a default that has since moved. Two of them changed on
+     3 Sep 2026 - the YouTube helper and pieces per file - and the change could
+     not reach anybody who already had a settings file, because a saved value
+     wins over a default. So it is offered rather than taken: the corner cross
+     is the way out, and either answer stops it being asked again.
+
+     ⚠️ Only values still on the OLD default are touched. Somebody who turned
+     the helper off on purpose chose that, and this must not undo it. -->
+<div class="scrim" id="newDefaults" hidden>
+  <div class="dlg dlg-offer" role="dialog" aria-modal="true"
+       aria-labelledby="newDefaultsMsg">
+    <button class="dlg-x" id="newDefaultsClose" title="Not now"
+            aria-label="Close">&times;</button>
+    <p class="dlg-msg" id="newDefaultsMsg">Apply new settings for better
+      performance</p>
+    <button class="primary dlg-big" id="newDefaultsApply">Apply new settings</button>
+  </div>
+</div>
+
 <div class="scrim" id="xdlg" hidden>
   <div class="dlg dlg-ask" role="dialog" aria-modal="true" aria-labelledby="xdlgTitle">
     <h3 id="xdlgTitle">Riplox</h3>
@@ -2089,7 +2109,8 @@
     hasFfmpeg: {{ has_ffmpeg | tojson }},
     labels: {{ quality_labels | tojson }},
     sites: {{ sites | tojson }},
-    storeUrl: {{ store_url | tojson }}
+    storeUrl: {{ store_url | tojson }},
+    staleDefaults: {{ stale_defaults | tojson }}
   };
 </script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>

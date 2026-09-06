@@ -474,6 +474,10 @@ DEFAULT_SETTINGS = {
     # install; set once, whether they are answered or skipped, because asking
     # twice is worse than not asking.
     "first_run_done": False,
+    # Whether the one-time offer below has been shown. Set whichever way it is
+    # answered: asked once is asked, and a window that comes back every launch
+    # is a window people learn to close without reading.
+    "settings_offer_done": False,
     "default_quality": "best",
     # Two at once, not four: a home line shared between four downloads makes
     # all four slow and none of them finish, and YouTube notices the fifth.
@@ -686,6 +690,47 @@ def load_settings() -> dict:
     if s.get("share_relay") in DEAD_RELAYS:
         s["share_relay"] = DEFAULT_RELAY
     return s
+
+
+# --------------------------------------------------------------------------
+# The settings an upgrade could not reach
+# --------------------------------------------------------------------------
+# On 3 Sep 2026 two defaults changed, because a machine hitting the repeated
+# https failures was found with both in the old state: the YouTube helper off,
+# and four pieces per file. Changing DEFAULT_SETTINGS fixed it for new
+# installs and reached nobody else - load_settings() lets a saved value win,
+# and save_settings() has always written the whole dict, so anybody who had
+# ever changed one setting already had these two written down.
+#
+# ⚠️ Only a value still sitting on the OLD default is offered. Somebody who
+# turned the helper off on purpose, or chose eight pieces, chose that - and
+# quietly overriding it would be the same kind of fault in the other
+# direction. The same reasoning the first_run_done and watch_hours migrations
+# above use: act on what the file does not say, never on what it does.
+_WAS_DEFAULT = {"potoken": (False, True), "fragments": (4, 16)}
+
+
+def stale_defaults(settings: dict = None) -> dict:
+    """{key: new value} for settings still on a default that has moved."""
+    s = settings if settings is not None else load_settings()
+    if s.get("settings_offer_done"):
+        return {}
+    if not settings_file().exists():
+        return {}                    # a fresh install already has the new ones
+    return {key: new for key, (old, new) in _WAS_DEFAULT.items()
+            if s.get(key) == old}
+
+
+def take_new_defaults() -> dict:
+    """Apply whatever stale_defaults() found, and stop asking."""
+    wanted = dict(stale_defaults())
+    wanted["settings_offer_done"] = True
+    return save_settings(wanted)
+
+
+def keep_old_defaults() -> dict:
+    """Asked and declined. Nothing changes except that it stops asking."""
+    return save_settings({"settings_offer_done": True})
 
 
 def save_settings(patch: dict) -> dict:
