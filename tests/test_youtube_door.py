@@ -91,6 +91,14 @@ try:
           f"{got.get('duration')}s")
     check("no note needed when the best was available", not got.get("note"),
           got.get("note", "") or "quiet")
+    # The caller cannot work these out once the file is on disk: the format
+    # list is gone by then. Reported, so the engine can say whether the route
+    # answered the question it was asked.
+    check("says what it took", (got.get("height") or 0) > 0,
+          f"{got.get('height')}p")
+    check("and the tallest YouTube listed",
+          (got.get("best_height") or 0) >= (got.get("height") or 0),
+          f"best {got.get('best_height')}p")
 except doors.DoorError as exc:
     check("answered", False, str(exc))
 
@@ -102,6 +110,12 @@ try:
     check("single stream", not got.get("audio_url"))
     check("says why it is not the best", bool(got.get("note")),
           got.get("note", "")[:70])
+    # F-12: this is the shape that used to arrive marked "done" with nothing
+    # said. The note above is for the log; these two numbers are what lets the
+    # queue row say it.
+    check("the gap is reported as numbers, not only as a sentence",
+          (got.get("best_height") or 0) > (got.get("height") or 0),
+          f"took {got.get('height')}p, {got.get('best_height')}p was listed")
 except doors.DoorError as exc:
     check("answered", False, str(exc))
 

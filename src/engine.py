@@ -4852,6 +4852,43 @@ _FALLBACK_CEILING = 360
 _SHORT_ENOUGH = 0.9
 
 
+def _quality_suspect(quality: str, height: int) -> bool:
+    """Is a file of this height visibly short of what `quality` asked for?
+
+    Asked before anything is fetched or looked up, so it has to be answerable
+    from the two numbers alone.
+    """
+    asked = _ASKED_HEIGHT.get(quality, 0)
+    if asked:
+        return height < asked * _SHORT_ENOUGH
+    # "max" and "best" name no number, so there is nothing to be short of
+    # until the answer is small enough to be suspicious on its own.
+    return height <= _FALLBACK_CEILING
+
+
+def quality_shortfall(quality: str, height: int, available: int) -> str:
+    """The sentence to show when a fallback route handed over a smaller file.
+
+    Returns "" when there is nothing wrong. Kept apart from either caller
+    because there are two fallback routes and only one of them used to be
+    honest: yt-dlp's own rungs went through _quality_short, while Riplox's
+    second door set status="done" and said nothing. One route being held to a
+    standard the other is not is how a 360p file marked done reaches somebody.
+
+    ⚠️ The two callers learn `available` very differently - the engine path
+    spends a listing to ask, the door already has YouTube's format list in
+    hand - and that is exactly why the judging is here and the asking is not.
+    """
+    if not height or not _quality_suspect(quality, height):
+        return ""
+    if available <= height:
+        return ""            # nothing better existed - this IS the video
+    return (f"This came back at {height}p, but the video has "
+            f"{available}p. Riplox's usual way in was refused, and the "
+            f"way round it only carries small formats. The {height}p file "
+            f"is saved - press Retry to ask again for the full one.")
+
+
 def best_height(url: str, settings: dict, cookie_path=None) -> int:
     """
     The tallest video the MAIN route can see for this link. 0 when it cannot
@@ -5741,7 +5778,15 @@ class DownloadManager:
         # Whichever way that went is the useful thing to remember: the engine
         # failing while the direct route works is exactly the early warning a
         # status line exists to give.
-        if job.status == "done":
+        #
+        # ⚠️ A short file is the door WORKING. The site answered, the file is
+        # on disk, and the row already says what arrived - marking the site
+        # down for it would put a red cross on YouTube over a 360p stream
+        # YouTube itself served. `stage` is only ever "direct" inside the door,
+        # and every one of its failure paths clears it; the status is checked
+        # too so a cancelled download, which leaves it set, records nothing.
+        if job.status == "done" or (job.status == "error"
+                                    and job.stage == "direct"):
             # No reason given: the state already says the engine was refused,
             # and repeating it beside itself reads as two separate facts.
             note_health(job.url, HEALTH_DOOR)
@@ -5951,10 +5996,6 @@ class DownloadManager:
                 % job.quality)
             return ""
 
-        asked = _ASKED_HEIGHT.get(job.quality, 0)
-        if asked and height >= asked:
-            return ""            # they asked for small and got small
-
         # ⚠️ This used to stop at 360p, because that was the ceiling measured
         # on the fallback clients of the day. It made the check true and
         # narrow: a request for 4K answered with 720p walked straight past it
@@ -5963,12 +6004,8 @@ class DownloadManager:
         # visibly below the request is now worth the one listing it costs to
         # find out - and a listing is only spent when a fallback rung was
         # used at all, which is rare.
-        if asked and height >= asked * _SHORT_ENOUGH:
+        if not _quality_suspect(job.quality, height):
             return ""            # near enough - not worth a request to confirm
-        if not asked and height > _FALLBACK_CEILING:
-            # "max" and "best" name no number, so there is nothing to be short
-            # of until the answer is small enough to be suspicious on its own.
-            return ""
 
         # Now, and only now, is it worth a request: ask the main route what
         # this video actually has. Costs one listing, on a path that should be
@@ -5980,13 +6017,7 @@ class DownloadManager:
             close_cookies(cookie_path, temp_cookie)
 
         # Could not ask, or there really is nothing better: say nothing.
-        if available <= height:
-            return ""
-
-        return (f"This came back at {height}p, but the video has "
-                f"{available}p. Riplox's usual way in was refused, and the "
-                f"way round it only carries small formats. The {height}p file "
-                f"is saved - press Retry to ask again for the full one.")
+        return quality_shortfall(job.quality, height, available)
 
     # A site turning a request down flat, rather than the download going wrong.
     _AUTH_REFUSED = ("http error 400", "http error 401", "http error 403",
@@ -6339,12 +6370,12 @@ class DownloadManager:
             return
 
         written = target.stat().st_size
-        job.status = "done"
         job.percent = 100.0
         job.speed = job.eta = ""
         job.stage = "direct"
         job.filepath = str(target)
         job.size = human_bytes(written)
+        job.height = int(info.get("height") or 0)
         if info.get("title"):
             job.title = info["title"]
         if info.get("thumbnail"):
@@ -6357,6 +6388,26 @@ class DownloadManager:
                    + ("video and audio arrived separately and were joined.\n"
                       if two_streams else "")
                    + f"saved    {target}")
+
+        # 🔴 The question this path never asked. When yt-dlp's own fallback
+        # rungs hand back a small file the row says so and Retry means
+        # something; this route set done and said nothing - and it is the
+        # route taken precisely when things have already gone wrong. Without
+        # ffmpeg there is nothing to merge, the only muxed stream YouTube
+        # offers is 360p, and a request for max landed as 360p marked done.
+        #
+        # No listing is spent to find out: the door has just seen every format
+        # YouTube listed, so what was taken and what was on offer are both in
+        # hand. The other doors are handed one file and report no height,
+        # which reads as "nothing to compare" and stays silent.
+        short = quality_shortfall(job.quality, job.height,
+                                  int(info.get("best_height") or 0))
+        if short:
+            job.status = "error"
+            job.error = short
+            return               # it downloaded; it just downloaded small
+
+        job.status = "done"
         add_history({
             "title": job.title,
             "url": job.url,

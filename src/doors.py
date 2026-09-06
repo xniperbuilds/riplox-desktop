@@ -1348,6 +1348,19 @@ def _youtube(url: str, quality: str = "", prefer_h264: bool = True,
         },
         "site": "YouTube",
         "note": note,
+        # What is being handed over, and the tallest thing YouTube listed for
+        # this video. Reported rather than left for the caller to work out: by
+        # the time the file is on disk the format list is gone, and these two
+        # numbers are the whole of "did this route answer the question".
+        #
+        # ⚠️ The taller number counts every stream YouTube offered, merge or
+        # no merge. That is the point: without ffmpeg only the muxed stream is
+        # usable and it is 360p, so a 2160p entry here is exactly the gap the
+        # caller has to be honest about.
+        "height": int(chosen.get("height") or 0),
+        "best_height": max([int(e.get("height") or 0)
+                            for e in list(adaptive) + list(muxed)
+                            if e.get("url")] or [0]),
     }
     if audio:
         result["audio_url"] = _checked(audio.get("url", ""), "youtube")
