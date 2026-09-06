@@ -10,8 +10,13 @@ a single native executable, so no Node or Deno runtime has to be installed.
 
 Three rules this module keeps:
 
-* It is opt-in and off by default. Riplox is a clean installer and it stays
-  one; a 44 MB third-party binary is never fetched behind the user's back.
+* It is on by default, so a new install fetches it - 44 MB - on its own during
+  the first run; see _catch_up() in app.py. Turning it off in Settings stops
+  that, and Remove there deletes it.
+  ⚠️ Until 3 Sep 2026 it was opt-in and off, and these lines still said so
+  months afterwards. A default is a claim: change one and the sentences around
+  it have to be read again. tests/test_promises_match_behaviour.py now fails
+  when they are not.
 * Whatever is downloaded is checked against a pinned SHA-256 before it is ever
   run.
 * The server is a child process, and a child process that outlives its parent

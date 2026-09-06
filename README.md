@@ -21,7 +21,8 @@ thousand other sites.
 - **Your phone can drive it.** Pair a phone once and its share sheet gains a
   Riplox entry. On the same Wi-Fi the link never leaves your network and needs
   no internet at all; anywhere else it travels sealed. Only the link travels —
-  your PC fetches the video on its own connection, and never opens a port.
+  your PC fetches the video on its own connection, and nothing on the internet
+  can reach it.
 - **No limits.** No download caps, no daily quota, no watermark, no account, no
   paid tier. Nothing is held back for a licence: every quality the site has,
   every video in a playlist, as many at once as you set, private and
@@ -63,7 +64,7 @@ thousand other sites.
 | Start with Windows | Optional, and it starts into the tray rather than onto your screen |
 | Tray | Closing the window keeps downloads running, with progress on the taskbar button and a notification when each file lands |
 | Sign-in | Sign in through your own browser for private, members-only and age-gated videos |
-| Library | Every finished file, with search, sort, a filter per site, play and show-in-folder |
+| Library | Your last 300 finished files, with search, sort, a filter per site, play and show-in-folder. The files themselves are never touched |
 | Backup | Export and import your settings; export your links as txt, csv or json |
 | Proxy | http, https or SOCKS. With SOCKS the second route stands aside rather than go around it |
 | Themes | Light and dark, or whichever the system is using |
@@ -99,7 +100,8 @@ requests do not leave any other way.
 Pair a phone once and share a link to it from any app; the download starts on
 this PC, on this PC's connection and disk.
 
-The PC **never opens a port**. It dials out to a relay and holds one request
+**Nothing on the internet can reach the PC** — no port is forwarded and none
+is open to it. It dials out to a relay and holds one request
 open, so nothing on the internet can reach the machine. Every message is
 AES-GCM ciphertext with a nonce and a timestamp: the relay carries it without
 being able to read it, and a captured message cannot be replayed. Only a link
@@ -231,9 +233,10 @@ deals with this in three layers, none of which involve an account:
   newer streaming path hands back formats that have no download URL at all.
 - Requests are paced, and a refusal is retried automatically on a different
   player client. Most of these clear on their own.
-- An optional helper that generates the token locally can be downloaded from
-  Settings. It is off by default, checked against a pinned SHA-256 before it is
-  run, listens only on 127.0.0.1, and can be removed with one click.
+- A helper that generates the token locally. It is **on by default**, so a new
+  install fetches it (44 MB) during the first run. It is checked against a
+  pinned SHA-256 before it is run, listens only on 127.0.0.1, and can be turned
+  off or removed in Settings with one click.
 
 ## Install
 
@@ -399,9 +402,12 @@ It bundles two third-party programs, unmodified:
   build scripts are available at that repository
 - [`QuickJS-NG`](https://github.com/quickjs-ng/quickjs) — MIT
 
-The optional YouTube helper is **not** bundled. If you turn it on, Riplox
-downloads [`bgutil-ytdlp-pot-provider-rs`](https://github.com/jim60105/bgutil-ytdlp-pot-provider-rs)
-(GPL-3.0) from its own release page and verifies it before running it.
+The YouTube helper is **not** bundled — it is fetched at runtime. It is on by
+default, so a new install downloads
+[`bgutil-ytdlp-pot-provider-rs`](https://github.com/jim60105/bgutil-ytdlp-pot-provider-rs)
+(GPL-3.0) from its own release page during the first run, and verifies it
+against a pinned SHA-256 before running it. Turning it off in Settings stops
+that; Remove there deletes it.
 
 `build\fetch_binaries.py` shows exactly which builds are used and where they
 come from.

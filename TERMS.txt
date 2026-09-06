@@ -1,6 +1,6 @@
 RIPLOX DESKTOP - TERMS AND CONDITIONS
 XniperBuilds
-Terms version 1.3, for Riplox Desktop 1.6.0 - please read before installing.
+Terms version 1.4, for Riplox Desktop 1.6.0 - please read before installing.
 
 
 1. WHAT RIPLOX IS
@@ -76,12 +76,19 @@ Riplox makes network connections only for these purposes:
 
   a) the website you asked it to download from, or a page you asked it
      to read so that it can list the videos on it;
-  b) once a day, a check with GitHub for a newer version - this can be turned
-     off in Settings, and it never installs anything on its own;
-  c) when you press Update in Settings, downloading a new copy of the download
-     engine;
-  d) if you choose to enable it, downloading an optional helper that some
-     sites require, which then runs entirely on your own computer;
+  b) once a day, a check with GitHub for a newer version of Riplox itself.
+     This can be turned off in Settings. It only ever tells you: Riplox does
+     not replace itself;
+  c) keeping the download engine current. Riplox checks whether a newer
+     engine has been published and fetches it on its own, because an engine
+     that has fallen behind is the commonest reason a site stops working.
+     This can be turned off in Settings, and Update there does the same
+     thing by hand;
+  d) the optional helper that some sites require. It is switched on by
+     default, so a new install downloads it - about 44 MB, from its own
+     release page - and checks it against a pinned SHA-256 before running
+     it. It then runs entirely on your own computer, can be turned off in
+     Settings, and removed there in one click;
   e) if you sign in through Riplox for private videos, the sign-in goes to
      that site and the session is stored encrypted on this machine only;
   f) if you turn on Sharing, an encrypted message sent between your own paired

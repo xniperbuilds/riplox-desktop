@@ -626,10 +626,13 @@
         <option value="clip">Clips</option>
       </select>
       <span class="lib-count" id="libCount"></span>
-      <!-- Named for what it writes. It is every finished download, not the
-           filtered view above, and the two would be easy to confuse. -->
+      <!-- Named for what it writes: the whole library, not the filtered view
+           above - the two would be easy to confuse. ⚠️ "the whole library" is
+           the last 300 downloads: engine.HISTORY_LIMIT drops the oldest row
+           on every one past that, and this button cannot export what is no
+           longer there. It used to say "every finished download". -->
       <button class="ghost small" data-export="csv"
-              title="Every finished download as a spreadsheet — not just what the filters above are showing">Export library</button>
+              title="The whole library as a spreadsheet — the last 300 downloads, not just what the filters above are showing">Export library</button>
       <button class="ghost small" id="showAccounts">Accounts</button>
       <div class="chips lib-chips" id="libChips"></div>
     </div>
@@ -1518,7 +1521,9 @@
       <div class="field">
         <div class="field-text">
           <label>Export your links</label>
-          <span>Every video you have downloaded, as a list or a spreadsheet.</span>
+          <span>The last 300 videos you have downloaded, as a list or a
+                spreadsheet. Older rows are dropped as new ones arrive; the
+                files themselves are never touched.</span>
         </div>
         <div class="btn-row">
           <button class="ghost small" data-export="txt">.txt</button>
@@ -1561,8 +1566,10 @@
           <div class="field-text">
             <label>Download engine</label>
             <span id="engineVersion">checking…</span>
-            <!-- Only ever a line of text. The check asks which version is
-                 published; nothing is fetched until Update is pressed. -->
+            <!-- A line of text, and the check behind it does more than ask:
+                 with "keep the engine current" on - which is the default -
+                 a newer engine is fetched here on its own. Update does the
+                 same thing by hand. See api_check_engine in app.py. -->
             <span id="engineUpdate" class="warn" hidden></span>
           </div>
           <button class="ghost small" id="updateEngine">Update</button>
