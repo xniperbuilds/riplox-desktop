@@ -112,7 +112,31 @@
     function answer(path) {
       box.hidden = true;
       api(path, {}).then(function (res) {
-        if (res && res.ok && res.settings) S.settings = res.settings;
+        if (!res || !res.ok || !res.settings) return;
+        S.settings = res.settings;
+
+        // 🔴 The Settings screen is drawn by the template, once, at startup,
+        // and nothing on this page writes these two controls afterwards. So
+        // without this the screen goes on showing what was just replaced -
+        // and each control saves ITS OWN value when touched, which means the
+        // next click on either one writes the old number back and quietly
+        // undoes the answer the user gave here.
+        //
+        // ⚠️ These are the keys the offer can carry (engine._WAS_DEFAULT).
+        // Another one added there needs a line added here, or it inherits
+        // exactly this bug.
+        // Both are written only when the answer actually carries the key.
+        // "potoken" is a boolean, so a missing one reads as false and would
+        // turn a helper that is ON off on screen - a partial reply saying the
+        // opposite of the truth is worse than a stale one.
+        var pieces = $("setFragments");
+        if (pieces && res.settings.fragments) {
+          pieces.value = String(res.settings.fragments);
+        }
+        var helper = $("setPotoken");
+        if (helper && "potoken" in res.settings) {
+          helper.classList.toggle("on", !!res.settings.potoken);
+        }
       });
     }
 

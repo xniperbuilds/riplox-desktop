@@ -109,6 +109,36 @@ check("nothing was changed", now.get("potoken") is False
       "%s / %s" % (now.get("potoken"), now.get("fragments")))
 check("but it is not asked again either", engine.stale_defaults() == {})
 
+print("\n-- and the screen behind it is brought up to date " + "-" * 19)
+
+# 🔴 The Settings screen is drawn by the template, once, at startup, and
+# nothing else on the page writes these controls. Without this the screen goes
+# on showing what was just replaced - and each control saves ITS OWN value
+# when touched, so the next click on either writes the old number back and
+# undoes the answer the user gave. Measured in the window before it was fixed:
+# the offer moved pieces to 4 and the dropdown still read 16.
+JS = (Path(__file__).resolve().parent.parent
+      / "src" / "static" / "js" / "app.js").read_text(encoding="utf-8",
+                                                      errors="replace")
+start = JS.index("function offerNewDefaults()")
+offer_js = JS[start:start + 2000]
+
+check("the pieces dropdown is written from the answer",
+      "setFragments" in offer_js and "res.settings.fragments" in offer_js)
+check("so is the helper toggle",
+      "setPotoken" in offer_js and "res.settings.potoken" in offer_js)
+check("neither is touched when the answer does not carry it",
+      '"potoken" in res.settings' in offer_js
+      and "res.settings.fragments)" in offer_js,
+      "a partial reply saying the opposite is worse than a stale screen")
+
+# The check that keeps this true: a third key added to the offer, with no
+# control written for it, inherits exactly the bug this fixes.
+for key in engine._WAS_DEFAULT:
+    check("the offer's %r is written back to its control" % key,
+          ("res.settings." + key) in offer_js,
+          "every key the offer can carry needs a line in offerNewDefaults")
+
 print("\n" + "=" * 68)
 print("  %d passed, %d failed" % (len(PASS), len(FAIL)))
 for name in FAIL:
