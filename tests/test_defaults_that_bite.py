@@ -31,7 +31,10 @@ D = engine.DEFAULT_SETTINGS
 
 print("-- what a fresh install starts with " + "-" * 34)
 check("the YouTube helper is on", D.get("potoken") is True, D.get("potoken"))
-check("pieces per file is 16", D.get("fragments") == 16, D.get("fragments"))
+# Back to 4 on 7 Sep after being measured one value at a time: the whole
+# range 1..16 downloads at the same speed on the connection it was measured
+# on, and at 16 an interrupted attempt keeps NOTHING. See DEFAULT_SETTINGS.
+check("pieces per file is 4", D.get("fragments") == 4, D.get("fragments"))
 check("the engine keeps itself current", D.get("engine_auto") is True,
       D.get("engine_auto"))
 

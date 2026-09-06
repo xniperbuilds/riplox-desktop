@@ -43,7 +43,12 @@ def check(name, ok, detail=""):
 
 
 def saved(**over):
-    """Write a settings file the way an older Riplox would have."""
+    """Write a settings file the way some older Riplox would have.
+
+    ⚠️ The two stale values are now from DIFFERENT versions, and that is the
+    whole point of this file. v1.4.1 left the helper off; v1.6.0 left sixteen
+    pieces. A copy has one of those to answer for, rarely both.
+    """
     body = dict(engine.DEFAULT_SETTINGS)
     body.update({"potoken": False, "fragments": 4})     # what v1.4.1 shipped
     body.pop("settings_offer_done", None)
@@ -57,10 +62,18 @@ engine.settings_file().unlink(missing_ok=True)
 check("no settings file means no offer", engine.stale_defaults() == {},
       engine.stale_defaults())
 
-print("\n-- an upgrade that never touched either one " + "-" * 25)
+print("\n-- upgrading from v1.4.1: helper off, four pieces " + "-" * 19)
 saved()
 offer = engine.stale_defaults()
-check("both are offered", offer == {"potoken": True, "fragments": 16}, offer)
+check("the helper is offered", offer.get("potoken") is True, offer)
+check("and the pieces are NOT - four is the default again",
+      "fragments" not in offer, offer)
+
+print("\n-- a fresh v1.6.0 install: helper on, sixteen pieces " + "-" * 16)
+saved(potoken=True, fragments=16)
+offer = engine.stale_defaults()
+check("the pieces are offered, downwards",
+      offer == {"fragments": 4}, offer)
 
 print("\n-- and a choice somebody actually made " + "-" * 30)
 saved(potoken=True)
@@ -77,22 +90,22 @@ check("the other one is still offered on its own",
       engine.stale_defaults() == {"potoken": True}, engine.stale_defaults())
 
 print("\n-- saying yes " + "-" * 55)
-saved()
+saved(potoken=False, fragments=16)          # both stale at once, the rare case
 engine.take_new_defaults()
 now = engine.load_settings()
 check("the helper is on", now.get("potoken") is True, now.get("potoken"))
-check("pieces moved to 16", now.get("fragments") == 16, now.get("fragments"))
+check("pieces moved to 4", now.get("fragments") == 4, now.get("fragments"))
 check("and it is not asked again", engine.stale_defaults() == {})
 args = [str(a) for a in engine.extra_args(now, "best")]
 check("the engine is told the new number",
-      args[args.index("--concurrent-fragments") + 1] == "16")
+      args[args.index("--concurrent-fragments") + 1] == "4")
 
 print("\n-- and closing it instead " + "-" * 43)
-saved()
+saved(potoken=False, fragments=16)
 engine.keep_old_defaults()
 now = engine.load_settings()
 check("nothing was changed", now.get("potoken") is False
-      and now.get("fragments") == 4,
+      and now.get("fragments") == 16,
       "%s / %s" % (now.get("potoken"), now.get("fragments")))
 check("but it is not asked again either", engine.stale_defaults() == {})
 

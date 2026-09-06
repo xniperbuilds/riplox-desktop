@@ -543,14 +543,35 @@ DEFAULT_SETTINGS = {
     "embed_chapters": False,         # chapter marks players can jump between
     "sponsorblock": False,           # cut sponsor segments out of YouTube
     "skip_existing": False,          # remember what has been downloaded
-    # Sixteen pieces of the same file at once. This is where the real speed
-    # comes from on fragmented video, and it is also why aria2c was not needed.
-    # ⚠️ It was four, and four is where the repeated https failures were found:
-    # on a second machine, raising this alongside the engine and the helper was
-    # what made the downloads run. Higher looks faster on a fast line and
-    # starts being refused on a slow one, so this is a ceiling rather than a
-    # promise - the setting is still there for anyone it does not suit.
-    "fragments": 16,
+    # 🔴 Four pieces of the same file at once. It was raised to sixteen on
+    # 3 Sep 2026, alongside the engine channel and the YouTube helper, because
+    # a machine hitting the repeated https failures was found in all three
+    # states at once. That established the combination and never the cause,
+    # and the other two have since been measured on their own: the engine was
+    # already current, and the helper's effect was measured directly.
+    #
+    # This one was measured on 7 Sep, one value at a time, same video, same
+    # connection, 40 MB per run - and it buys nothing:
+    #
+    #     pieces   speed        kept when an attempt is interrupted
+    #     1        2.33 MB/s    84.3%
+    #     2        2.33 MB/s    83.6%
+    #     4        2.28-2.31    64.2%
+    #     8        2.25-2.30     7.1% / 20.0%
+    #     16       2.17-2.25     0.0% / 0.0%
+    #
+    # The spread in speed is 7% across the whole range and the fastest cells
+    # are the LOWEST ones. The cost is not small and not noisy: at sixteen,
+    # a stream of 32 fragments has half of itself in flight, so an interrupted
+    # attempt commits nothing at all and the next one fetches it again. That
+    # is the download that "kept going and never finished".
+    #
+    # ⚠️ Back to four rather than to one or two, though both measured better
+    # here: this was measured on ONE connection, and concurrency is genuinely
+    # how you fill a high-latency line. Four is the value Riplox shipped for
+    # months, so this is a return, not a new experiment. The setting still
+    # goes to sixteen for anyone it suits.
+    "fragments": 4,
     "speed_limit": 0,                # KB/s ceiling; 0 means no limit
     # Empty means a direct connection. A site that answers a different line
     # but not this one is the case this exists for - and it is not rare: a
@@ -707,7 +728,13 @@ def load_settings() -> dict:
 # quietly overriding it would be the same kind of fault in the other
 # direction. The same reasoning the first_run_done and watch_hours migrations
 # above use: act on what the file does not say, never on what it does.
-_WAS_DEFAULT = {"potoken": (False, True), "fragments": (4, 16)}
+#
+# 🔴 The pieces entry now points the OTHER WAY. It was written to move people
+# from four to sixteen; measuring what sixteen buys turned that around, so the
+# copies to reach are the ones sitting on sixteen. Somebody upgrading from
+# v1.4.1 is already on four and is offered nothing, which is right - four is
+# the default again.
+_WAS_DEFAULT = {"potoken": (False, True), "fragments": (16, 4)}
 
 
 def stale_defaults(settings: dict = None) -> dict:
@@ -2339,11 +2366,11 @@ def extra_args(settings: dict, quality: str, trimmed: bool = False) -> list:
     have_ff = has_ffmpeg()
 
     # ⚠️ Both fallbacks read DEFAULT_SETTINGS rather than repeating a number.
-    # They said 4 for months after the default became 16 - the exact value
-    # that was found on a machine hitting the repeated https failures - so a
-    # partial settings dict, or a garbage value, quietly restored the state
-    # the change was made to get rid of. Nothing tested this: the only
-    # mention of --concurrent-fragments in tests/ is a comment.
+    # They said 4 for months after the default became 16, so a partial
+    # settings dict, or a garbage value, quietly sent a value nobody chose.
+    # The default has since come back to 4 on measurement, which is exactly
+    # why this still reads the dict instead of naming a number: a hard-coded
+    # fallback is wrong the moment the default moves, in either direction.
     _pieces = DEFAULT_SETTINGS["fragments"]
     fragments = settings.get("fragments", _pieces)
     try:
