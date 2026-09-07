@@ -479,7 +479,13 @@ def api_fix_botcheck():
         if not result.get("ok"):
             return jsonify({"ok": False,
                             "error": result.get("message", "Could not set that up.")})
-        engine.save_settings({"potoken": True})
+        try:
+            engine.save_settings({"potoken": True})
+        except OSError as exc:
+            # The helper is being fetched either way; what could not be
+            # recorded is the switch, and that comes back off at the next
+            # launch. Said now rather than discovered then.
+            return _save_refused(exc)
 
     if job_id and not manager.retry(job_id):
         return jsonify({"ok": False, "error": "That download is no longer waiting."})
@@ -573,16 +579,51 @@ def api_convert():
     return jsonify({"ok": True, "added": added})
 
 
+def _save_refused(exc):
+    """The one sentence for a settings file that could not be written."""
+    return jsonify({"ok": False, "error": (
+        f"Riplox could not save that. Its settings file could not be "
+        f"written - it may be read-only, or open in another program "
+        f"({exc.strerror or exc}). Nothing was changed. The file is "
+        f"{engine.settings_file()}.")})
+
+
+def _saving(write):
+    """Run a settings write and say what happened, in words that are true.
+
+    🔴 save_settings() replaces the file, and a replace can be refused: a
+    settings.json restored from a backup with the read-only attribute set, one
+    held open by a sync client, one an antivirus has quarantined, or a portable
+    copy on a write-protected stick - a state the app already knows exists,
+    because portable_state() has a "read-only" value of its own. The retry loop
+    in save_settings covers the case where somebody is about to let go; when
+    nobody is, it raises.
+
+    That raise used to leave the route as a 500, and the window turns any
+    rejected request into "The app lost contact with its engine." The engine
+    answered. It could not write. Telling somebody the wrong thing about their
+    own machine is the fault this audit has spent the most time on, so the one
+    place that knows what really happened says it.
+
+    ⚠️ Deliberately NOT swallowed into a success: a setting that reads as saved
+    and is gone at the next launch is worse than one that refused out loud.
+    """
+    try:
+        return jsonify({"ok": True, "settings": write()})
+    except OSError as exc:
+        return _save_refused(exc)
+
+
 @app.post("/api/settings/take-new")
 def api_settings_take_new():
     """Yes to the one-time offer: move the stale defaults on, and stop asking."""
-    return jsonify({"ok": True, "settings": engine.take_new_defaults()})
+    return _saving(engine.take_new_defaults)
 
 
 @app.post("/api/settings/keep-old")
 def api_settings_keep_old():
     """Closed without applying. Nothing changes except that it stops asking."""
-    return jsonify({"ok": True, "settings": engine.keep_old_defaults()})
+    return _saving(engine.keep_old_defaults)
 
 
 @app.post("/api/settings/export")
@@ -858,7 +899,13 @@ def api_potoken_install():
 
 @app.post("/api/potoken/remove")
 def api_potoken_remove():
-    engine.save_settings({"potoken": False})
+    try:
+        engine.save_settings({"potoken": False})
+    except OSError as exc:
+        # Refused BEFORE the files go: removing the helper while the switch
+        # still reads on is the state that made the toggle a lie in the
+        # first place (F-09).
+        return _save_refused(exc)
     return jsonify(potoken.remove())
 
 
@@ -888,7 +935,14 @@ def api_set_settings():
                                      "to another program. Try another one."}), 400
         patch["hotkey_combo"] = said         # stored in its tidy form
 
-    saved = engine.save_settings(patch)
+    try:
+        saved = engine.save_settings(patch)
+    except OSError as exc:
+        # ⚠️ Before the three switches below, on purpose. Turning Sharing on
+        # for a run that could not record it leaves the app doing one thing and
+        # the file saying another - and the next launch quietly undoes it.
+        return _save_refused(exc)
+
     # Turning Sharing on or off has to take effect now, not at the next start.
     if "sharing" in patch or "share_lan_only" in patch or "share_relay" in patch:
         sharing.apply_setting(bool(saved.get("sharing")))
@@ -1310,8 +1364,7 @@ def api_choose_folder():
         return jsonify({"ok": False, "cancelled": True})
 
     chosen = result[0] if isinstance(result, (list, tuple)) else result
-    saved = engine.save_settings({"download_dir": str(chosen)})
-    return jsonify({"ok": True, "settings": saved})
+    return _saving(lambda: engine.save_settings({"download_dir": str(chosen)}))
 
 
 @app.post("/api/choose-folder-once")
@@ -1381,16 +1434,16 @@ def api_choose_cookies():
 
     # The old single-path setting is emptied as it is folded in, so the same
     # file cannot end up counted from two places.
-    saved = engine.save_settings({"cookies_files": have, "cookies_file": ""})
-    return jsonify({"ok": True, "settings": saved})
+    return _saving(lambda: engine.save_settings(
+        {"cookies_files": have, "cookies_file": ""}))
 
 
 @app.post("/api/cookies/remove-file")
 def api_cookies_remove_file():
     drop = ((request.json or {}).get("path") or "").strip()
     kept = [p for p in engine.cookie_files(engine.load_settings()) if p != drop]
-    saved = engine.save_settings({"cookies_files": kept, "cookies_file": ""})
-    return jsonify({"ok": True, "settings": saved})
+    return _saving(lambda: engine.save_settings(
+        {"cookies_files": kept, "cookies_file": ""}))
 
 
 @app.post("/api/open-url")
