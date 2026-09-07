@@ -3498,6 +3498,12 @@ _IG_GEO = ("not available in your country", "not available from your location",
 # outside, and naming the wrong one sends someone off to fix something that was
 # never the problem. Guessing here would undo the point of this whole function.
 
+# The phrase Riplox uses when IT stopped the job rather than the site refusing
+# it. Kept as a constant so the two places that care - the message itself and
+# the verdict that decides whether to keep it - cannot drift apart.
+# See _NO_PROGRESS_LIMIT.
+_RIPLOX_GAVE_UP = "without getting any further"
+
 
 def _door_verdict(engine_error: str, door_error: str,
                   tried_signed_in: bool = False) -> str:
@@ -3522,6 +3528,25 @@ def _door_verdict(engine_error: str, door_error: str,
     """
     low_engine = (engine_error or "").lower()
     low_door = (door_error or "").lower()
+
+    # 🔴 Two engine errors the site cannot explain, and handing the door's
+    # sentence over instead throws away the only useful thing the user was
+    # told. Both were found by running the situations rather than reading:
+    #
+    #   - A fault on THIS PC - a filename Windows will not open, a full disk.
+    #     The health panel decides "the site or you" by reading this string,
+    #     so replacing it is how Github once got marked down over an
+    #     [Errno 22]. That was fixed on the engine's own path; the door left
+    #     a second way to reach it.
+    #   - Riplox stopping the job itself, which names a setting to change.
+    #     A download that got nowhere three times is not the site refusing,
+    #     and "this video is unavailable" is both wrong and unactionable.
+    #
+    # In both, the door failing as well adds nothing: it was refused for the
+    # same reason, or for a reason that is not the point.
+    if _is_local_trouble(engine_error) or _RIPLOX_GAVE_UP in low_engine:
+        return engine_error
+
     # Checkpoint and geo join the gate rather than sitting behind it: neither
     # is guaranteed to arrive with one of the _IG_WALLED wordings, and a
     # challenged login that fell through to the door's list of maybes is
@@ -4885,6 +4910,16 @@ def _quality_suspect(quality: str, height: int) -> bool:
     Asked before anything is fetched or looked up, so it has to be answerable
     from the two numbers alone.
     """
+    # ⚠️ Audio was asked for, so no height can be short of anything. Today the
+    # door already reports 0 for an mp3 - it picks an audio stream, and audio
+    # streams carry no height - so this cannot trigger. It is here because the
+    # guard being one layer away is what made the whole F-12 family possible:
+    # "max" and "best" name no number either, and this function treats a
+    # missing number as "anything at or under 360p is suspicious". A future
+    # route that reported a height beside an audio pick would tell somebody
+    # their MP3 came back at 360p.
+    if quality == "mp3":
+        return False
     asked = _ASKED_HEIGHT.get(quality, 0)
     if asked:
         return height < asked * _SHORT_ENOUGH
@@ -5922,10 +5957,14 @@ class DownloadManager:
                     if job.stalled >= _NO_PROGRESS_LIMIT:
                         job.status = "error"
                         job.speed = job.eta = ""
+                        # The phrase is _RIPLOX_GAVE_UP rather than a repeat of
+                        # it: the second door reads this sentence to decide
+                        # whether to replace it, and two copies of the same
+                        # words drift apart the first time one is reworded.
                         job.error = (
                             f"Stopped after fetching about "
-                            f"{human_bytes(job.best_peak)} three times without "
-                            f"getting any further. Something is cutting this "
+                            f"{human_bytes(job.best_peak)} three times "
+                            f"{_RIPLOX_GAVE_UP}. Something is cutting this "
                             f"download short and starting it over. Retry to try "
                             f"again, or lower “Pieces per file” in "
                             f"Settings - fewer pieces means less is thrown away "
