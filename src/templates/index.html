@@ -1788,75 +1788,22 @@
       </div>
       <ul class="roadmap" id="whatsNew">
         {#- Written by build/make_whatsnew.py from the commits that carried a
-            Whats-new: trailer. The hand-written list below is what shows until
-            commits start carrying them - so this can be added without emptying
-            the panel for a release whose commits predate it. -#}
+            Whats-new: trailer, which only ever go on something a user can see
+            and do. A release of repairs carries none, and the empty state
+            below says that rather than filling the space. -#}
         {% for line in whats_new %}
         <li class="done">{{ line }}</li>
         {% endfor %}
+        {#- 🔴 What used to stand here was the v1.4.x list, shown whenever
+            whatsnew.json had no items. Its own note said it was "what shows
+            until commits start carrying them" - and they have since 1.5.0, so
+            the only thing it can do now is tell somebody upgrading from 1.6.0
+            about a proxy and subtitles that arrived two releases ago, under a
+            heading that says "since the last release". A release with no new
+            features has an empty list, and saying so is the true answer. -#}
         {% if not whats_new %}
-        <li class="done"><b>Instagram refusals now say which one it is</b> — and
-          the commonest one is not the post at all. When Instagram is holding a
-          reel back from your account rather than from everybody, Riplox names
-          the setting that lifts it, and warns that a birthday on the profile is
-          not the same as Instagram having age-verified the account. A
-          challenged sign-in, a regional block and a private post each get their
-          own answer too, instead of one sentence for all of them.</li>
-        <li class="done"><b>Riplox no longer claims to have tried things it did
-          not</b>. A refusal used to say it had been attempted signed in even
-          where no sign-in had been sent — which sent people back to their
-          password for days over something else entirely.</li>
-        <li class="done"><b>Send text from your phone, not only links</b> — a
-          licence key, a Wi-Fi code, a password. It is sealed on arrival so it
-          is never on disk in the clear, shown only as dots, and copied with one
-          press, after which it is gone. It expires on its own either way.</li>
-        <li class="done"><b>Uninstalling keeps your settings, sign-ins, history
-          and queue</b>. It used to take all of them, silently — and the usual
-          reason anyone uninstalls is to fix something and put it back a minute
-          later. Now it asks, and the answer it assumes is no.</li>
-        <li class="done"><b>Show advanced says how much is behind it</b>. Eleven
-          settings sat behind a quiet tick box that was easy to read straight
-          past, which made them look as though they had been removed.</li>
-        <li class="done"><b>Riplox can now fetch YouTube itself</b> when the
-          engine is refused, the way it already could for TikTok, Instagram and
-          Facebook. Above 360p YouTube hands the picture and the sound over as
-          two files; Riplox pulls both and joins them.</li>
-        <li class="done"><b>A proxy</b>, in Settings under Advanced, for a site
-          that answers a different connection but not yours. Everything goes
-          through it — including Riplox's own route, which refuses to run
-          rather than go around it and show the address you were hiding.</li>
-        <li class="done"><b>Subtitles somebody wrote, or a machine did, or
-          both</b>. Until now asking for subtitles took whatever was going, so
-          a video with real ones also got a worse copy beside them.</li>
-        <li class="done"><b>Every dubbed language in one press</b>, each as its
-          own file. The language is in the file name now, which also fixes two
-          dubs of one video quietly landing on top of each other.</li>
-        <li class="done"><b>Choose the cover picture</b> before downloading,
-          from the ones the site offers. It is kept beside the video and put
-          inside it where the file format allows.</li>
-        <li class="done"><b>Failed downloads have a page of their own</b> —
-          with the reason, the log, and a Retry. Nothing on it disappears until
-          you delete it, not even when Riplox is closed and reopened.</li>
-        <li class="done"><b>A link shared once is downloaded once</b> — a phone
-          sending to a switched-off PC could send the same link again while the
-          first copy was still waiting, and both arrived.</li>
-        <li class="done"><b>A site that asks Riplox to slow down is left
-          alone</b> for a while, instead of being asked again by the next
-          download. The rest of the queue carries on, and the screen says which
-          site and for how long.</li>
-        <li class="done"><b>A few seconds between Instagram downloads</b>, so a
-          batch is not refused halfway through. Only Instagram, and there is a
-          switch for it above.</li>
-        <li class="done"><b>A second account for a site</b> — a spare for when a
-          session stops working, or one that can see what the other cannot.
-          Riplox uses whichever has rested longest, one at a time.</li>
-        <li class="done"><b>The rest belongs to one account</b> — a site that
-          asks Riplox to slow down now rests only the account it was asked
-          about. With a spare signed in, the downloads carry on.</li>
-        <li class="done"><b>An age-restricted TikTok post</b> is now tried again
-          with your saved sign-in before it is refused.</li>
-        <li class="done"><b>Instagram answering with nothing</b> no longer reads
-          as a bug in Riplox asking to be reported.</li>
+        <li class="none">Nothing new to show. This release is repairs to what
+          was already here - the details are in the release notes.</li>
         {% endif %}
       </ul>
     </div>

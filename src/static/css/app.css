@@ -2814,6 +2814,11 @@ button { font-family: var(--body); }
 }
 .roadmap li.done::before { content: "✓"; color: var(--cyan-ink); }
 .roadmap li.done { color: var(--ink-faint); }
+/* Nothing landed since the last release. No marker at all: a tick would claim
+   something shipped and an open circle would promise something coming, and the
+   honest answer is that the list is empty. */
+.roadmap li.none::before { content: ""; }
+.roadmap li.none { color: var(--ink-faint); padding-left: 0; font-style: italic; }
 
 /* ⚠️ What's new is not a roadmap, and this is where that difference shows.
    A roadmap fades what has landed so the eye goes to what has not; What's new
