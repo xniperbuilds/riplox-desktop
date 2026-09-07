@@ -70,6 +70,17 @@ def call(path, body=None, timeout=6):
             return exc.code, json.loads(exc.read().decode())
         except Exception:                                   # noqa: BLE001
             return exc.code, {}
+    except ConnectionError as exc:
+        # ⚠️ A refusal that never reaches the sender is still a refusal, and on
+        # Windows it looks like this. The oversized guard answers 413 by
+        # Content-Length and returns WITHOUT reading the body - deliberately,
+        # because draining an unbounded body is the thing it exists to avoid.
+        # The kernel then closes with unread bytes still queued and sends an
+        # RST, so the client can see the abort instead of the 413 it was sent.
+        # Intermittent, because it depends on how much of the body arrived
+        # first: this test lost its whole 16 checks to it three times in seven
+        # suite runs, which reads exactly like a test that was never written.
+        return "aborted", {"ok": False, "why": str(exc)}
 
 
 print("\n-- is that you? ----------------------------------------------------")
@@ -112,7 +123,8 @@ check("broken json is refused without falling over", said.get("ok") is False,
 print("\n-- a body far too big to be an envelope ----------------------------")
 status, said = call("/lan-send", {"n": "A" * 12, "c": "Z" * (sharing.MAX_BODY + 500)})
 check("⭐ oversized is refused by length, before anything is parsed",
-      status == 413, f"{status} {said}")
+      status in (413, "aborted"), f"{status} {said}")
+check("...and nothing about it is accepted", said.get("ok") is False, said)
 
 
 print("\n-- anything else on this port --------------------------------------")

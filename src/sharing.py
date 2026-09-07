@@ -1154,6 +1154,22 @@ class _LanHandler(BaseHTTPRequestHandler):
         except ValueError:
             length = 0
         if length <= 0 or length > MAX_BODY:
+            # ⚠️ Answered and closed WITHOUT reading the body, on purpose:
+            # draining an unbounded body is the exact thing this guard exists
+            # to avoid, and a sender that declares ten gigabytes should cost
+            # this thread nothing.
+            #
+            # The price is that the 413 may never arrive. With unread bytes
+            # still queued, Windows closes the connection with an RST, and the
+            # sender sees a connection abort rather than the refusal it was
+            # actually sent. Measured here - the LAN test lost all sixteen of
+            # its checks to it three times in seven suite runs before anyone
+            # looked at why.
+            #
+            # Kept as it is. A refusal that arrives unreliably is a fair trade
+            # for a guard that cannot be made to spend anything; what was not
+            # fair was leaving it unwritten, so that an intermittent abort read
+            # as a fault rather than as this decision working.
             self._json(413, {"ok": False})
             return
 
