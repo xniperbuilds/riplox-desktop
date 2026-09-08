@@ -1,0 +1,126 @@
+{
+  "discovered": "2026-09-08",
+  "root": "C:\\Users\\FAIZAN COMPUTERS\\Desktop\\XniperBuilds\\RiploxDesktop",
+  "surfaces": [
+    {
+      "kind": "version",
+      "where": "browser-extension-store/manifest.json",
+      "asserts": "the current version",
+      "note": "SEPARATE product, versions on its own - different name and description, published under its own Web Store id. Does NOT track the app."
+    },
+    {
+      "kind": "version",
+      "where": "browser-extension/manifest.json",
+      "asserts": "the current version",
+      "note": ""
+    },
+    {
+      "kind": "version",
+      "where": "packaging/chocolatey/riplox.nuspec",
+      "asserts": "the current version",
+      "note": "Written by packaging/bump.py AFTER the GitHub release exists, from the release's own assets. Expected to lag until then."
+    },
+    {
+      "kind": "version",
+      "where": "send-windows/src/app.py",
+      "asserts": "the current version",
+      "note": "Riplox Send, a separate app with its own version. Does NOT track Riplox Desktop."
+    },
+    {
+      "kind": "version",
+      "where": "src/app.py",
+      "asserts": "the current version",
+      "note": ""
+    },
+    {
+      "kind": "version",
+      "where": "src/native_host.py",
+      "asserts": "the current version",
+      "note": ""
+    },
+    {
+      "kind": "doc",
+      "where": "README.md",
+      "asserts": "what this project is and how to install it",
+      "note": ""
+    },
+    {
+      "kind": "doc",
+      "where": "browser-extension/README.md",
+      "asserts": "what this project is and how to install it",
+      "note": ""
+    },
+    {
+      "kind": "doc",
+      "where": "packaging/README.md",
+      "asserts": "what this project is and how to install it",
+      "note": ""
+    },
+    {
+      "kind": "doc",
+      "where": "relay/README.md",
+      "asserts": "what this project is and how to install it",
+      "note": ""
+    },
+    {
+      "kind": "doc",
+      "where": "send-android/README.md",
+      "asserts": "what this project is and how to install it",
+      "note": ""
+    },
+    {
+      "kind": "doc",
+      "where": "tests/README.md",
+      "asserts": "what this project is and how to install it",
+      "note": ""
+    },
+    {
+      "kind": "remote",
+      "where": "https://github.com/xniperbuilds/riplox-desktop.git",
+      "asserts": "the repository description and topics",
+      "note": "read with: gh repo view --json description,topics"
+    },
+    {
+      "kind": "site",
+      "where": "XniperBuildsSite (xniperbuilds.com) /riplox-desktop/ page",
+      "asserts": "the version, the download button, the feature list and the FAQ",
+      "note": "ANOTHER REPO: ..\\XniperBuildsSite -> xniperbuilds-site.git. Download buttons use releases/latest/download/<stable name>, so the STABLE-NAMED assets must be on the release or the button 404s."
+    },
+    {
+      "kind": "site",
+      "where": "XniperBuildsSite privacy policy",
+      "asserts": "what Riplox sends, stores and installs",
+      "note": "A release can make this false on its own - see the 1.6.0 case where 'four things, and nothing else' had become six."
+    },
+    {
+      "kind": "packaging",
+      "where": "packaging/winget/XniperBuilds.Riplox.yaml (+ installer.yaml)",
+      "asserts": "the version, installer URL and SHA-256 winget serves",
+      "note": "Written by packaging/bump.py after the release; then a PR to microsoft/winget-pkgs. The 1.4.1 PR is STILL OPEN - check it first."
+    },
+    {
+      "kind": "packaging",
+      "where": "packaging/scoop/riplox.json",
+      "asserts": "the version, portable URL and hash Scoop serves",
+      "note": "Written by bump.py."
+    },
+    {
+      "kind": "packaging",
+      "where": "Chocolatey listing (chocolatey.com)",
+      "asserts": "the version Chocolatey serves",
+      "note": "Console, not a file. The 1.4.1 submission was awaiting moderation."
+    },
+    {
+      "kind": "release",
+      "where": "GitHub release v1.6.1 assets",
+      "asserts": "what the download buttons and the checksums point at",
+      "note": "STABLE-NAMED copies (Riplox_Setup.exe, Riplox_Portable.zip) must be uploaded alongside the versioned ones, and SHA256SUMS.txt with them. build/release_check.py verifies this AFTER publishing."
+    },
+    {
+      "kind": "people",
+      "where": "whoever reported the https failure (L1)",
+      "asserts": "that the fault was understood and fixed",
+      "note": "They were on 1.6.0 with the old defaults. 1.6.1 is the answer to their report - nobody has told them."
+    }
+  ]
+}
