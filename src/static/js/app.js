@@ -245,7 +245,7 @@
   /* ---------------------------------------------------------------- tabs */
 
   var views = ["capture", "queue", "library", "failed", "convert", "watch",
-               "sharing", "settings"];
+               "sharing", "board", "settings"];
 
   function show(view) {
     views.forEach(function (v) {
@@ -261,6 +261,7 @@
     if (view === "convert") loadConvert();
     if (view === "watch") loadWatch();
     if (view === "sharing") loadSharing();
+    boardShown(view === "board");
     if (view === "settings") {
       loadEngineVersion(); loadCookies(); loadPot(); checkEngineUpdate(false);
     }
@@ -6108,6 +6109,296 @@
       $("watchBadge").hidden = !res.state.new;
     });
   }
+  /* ---------------------------------------------------------------- board */
+
+  /* One public room of links.
+     Everything that decides anything happens in the Worker; this draws what it
+     says and asks it for more. There is no message box in this room and there
+     must never be - the moment somebody can type a line of their own it stops
+     being a list of links and becomes a chat. */
+
+  var boardTimer = null;
+  var boardLoaded = false;
+  var boardPlatform = "";
+  var boardOldest = 0;
+  var boardBusy = false;
+  /* A filter that changed while the last feed was still in the air. Throwing
+     it away left the chip looking pressed over the list it was meant to
+     replace, and nothing ever went back for it; it is remembered instead and
+     run once the reply lands. Only a fresh load is worth remembering - a
+     second More would append the page that is already coming. */
+  var boardAgain = false;
+
+  /* Rows this person has reported. Hidden for them the moment they press it,
+     without waiting for two other people to agree - which is most of why
+     nobody needs to go and find two friends to silence something.
+     Kept in the window's own storage: it is one person's preference, it is
+     worth nothing to anybody else, and losing it costs one more click. */
+  function boardHidden() {
+    try { return JSON.parse(localStorage.getItem("boardHidden") || "[]"); }
+    catch (err) { return []; }
+  }
+  function boardHide(id) {
+    try {
+      var all = boardHidden();
+      all.push(id);
+      localStorage.setItem("boardHidden", JSON.stringify(all.slice(-500)));
+    } catch (err) { /* private mode, or storage turned off. One click lost. */ }
+  }
+
+  var MARKS = {
+    youtube: "YouTube", tiktok: "TikTok", instagram: "Instagram",
+    x: "X", snapchat: "Snapchat"
+  };
+
+  function boardEmpty(title, note) {
+    $("boardEmptyTitle").textContent = title;
+    $("boardEmptyNote").textContent = note;
+    $("boardEmpty").hidden = false;
+  }
+
+  function boardShown(on) {
+    clearInterval(boardTimer);
+    boardTimer = null;
+    if (!on) return;
+
+    if (!boardLoaded) {
+      boardLoaded = true;
+      api("/api/board/state").then(function (res) {
+        $("boardState").textContent = res.ok && res.on ? "live" : "off";
+        $("boardState").className = "share-state" + (res.ok && res.on ? " on" : "");
+        /* Only ever the server's own words. A board that could not be reached
+           is said once, by the list, in the space it would have filled -
+           saying it here as well was the same sentence twice on one screen. */
+        var word = res.ok ? (res.notice || "") : "";
+        if (res.ok && res.on && !res.posting) {
+          word = word || "The board is open to read, but not taking new links right now.";
+        }
+        $("boardNotice").textContent = word;
+        $("boardNotice").hidden = !word;
+      });
+      loadBoard(true);
+    }
+    /* Only while somebody is looking. The socket on the Python side opens on
+       the first of these and closes a minute after the last, so a user who
+       never opens this room never connects at all. */
+    boardTimer = setInterval(boardLive, 4000);
+  }
+
+  function loadBoard(reset) {
+    if (boardBusy) {
+      if (reset) boardAgain = true;
+      return;
+    }
+    boardBusy = true;
+    if (reset) boardOldest = 0;
+
+    var q = $("boardSearch").value.trim();
+    /* A search needs a month, because the server will not scan the whole board
+       for one - that is a row-read budget the relay also lives on. Rather than
+       refusing, pick this month and say so; the user can change it. It belongs
+       here rather than on the Enter key: a chip, the month, More and a live
+       refresh all reach the feed through this one function, and a typed-but-
+       not-entered search reaching the server without a month came back as the
+       server refusing, which the list showed as NOT CONNECTED. */
+    if (q && !$("boardMonth").value) {
+      $("boardMonth").value = new Date().toISOString().slice(0, 7);
+      toast("Searching this month - change the month to look further back.");
+    }
+
+    var month = $("boardMonth").value;
+    var body = { platform: boardPlatform, before: boardOldest };
+    if (month) {
+      var start = new Date(month + "-01T00:00:00");
+      var end = new Date(start.getFullYear(), start.getMonth() + 1, 1);
+      body.from = start.getTime();
+      body.to = end.getTime() - 1;
+    }
+    if (q) body.q = q;
+
+    api("/api/board/feed", body).then(function (res) {
+      boardBusy = false;
+      /* The filters moved on while this was in the air - this answer is
+         already about the wrong question, so it is not drawn at all. */
+      if (boardAgain) {
+        boardAgain = false;
+        loadBoard(true);
+        return;
+      }
+      $("boardError").hidden = true;
+
+      /* A feed that did not arrive is said once, in the space the list would
+         have filled. The line above the paste box is for the server's own
+         notice and for something the user just did - having both of them say
+         "could not reach the board" was the same sentence twice with an empty
+         room underneath. */
+      if (!res.ok) {
+        if (reset) {
+          $("boardList").innerHTML = "";
+          boardEmpty("NOT CONNECTED", res.error || "Could not read the board.");
+        }
+        $("boardMore").hidden = true;
+        return;
+      }
+      if (reset) $("boardList").innerHTML = "";
+
+      var hidden = boardHidden();
+      var shown = 0;
+      res.rows.forEach(function (row) {
+        if (hidden.indexOf(row.id) !== -1) return;
+        $("boardList").appendChild(boardRow(row, false));
+        shown++;
+        boardOldest = row.id;
+      });
+      $("boardMore").hidden = !res.more;
+
+      if (reset && !shown) {
+        var filtered = boardPlatform || $("boardMonth").value || $("boardSearch").value.trim();
+        if (filtered) {
+          boardEmpty("NOTHING MATCHES", "No links here for what you asked for. Clear the filters to see everything.");
+        } else {
+          boardEmpty("NOTHING HERE YET", "Paste a link above and it appears for everyone with the Board open.");
+        }
+      } else {
+        $("boardEmpty").hidden = true;
+      }
+    });
+  }
+
+  function boardRow(row, isNew) {
+    var el = document.createElement("div");
+    el.className = "board-row" + (isNew ? " is-new" : "");
+    el.dataset.id = row.id;
+    el.innerHTML =
+      '<span class="board-mark">' + esc(MARKS[row.platform] || row.platform) + "</span>" +
+      '<span class="board-main">' +
+        '<span class="board-title"></span>' +
+        '<span class="board-link"></span>' +
+      "</span>" +
+      '<span class="board-age">' + esc(ago(row.at / 1000)) + "</span>" +
+      '<span class="board-acts">' +
+        '<button class="ghost small" data-act="get">Download</button>' +
+        '<button class="ghost small" data-act="copy">Copy</button>' +
+        '<button class="ghost small danger" data-act="report" title="Report this link">Report</button>' +
+      "</span>";
+
+    /* Title and link as text nodes rather than markup. The server already caps
+       a title at 120 plain characters and the link is one it built itself, but
+       the row is the last place either of them could become something else,
+       and textContent cannot be talked into being HTML. */
+    el.querySelector(".board-title").textContent = row.title || "(no title)";
+    el.querySelector(".board-link").textContent = row.url;
+
+    el.addEventListener("click", function (e) {
+      var btn = e.target.closest("button[data-act]");
+      if (!btn) return;
+      var act = btn.dataset.act;
+
+      if (act === "copy") return copyText(row.url);
+
+      if (act === "get") {
+        api("/api/board/download", { url: row.url, title: row.title })
+          .then(function (res) {
+            toast(res.ok ? "Added to the queue" : (res.error || "Could not queue that."),
+                  res.ok ? "good" : "bad");
+          });
+        return;
+      }
+
+      if (act === "report") {
+        el.classList.add("is-gone");
+        el.querySelector(".board-title").textContent = "Reported — hidden for you.";
+        boardHide(row.id);
+        api("/api/board/report", { id: row.id });
+      }
+    });
+    return el;
+  }
+
+  /* Links that arrived while this room was open. Prepended rather than
+     reloading the list, so nothing the user is reading moves under them. */
+  function boardLive() {
+    api("/api/board/live").then(function (res) {
+      if (!res.ok) return;
+      var note = res.note || "";
+      if (note) {
+        $("boardNotice").textContent = note;
+        $("boardNotice").hidden = false;
+      } else if ($("boardNotice").textContent.indexOf("network") !== -1) {
+        $("boardNotice").hidden = true;
+      }
+
+      var hidden = boardHidden();
+      var list = $("boardList");
+      res.rows.forEach(function (row) {
+        if (hidden.indexOf(row.id) !== -1) return;
+        if (list.querySelector('[data-id="' + row.id + '"]')) return;
+        // A filtered view is a question the user asked. A new link that does
+        // not answer it does not belong on their screen.
+        if (boardPlatform && row.platform !== boardPlatform) return;
+        if ($("boardMonth").value || $("boardSearch").value.trim()) return;
+        list.insertBefore(boardRow(row, true), list.firstChild);
+        $("boardEmpty").hidden = true;
+      });
+    });
+  }
+
+  $("boardShare").addEventListener("click", function () {
+    var url = $("boardUrl").value.trim();
+    if (!url) return;
+    var btn = $("boardShare");
+    btn.disabled = true;
+    btn.textContent = "Reading link";
+    $("boardError").hidden = true;
+
+    api("/api/board/share", { url: url }).then(function (res) {
+      btn.disabled = false;
+      btn.textContent = "Share link";
+      if (!res.ok) {
+        $("boardError").textContent = res.error || "Could not share that.";
+        $("boardError").hidden = false;
+        return;
+      }
+      $("boardUrl").value = "";
+      toast("Shared", "good");
+      // The socket brings this back too, and boardRow skips an id already on
+      // screen - so pressing Share shows it at once without it arriving twice.
+      var list = $("boardList");
+      if (!list.querySelector('[data-id="' + res.row.id + '"]')) {
+        list.insertBefore(boardRow(res.row, true), list.firstChild);
+      }
+      $("boardEmpty").hidden = true;
+    });
+  });
+
+  $("boardUrl").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") $("boardShare").click();
+  });
+
+  $("boardPlatforms").addEventListener("click", function (e) {
+    var chip = e.target.closest(".chip");
+    if (!chip) return;
+    boardPlatform = chip.dataset.platform || "";
+    document.querySelectorAll("#boardPlatforms .chip").forEach(function (c) {
+      c.classList.toggle("is-on", c === chip);
+    });
+    loadBoard(true);
+  });
+
+  $("boardMonth").addEventListener("change", function () { loadBoard(true); });
+  $("boardMore").addEventListener("click", function () { loadBoard(false); });
+
+  $("boardSearch").addEventListener("keydown", function (e) {
+    if (e.key !== "Enter") return;
+    loadBoard(true);
+  });
+
+  $("boardClear").addEventListener("click", function () {
+    $("boardSearch").value = "";
+    $("boardMonth").value = "";
+    loadBoard(true);
+  });
+
   watchBadge();
   setInterval(watchBadge, 60000);
   // Always polling: even with clipboard watching off, this is how the window

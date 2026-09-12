@@ -33,6 +33,7 @@ import potoken
 import sharing
 import dropfolder
 import watch
+import board
 
 APP_TITLE = "Riplox"
 VERSION = "1.6.1"
@@ -1959,6 +1960,89 @@ def api_clipboard_dismiss():
 def api_show():
     """Raise the window - used by the tray, and by a second copy on startup."""
     show_window()
+    return jsonify({"ok": True})
+
+
+# --------------------------------------------------------------------------
+# The Board
+#
+# Thin on purpose. Every decision about what the board accepts, who may post
+# and what is hidden is made in the Worker, because this app is open source and
+# anybody can patch it. These routes exist so the window can ask.
+# --------------------------------------------------------------------------
+
+def _num(value, fallback=0):
+    """
+    A number out of whatever arrived in the body.
+
+    board.py promises that nothing in the Board ever raises into the app -
+    every answer is a dict with "ok" in it. These routes sit above it and were
+    the one place that could still break that promise: a bare int() on a value
+    the caller chose turns "id": "x" into an HTML 500 where the whole rest of
+    the feature answers in JSON somebody can read.
+    """
+    try:
+        return int(value or fallback)
+    except (TypeError, ValueError):
+        return fallback
+
+
+@app.get("/api/board/state")
+def api_board_state():
+    return jsonify(board.state())
+
+
+@app.post("/api/board/feed")
+def api_board_feed():
+    body = request.json or {}
+    # The socket is only open while somebody is looking, so asking for the feed
+    # is what says they are. One call does both rather than the window having
+    # to remember to send a second one.
+    board.watching()
+    return jsonify(board.feed(
+        platform=str(body.get("platform") or ""),
+        before=_num(body.get("before")),
+        frm=_num(body.get("from")),
+        to=_num(body.get("to")),
+        q=str(body.get("q") or ""),
+    ))
+
+
+@app.get("/api/board/live")
+def api_board_live():
+    """Rows that arrived down the socket since this was last asked."""
+    board.watching()
+    return jsonify({"ok": True, "rows": board.drain(), "note": board.note()})
+
+
+@app.post("/api/board/share")
+def api_board_share():
+    return jsonify(board.share(str((request.json or {}).get("url") or "")))
+
+
+@app.post("/api/board/report")
+def api_board_report():
+    return jsonify(board.report(_num((request.json or {}).get("id"))))
+
+
+@app.post("/api/board/download")
+def api_board_download():
+    """
+    Download a link from the board.
+
+    The same path a pasted link takes - manager.add, the same queue, the same
+    quality setting. There is no download code here and there must never be:
+    the board hands over a link, and everything after that is the app doing
+    what it already does with links.
+    """
+    body = request.json or {}
+    url = str(body.get("url") or "").strip()
+    if not url.startswith("https://"):
+        return jsonify({"ok": False, "error": "That is not a link from the board."}), 400
+
+    settings = engine.load_settings()
+    manager.add(url=url, title=str(body.get("title") or "") or url,
+                quality=settings.get("default_quality", "best"), origin="board")
     return jsonify({"ok": True})
 
 

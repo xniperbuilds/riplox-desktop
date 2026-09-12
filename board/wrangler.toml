@@ -1,0 +1,46 @@
+name = "riplox-board"
+main = "worker.js"
+compatibility_date = "2026-08-01"
+workers_dev = false
+
+# Its own Worker, deliberately. The Board and the relay share a Cloudflare
+# account and therefore a daily free allowance, but they must not share a
+# deployment: the relay is what Send runs on, and nothing about a link board
+# should ever be a reason to redeploy it.
+[observability]
+enabled = true
+
+# The app talks to a brand address rather than a generated workers.dev one -
+# that subdomain carries the account owner's email, which is not something to
+# ship inside a public app. DNS for this has to exist before the first deploy.
+[[routes]]
+pattern = "board.xniperbuilds.com"
+custom_domain = true
+
+# One object, one room. There is no room id anywhere in an address here, so
+# there is nothing for anybody to invent - the relay had to close exactly that
+# hole once, where invented ids meant invented objects writing rows.
+[[durable_objects.bindings]]
+name = "BOARD"
+class_name = "Board"
+
+# SQLite-backed, which is the only class the free plan allows - and the one
+# this needs anyway. The board is a table that gets filtered by platform, by
+# date and by a search over titles; the key-value storage the relay's queue
+# uses could not answer any of those without reading everything.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Board"]
+
+# Two secrets, neither in this file. Set both before the first deploy:
+#
+#   wrangler secret put BOARD_KEY    - the admin key. The admin endpoints
+#                                      refuse everybody while it is unset,
+#                                      rather than falling back to a default.
+#                                      XCipher shipped a guessable default
+#                                      once; this is that lesson.
+#   wrangler secret put BOARD_SALT   - salts the hashes of install ids and
+#                                      addresses. Without it an address is a
+#                                      thirty-two bit space anybody could walk
+#                                      through to match a hash to a person,
+#                                      and "anonymous" stops being true.

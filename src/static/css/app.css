@@ -3585,3 +3585,103 @@ select:focus { border-color: rgba(var(--cyan-rgb), .45); }
 
 .clip-row { margin-top: 9px; }
 .clip-row .chips { gap: 6px; }
+
+/* --- board --------------------------------------------------------------- *
+
+   Nearly all of this room is borrowed: .chip, .text-input, .ghost, .empty and
+   .watch-add are the app's own, and the Board using them is what stops it
+   reading as a page from somewhere else. What is here is the row, because a
+   list of links is a shape this app did not have.
+
+   Sizes follow the app lane rather than a website: 14 for the line people
+   read, 11.5 for the line they only glance at, weight 500 doing the work, and
+   the 9px control radius every other control in this window already uses.
+   -------------------------------------------------------------------------- */
+/* The two lines this room ever says back. Amber rather than red: a refused
+   link and a closed board are both "not now", not "something broke". The soft
+   one carries the server's own notice, which is information rather than a
+   refusal. */
+.board-note {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--amber-ink);
+}
+.board-note.soft { color: var(--ink-dim); }
+
+.board-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 16px 0 12px;
+}
+.board-bar .text-input { min-width: 0; }
+/* Both measured against their own content rather than guessed: the native
+   month control draws "mm/yyyy" plus a picker button and clips below this,
+   and the search placeholder has to fit without being cut off - a control
+   that swallows the end of its own label is the defect users notice first. */
+#boardSearch { min-width: 172px; }
+#boardMonth { width: 168px; font-family: var(--mono); }
+
+.board-list { display: flex; flex-direction: column; gap: 8px; }
+
+.board-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-s);
+  background: var(--tint);
+}
+.board-row:hover { background: var(--panel); border-color: var(--line); }
+
+/* A row that has just arrived down the socket. The Board is the one screen
+   where something appears without the user having done anything, and an item
+   that slides into a list unmarked reads as a list that jumped. */
+.board-row.is-new { border-color: rgba(var(--cyan-rgb), .35); }
+
+.board-mark {
+  flex: none;
+  width: 76px;
+  font-family: var(--display);
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.board-main { flex: 1 1 auto; min-width: 0; }
+.board-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  /* One line, always. A title is 120 characters at the server and a window can
+     be narrow; without this a long one wraps and the rows stop being the same
+     height, which is the thing that makes a list hard to scan. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.board-link {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.board-age { flex: none; font-size: 11.5px; color: var(--ink-faint); }
+.board-acts { flex: none; display: flex; gap: 6px; }
+.board-acts .ghost.small { padding: 6px 11px; font-size: 12px; }
+
+.board-more { display: flex; justify-content: center; margin-top: 12px; }
+
+/* Reported, and gone for this person before the server has answered. The row
+   is left in place saying so rather than vanishing, because a row that
+   disappears under the cursor is indistinguishable from a misclick. */
+.board-row.is-gone { opacity: .5; }
+.board-row.is-gone .board-acts { display: none; }

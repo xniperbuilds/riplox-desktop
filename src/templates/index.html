@@ -78,6 +78,14 @@
       <span class="tab-label">Sharing</span>
       <em class="badge" id="shareBadge" hidden>0</em>
     </button>
+    <button class="tab" data-view="board" role="tab" title="Board">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3.4" y="4.6" width="17.2" height="14.8" rx="2.4"/>
+        <path d="M7 9.4h10M7 13h6.5"/>
+      </svg>
+      <span class="tab-label">Board</span>
+    </button>
     <button class="tab" data-view="settings" role="tab" title="Settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -984,6 +992,69 @@
       <span>Links sent from a paired device show up here.</span>
     </div>
     <div id="incomingList"></div>
+  </section>
+
+  <!-- ============================ BOARD ============================== -->
+  <!-- One public room of links. There is no message box anywhere in here and
+       there must never be: the moment somebody can type a line of their own,
+       this stops being a list of links and becomes a chat, and every control
+       behind it was designed for the first thing and not the second. -->
+  <section class="view" id="view-board">
+    <div class="view-head">
+      <h2>Board</h2>
+      <div class="row-gap">
+        <span class="share-state" id="boardState">off</span>
+      </div>
+    </div>
+
+    <p class="conv-note">Links people have shared, from YouTube, TikTok,
+      Instagram, X and Snapchat. No names and no accounts — nobody can see who
+      posted what, including Riplox. Links are not checked by anyone before
+      they appear here; if something does not belong, report it.</p>
+
+    <p class="board-note soft" id="boardNotice" hidden></p>
+
+    <div class="watch-add">
+      <input type="url" id="boardUrl" class="text-input"
+             placeholder="Paste a link to share it" autocomplete="off">
+      <button class="ghost small" id="boardShare">Share link</button>
+    </div>
+    <p class="board-note" id="boardError" hidden></p>
+
+    <div class="board-bar">
+      <div class="chips" id="boardPlatforms">
+        <button class="chip is-on" data-platform="">All</button>
+        <button class="chip" data-platform="youtube">YouTube</button>
+        <button class="chip" data-platform="tiktok">TikTok</button>
+        <button class="chip" data-platform="instagram">Instagram</button>
+        <button class="chip" data-platform="x">X</button>
+        <button class="chip" data-platform="snapchat">Snapchat</button>
+      </div>
+      <div class="row-gap">
+        <!-- Search runs inside the chosen month, never across everything. A
+             month is also the unit somebody actually remembers a link by. -->
+        <input type="month" id="boardMonth" class="text-input" title="Show one month">
+        <input type="search" id="boardSearch" class="text-input"
+               placeholder="Search titles" title="Searches inside the month shown"
+               autocomplete="off">
+        <button class="ghost small" id="boardClear">Clear</button>
+      </div>
+    </div>
+
+    <!-- Whatever the list has nothing to show for - an empty board, a filter
+         that matched nothing, or a board that cannot be reached - says so
+         here. An empty room with a one-line error above it and a large blank
+         below reads as a broken screen. -->
+    <div class="empty" id="boardEmpty" hidden>
+      <p id="boardEmptyTitle">NOTHING HERE YET</p>
+      <span id="boardEmptyNote">Paste a link above and it appears for everyone
+        with the Board open.</span>
+    </div>
+
+    <div class="board-list" id="boardList"></div>
+    <div class="board-more">
+      <button class="ghost small" id="boardMore" hidden>Show older</button>
+    </div>
   </section>
 
   <!-- =========================== SETTINGS ============================ -->

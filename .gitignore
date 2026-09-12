@@ -51,6 +51,7 @@ SEND_TEXT_PLAN.md
 MULTI_PC_PLAN.md
 WHATSNEW_AUTO_PLAN.md
 LAUNCH_PLAN.md
+CHAT_PLAN.md
 
 # Working scripts: one-off probes, diagnostics, and the tests that still carry
 # this machine's own paths or real links out of somebody's history. Those need
@@ -91,3 +92,8 @@ audits/
 
 # Chocolatey builds this from the nuspec; it is an artefact, not source.
 packaging/chocolatey/*.nupkg
+
+# Local values for the board Worker while it runs on this machine. Dummy ones,
+# but the file is the shape secrets live in and must never be the exception.
+board/.dev.vars
+board/.wrangler/
