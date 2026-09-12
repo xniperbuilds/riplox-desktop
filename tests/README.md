@@ -27,6 +27,32 @@ both runs until it is:
 cd relay && npx wrangler dev --port 8799 --local
 ```
 
+## The Board's tests are JavaScript, and `run.py` never sees them
+
+Two files here end in `.mjs`, because the thing they test is a Cloudflare
+Worker. `python tests/run.py` does not know about them and will not tell you
+they were skipped, so they are written down here instead:
+
+```bash
+node tests/test_board_parser.mjs          # no network, no Worker needed
+cd board && npx wrangler dev --port 8798 --local
+node tests/test_board_worker.mjs          # needs that Worker running
+```
+
+`test_board_parser.mjs` is the one that matters most. The Board's whole
+security model is that a link is never trusted and never stored as typed - it
+is parsed down to a platform and a content id and rebuilt from the Worker's
+own table - so that file is an attack corpus, and it ends by breaking the
+parser on purpose six times to check the corpus would notice.
+
+`test_board_worker.mjs` runs the flow against a real `wrangler dev`: a link is
+stored, comes back out of the feed, cannot be posted twice, stops being
+postable after five in an hour, disappears at three reports from three
+different places, comes back when restored, and stops entirely when the kill
+switch is thrown. Every id is generated fresh per run, because the Durable
+Object keeps its table between runs and a second run reusing an id would fail
+for the wrong reason.
+
 ## What is not here
 
 `tests-local/` is not in the repository. It holds one-off probes and
