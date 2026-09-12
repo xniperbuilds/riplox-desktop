@@ -193,6 +193,121 @@ def cmd_notice(a, key):
                 "  it the next time they come back to it:\n    " + text)
 
 
+# --------------------------------------------------------------- watching
+
+def cmd_waiting(_a, key):
+    """
+    For something that runs on a timer.
+
+    Prints one line and nothing else, and says what it found in its exit code:
+    0 there is nothing to do, 1 somebody should look, 2 the board could not be
+    asked. A checker that cannot tell "nothing reported" from "could not ask"
+    is a checker that goes quiet the day it matters.
+    """
+    rows = hidden_rows(key)
+    if rows is None:
+        print("unreachable")
+        return 2
+    print(len(rows))
+    return 1 if rows else 0
+
+
+# --------------------------------------------------------------- the menu
+
+def hidden_rows(key):
+    got = ask("/admin/hidden", {}, key)
+    return None if not got.get("ok") else (got.get("rows") or [])
+
+
+def board_state():
+    got = ask("/state", {})
+    return got if got.get("ok") else None
+
+
+def draw(key):
+    print("\n" + "=" * 62)
+    print("  RIPLOX BOARD")
+    print("=" * 62)
+
+    state = board_state()
+    if state is None:
+        print("  The board could not be reached. It may be off, or this machine")
+        print("  is offline. Nothing below will work until it answers.")
+    else:
+        print("  board:   %-8s posting: %s" % (
+            "ON" if state.get("on") else "OFF",
+            "yes" if state.get("posting") else "no (read-only)"))
+        print("  notice:  %s" % (state.get("notice") or "(none)"))
+
+    rows = hidden_rows(key)
+    print("-" * 62)
+    if rows is None:
+        print("  Could not read the review list - is the key right?")
+    elif not rows:
+        print("  Nothing is waiting for you. Nobody has reported anything.")
+    else:
+        print("  %d LINK(S) REPORTED - they are hidden from everyone:\n" % len(rows))
+        print("  %-6s %-10s %-7s %-4s %s" % ("id", "platform", "age", "rep", "title"))
+        for row in rows:
+            print("  %-6s %-10s %-7s %-4s %s" % (
+                row.get("id"), row.get("platform"), ago(row.get("at", 0)),
+                row.get("reports"), (row.get("title") or row.get("url") or "")[:40]))
+    print("-" * 62)
+    return rows
+
+
+def pick(prompt):
+    try:
+        return input(prompt).strip()
+    except (EOFError, KeyboardInterrupt):
+        return ""
+
+
+def cmd_menu(_a, key):
+    """Everything the admin door does, without a command to remember."""
+    while True:
+        rows = draw(key)
+        print("  1  look again          4  write a notice")
+        print("  2  put a link back     5  stop new posts / allow them again")
+        print("  3  delete a link       6  turn the board off / on")
+        print("  0  close")
+        choice = pick("\n  > ")
+
+        if choice in ("0", "q", ""):
+            return 0
+        if choice == "1":
+            continue
+        if choice in ("2", "3"):
+            if not rows:
+                print("\n  There is nothing hidden to act on.")
+                pick("  Enter to go back ")
+                continue
+            which = pick("  Which id? ")
+            if not which.isdigit():
+                continue
+            args = argparse.Namespace(id=int(which))
+            (cmd_restore if choice == "2" else cmd_delete)(args, key)
+            pick("\n  Enter to go back ")
+        elif choice == "4":
+            text = pick("  What should it say (empty to remove it)? ")
+            cmd_notice(argparse.Namespace(text=[text] if text else [], clear=not text), key)
+            pick("\n  Enter to go back ")
+        elif choice == "5":
+            state = board_state() or {}
+            (cmd_open if not state.get("posting") else cmd_readonly)(None, key)
+            pick("\n  Enter to go back ")
+        elif choice == "6":
+            state = board_state() or {}
+            if state.get("on"):
+                print("\n  Turning the board off means nobody can even read it.")
+                if pick("  Type OFF to confirm: ") != "OFF":
+                    continue
+                cmd_off(None, key)
+            else:
+                cmd_on(None, key)
+            pick("\n  Enter to go back ")
+
+
 # --------------------------------------------------------------- cli
 
 def main(argv=None):
@@ -224,12 +339,19 @@ def main(argv=None):
     s.add_argument("--clear", action="store_true")
     s.set_defaults(func=cmd_notice)
 
+    s = sub.add_parser("menu", help="all of the above, without a command to remember")
+    s.set_defaults(func=cmd_menu)
+
+    s = sub.add_parser("waiting", help="exit 1 if something is hidden - for a scheduled check")
+    s.set_defaults(func=cmd_waiting)
+
     a = p.parse_args(argv)
     if not getattr(a, "func", None):
         p.print_help()
         return 2
 
-    print("  %s" % BOARD)
+    if a.func not in (cmd_menu, cmd_waiting):
+        print("  %s" % BOARD)
     key = "" if a.func is cmd_state else read_key(a.key_file)
     return a.func(a, key)
 
