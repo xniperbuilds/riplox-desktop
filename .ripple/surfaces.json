@@ -3,40 +3,10 @@
   "root": "C:\\Users\\FAIZAN COMPUTERS\\Desktop\\XniperBuilds\\RiploxDesktop",
   "surfaces": [
     {
-      "kind": "version",
-      "where": "browser-extension-store/manifest.json",
-      "asserts": "the current version",
-      "note": "SEPARATE product, versions on its own - different name and description, published under its own Web Store id. Does NOT track the app."
-    },
-    {
-      "kind": "version",
-      "where": "browser-extension/manifest.json",
-      "asserts": "the current version",
-      "note": ""
-    },
-    {
-      "kind": "version",
-      "where": "packaging/chocolatey/riplox.nuspec",
-      "asserts": "the current version",
-      "note": "Written by packaging/bump.py AFTER the GitHub release exists, from the release's own assets. Expected to lag until then."
-    },
-    {
-      "kind": "version",
-      "where": "send-windows/src/app.py",
-      "asserts": "the current version",
-      "note": "Riplox Send, a separate app with its own version. Does NOT track Riplox Desktop."
-    },
-    {
-      "kind": "version",
-      "where": "src/app.py",
-      "asserts": "the current version",
-      "note": ""
-    },
-    {
-      "kind": "version",
-      "where": "src/native_host.py",
-      "asserts": "the current version",
-      "note": ""
+      "kind": "deploy",
+      "where": "Cloudflare Worker riplox-board (board.xniperbuilds.com)",
+      "asserts": "that the Board endpoint exists and answers, for every copy of Riplox 1.7.0 and later",
+      "note": "Shipping the app is a permanent promise to keep this endpoint alive: winget, Scoop, Chocolatey and GitHub copies will call it for years. The kill switch can empty the board; the endpoint itself can never be deleted. Needs DNS, BOARD_KEY and BOARD_SALT set as secrets, and a Cloudflare login this machine does not have."
     },
     {
       "kind": "doc",
@@ -75,6 +45,48 @@
       "note": ""
     },
     {
+      "kind": "packaging",
+      "where": "Chocolatey listing (chocolatey.com)",
+      "asserts": "the version Chocolatey serves",
+      "note": "Console, not a file. The 1.4.1 submission was awaiting moderation."
+    },
+    {
+      "kind": "packaging",
+      "where": "packaging/scoop/riplox.json",
+      "asserts": "the version, portable URL and hash Scoop serves",
+      "note": "Written by bump.py."
+    },
+    {
+      "kind": "packaging",
+      "where": "packaging/winget/XniperBuilds.Riplox.yaml (+ installer.yaml)",
+      "asserts": "the version, installer URL and SHA-256 winget serves",
+      "note": "Written by packaging/bump.py after the release; then a PR to microsoft/winget-pkgs. The 1.4.1 PR is STILL OPEN - check it first."
+    },
+    {
+      "kind": "people",
+      "where": "whoever reported the https failure (L1)",
+      "asserts": "that the fault was understood and fixed",
+      "note": "They were on 1.6.0 with the old defaults. 1.6.1 is the answer to their report - nobody has told them."
+    },
+    {
+      "kind": "promise",
+      "where": "PRIVACY-EXTENSION.md",
+      "asserts": "what the browser extension handles, and the Chrome Web Store listing that quotes it",
+      "note": "Checked 12-Sep against the Board: still true, because it says what happens after an address reaches Riplox is Riplox's business and never claims Riplox sends nothing."
+    },
+    {
+      "kind": "promise",
+      "where": "TERMS.txt",
+      "asserts": "the terms a person accepts before installing: what Riplox sends, and what it does not",
+      "note": "Carries the version in its heading AND a closed list of every outbound connection. A new network feature makes that list false - which is how it went two releases naming the wrong version. Shipped by build/installer.iss, make_paf.py and make_portable.py."
+    },
+    {
+      "kind": "release",
+      "where": "GitHub release v1.6.1 assets",
+      "asserts": "what the download buttons and the checksums point at",
+      "note": "STABLE-NAMED copies (Riplox_Setup.exe, Riplox_Portable.zip) must be uploaded alongside the versioned ones, and SHA256SUMS.txt with them. build/release_check.py verifies this AFTER publishing."
+    },
+    {
       "kind": "remote",
       "where": "https://github.com/xniperbuilds/riplox-desktop.git",
       "asserts": "the repository description and topics",
@@ -88,39 +100,63 @@
     },
     {
       "kind": "site",
+      "where": "XniperBuildsSite (xniperbuilds.com) /riplox-features/ page",
+      "asserts": "every feature, one paragraph each, with a jump list that has to match",
+      "note": "A new feature missing from here is not false, it is incomplete - and this is the page written to be the complete list."
+    },
+    {
+      "kind": "site",
       "where": "XniperBuildsSite privacy policy",
       "asserts": "what Riplox sends, stores and installs",
       "note": "A release can make this false on its own - see the 1.6.0 case where 'four things, and nothing else' had become six."
     },
     {
-      "kind": "packaging",
-      "where": "packaging/winget/XniperBuilds.Riplox.yaml (+ installer.yaml)",
-      "asserts": "the version, installer URL and SHA-256 winget serves",
-      "note": "Written by packaging/bump.py after the release; then a PR to microsoft/winget-pkgs. The 1.4.1 PR is STILL OPEN - check it first."
+      "kind": "version",
+      "where": "browser-extension-store/manifest.json",
+      "asserts": "the current version",
+      "note": "SEPARATE product, versions on its own - different name and description, published under its own Web Store id. Does NOT track the app."
     },
     {
-      "kind": "packaging",
-      "where": "packaging/scoop/riplox.json",
-      "asserts": "the version, portable URL and hash Scoop serves",
-      "note": "Written by bump.py."
+      "kind": "version",
+      "where": "browser-extension/manifest.json",
+      "asserts": "the current version",
+      "note": ""
     },
     {
-      "kind": "packaging",
-      "where": "Chocolatey listing (chocolatey.com)",
-      "asserts": "the version Chocolatey serves",
-      "note": "Console, not a file. The 1.4.1 submission was awaiting moderation."
+      "kind": "version",
+      "where": "build/installer.iss",
+      "asserts": "AppVersion - the installer's own name for the version",
+      "note": "tests/test_versions_agree.py treats this as one of the four that ship inside a build. The scanner does not read .iss."
     },
     {
-      "kind": "release",
-      "where": "GitHub release v1.6.1 assets",
-      "asserts": "what the download buttons and the checksums point at",
-      "note": "STABLE-NAMED copies (Riplox_Setup.exe, Riplox_Portable.zip) must be uploaded alongside the versioned ones, and SHA256SUMS.txt with them. build/release_check.py verifies this AFTER publishing."
+      "kind": "version",
+      "where": "build/version_info.txt",
+      "asserts": "the version in Windows' file properties, as four numbers and two strings",
+      "note": "Four separate places in one file. Missing one leaves Explorer showing the old version on a new build."
     },
     {
-      "kind": "people",
-      "where": "whoever reported the https failure (L1)",
-      "asserts": "that the fault was understood and fixed",
-      "note": "They were on 1.6.0 with the old defaults. 1.6.1 is the answer to their report - nobody has told them."
+      "kind": "version",
+      "where": "packaging/chocolatey/riplox.nuspec",
+      "asserts": "the current version",
+      "note": "Written by packaging/bump.py AFTER the GitHub release exists, from the release's own assets. Expected to lag until then."
+    },
+    {
+      "kind": "version",
+      "where": "send-windows/src/app.py",
+      "asserts": "the current version",
+      "note": "Riplox Send, a separate app with its own version. Does NOT track Riplox Desktop."
+    },
+    {
+      "kind": "version",
+      "where": "src/app.py",
+      "asserts": "the current version",
+      "note": ""
+    },
+    {
+      "kind": "version",
+      "where": "src/native_host.py",
+      "asserts": "the current version",
+      "note": ""
     }
   ]
 }
