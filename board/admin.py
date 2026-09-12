@@ -47,8 +47,21 @@ def read_key(key_file: str | None) -> str:
         return direct
 
     path = key_file or os.environ.get("BOARD_KEY_FILE", "")
+
+    # Last resort, and the one that makes double-clicking this file work: a
+    # file next to it holding the PATH to the key - a pointer, not a secret,
+    # so it can say where this machine keeps things without this repo, which
+    # is public, having to know.
     if not path:
-        sys.exit("No key. Set BOARD_KEY, or BOARD_KEY_FILE, or pass --key-file.")
+        pointer = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".admin-key-path")
+        try:
+            path = open(pointer, encoding="utf-8").read().strip()
+        except OSError:
+            path = ""
+
+    if not path:
+        sys.exit("No key. Set BOARD_KEY or BOARD_KEY_FILE, pass --key-file, or put the\n"
+                 "  path to the key file in board/.admin-key-path")
     try:
         text = open(path, encoding="utf-8").read()
     except OSError as exc:
@@ -345,7 +358,10 @@ def main(argv=None):
     s = sub.add_parser("waiting", help="exit 1 if something is hidden - for a scheduled check")
     s.set_defaults(func=cmd_waiting)
 
-    a = p.parse_args(argv)
+    # Double-clicked, or run with nothing after it: the menu is what anybody
+    # wants. Printing help into a console that closes a tenth of a second
+    # later is the same as printing nothing.
+    a = p.parse_args(argv if argv is not None else (sys.argv[1:] or ["menu"]))
     if not getattr(a, "func", None):
         p.print_help()
         return 2
@@ -357,4 +373,19 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # A window opened by double-clicking this file closes the instant the
+    # script ends, which turns every message - including "no key" - into a
+    # flash nobody can read. So when there were no arguments, wait.
+    launched_by_hand = not sys.argv[1:]
+    try:
+        code = main()
+    except SystemExit as stop:
+        code = stop.code if isinstance(stop.code, int) else 1
+        if stop.code and not isinstance(stop.code, int):
+            print("\n  " + str(stop.code))
+    if launched_by_hand:
+        try:
+            input("\n  Enter to close ")
+        except (EOFError, KeyboardInterrupt):
+            pass
+    sys.exit(code)

@@ -98,3 +98,6 @@ packaging/chocolatey/*.nupkg
 # but the file is the shape secrets live in and must never be the exception.
 board/.dev.vars
 board/.wrangler/
+# Says where this machine keeps the admin key. A pointer, not a secret -
+# but it is one machine's layout and nobody else's business.
+board/.admin-key-path
