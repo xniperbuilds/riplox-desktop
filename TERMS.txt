@@ -1,6 +1,6 @@
 ﻿RIPLOX DESKTOP - TERMS AND CONDITIONS
 XniperBuilds
-Terms version 1.4, for Riplox Desktop 1.6.1 - please read before installing.
+Terms version 1.5, for Riplox Desktop 1.7.0 - please read before installing.
 
 
 1. WHAT RIPLOX IS
@@ -70,7 +70,9 @@ Nothing here excludes liability that cannot lawfully be excluded.
 
 Riplox has no accounts, no telemetry and no analytics. It does not collect,
 transmit or sell any personal information, and your download history stays on
-your own computer. XniperBuilds receives nothing from your use of the program.
+your own computer. Unless you open the Board, described in section 6,
+XniperBuilds receives nothing from your use of the program - and what the Board
+receives is set out there rather than summarised away here.
 
 Riplox makes network connections only for these purposes:
 
@@ -97,7 +99,11 @@ Riplox makes network connections only for these purposes:
      it is, it is sealed on the device that sends it and can only be opened by
      the device you paired it with - nobody in between, including XniperBuilds,
      can read it. The content of a video never passes through anyone else's
-     server.
+     server;
+  g) if you open the Board, a connection to a server run by XniperBuilds for
+     that one purpose, described in section 6. Nothing is sent while you are
+     not looking at the Board, and a copy of Riplox whose Board is never
+     opened never contacts it at all.
 
 If you turn on the optional sponsor-segment feature, Riplox asks a public
 community database about the video you are downloading. If you would rather
@@ -114,7 +120,57 @@ either way, because they are saved wherever you chose and are not Riplox's to
 remove.
 
 
-6. THIRD-PARTY COMPONENTS
+6. THE BOARD
+
+The Board is one public room inside Riplox where people post links. It is the
+only part of the program that sends anything to XniperBuilds, and everything
+about it happens only while you have it open.
+
+WHAT IT IS. Links, and nothing else. There is no message box, no profile, no
+reply, and no way to write a sentence of your own. Only YouTube, TikTok,
+Instagram, X and Snapchat Spotlight links are accepted; a link to anywhere else
+is refused rather than posted.
+
+WHAT IS SENT WHEN YOU POST. The link, rebuilt. The server reads the platform
+and the content id out of what you pasted and builds a clean address from its
+own table, so the address you typed - including anything attached to it that
+was tracking you - is neither stored nor shown to anybody. The title of the
+video goes with it, read by your own computer from a site you had already
+chosen to open, so that nobody reading the Board has to fetch anything from
+that platform. A random identifier for this copy of Riplox is sent as well; it
+is stored only as a salted hash, it is not a name or an account and is not
+derived from anything about your machine, and deleting it gives you a new one.
+As with any request to any website, your network address reaches the server
+that answers. It is kept only as a salted hash, for counting how often one
+place is posting, and it is never shown to anybody or stored beside anything
+that could name you.
+
+WHAT IS PUBLIC, AND FOR HOW LONG. Everything you post. Anyone running Riplox
+with the Board open sees it, and links posted there are meant to stay. A link
+is never deleted, including by you - so post one only if you are content for it
+to be readable indefinitely.
+
+WHAT YOU MAY POST. Only links you would be willing to hand to a stranger:
+lawful where you are, yours to share, and honestly described. Do not post
+anything unlawful, anything sexual involving a child, anything meant to harass
+a person, or a link whose title describes something other than what it leads
+to.
+
+REPORTING. Every row has Report. The moment you press it, that row is hidden
+for you, without waiting for anybody else to agree. When three different copies
+of Riplox, from three different places, have reported the same link, it is
+hidden for everyone.
+
+WHAT XNIPERBUILDS MAY DO. Hide a link, stop the Board taking new ones, or close
+it altogether - at any time and without notice. The Board is a free extra
+inside a free program, and nothing here promises that it will exist tomorrow or
+that anything posted to it will stay reachable. Riplox does not host, store or
+supply any video posted there. A link is an address, and everything in section
+2 about what you download applies just as much to something you found on the
+Board.
+
+
+7. THIRD-PARTY COMPONENTS
 
 Riplox uses independent open-source components, each under its own licence,
 including yt-dlp and FFmpeg. Those components are the work of their own
@@ -122,7 +178,7 @@ authors, are not owned by XniperBuilds, and carry their own terms and their
 own absence of warranty. Their licences are included with the installation.
 
 
-7. SIGNING IN TO WEBSITES
+8. SIGNING IN TO WEBSITES
 
 If you sign in through Riplox to reach private or members-only material, that
 account remains subject to the rules of the website concerned. Heavy automated
@@ -131,7 +187,7 @@ yours. Using a spare account is the safer choice, and Riplox says so in the
 program itself.
 
 
-8. THESE TERMS
+9. THESE TERMS
 
 If any part of these terms is found unenforceable, the rest continues to
 apply. These terms may be updated in later versions of the program; the

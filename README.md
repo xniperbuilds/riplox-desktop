@@ -61,6 +61,7 @@ thousand other sites.
 | Drop folder | Optional. A folder anything on this PC can write into: a file of links, one per line or JSON, and Riplox queues them. Read files are renamed, never deleted |
 | Schedule | Hold new downloads outside chosen hours, or give one download its own start time — 02:00 means tonight, and the row says how long it is waiting. A download already running is never cut off |
 | Send to Riplox | Share a link from your phone or another PC and this one downloads it — see below |
+| Board | One public room of links — YouTube, TikTok, Instagram, X and Snapchat Spotlight — with Download and Copy on every row. The only part of Riplox that talks to a server of ours, and only while you have it open — see below |
 | Start with Windows | Optional, and it starts into the tray rather than onto your screen |
 | Tray | Closing the window keeps downloads running, with progress on the taskbar button and a notification when each file lands |
 | Sign-in | Sign in through your own browser for private, members-only and age-gated videos |
@@ -184,6 +185,33 @@ Opening a pairing link on Windows hands it to that app rather than to the
 browser: it registers `riploxsend://` when it installs, and the pairing page
 asks which one the code is for. The code works once, so pairing the browser
 would spend it and leave the app needing a second one.
+
+### The Board
+
+One public room, inside the app, where people post links. Only links: there is
+no message box and no way to write a line of your own, and only YouTube,
+TikTok, Instagram, X and Snapchat Spotlight are accepted — a platform is on
+that list only where the engine already has an extractor for it, so the Board
+never shows something Riplox cannot open. Every row has Download, which goes
+into the same queue a pasted link does, and Copy.
+
+It is the only feature that contacts a server of ours, and it does so only
+while the Board is on screen: the connection opens when you look and closes a
+minute after you leave, so a copy whose Board is never opened never reaches us
+at all.
+
+What you paste is never stored. The server reads the platform and the content
+id out of it and builds a clean address from its own table — which is why a
+lookalike host, an open redirect or a string of tracking parameters cannot
+survive the trip, and why nothing has to be sanitised: nothing you wrote is
+kept. The title comes from whoever posted it, whose own machine had already
+asked that site, so reading the Board never sends your address to a platform.
+
+Reporting hides a row for you immediately, without waiting for anybody to
+agree. At three reports, from three different installs in three different
+places, it is hidden for everyone. Links are never deleted, so post one only
+if you are content for it to stay readable. `TERMS.txt` section 6 sets out
+exactly what is sent and what the rules are.
 
 ### Following a channel
 
@@ -393,6 +421,15 @@ Settings, history and the updatable engine live in
 `%LOCALAPPDATA%\RiploxDesktop`. Pairing keys are kept in their own file there,
 never in the settings, so a settings backup cannot carry one machine's paired
 phones onto another.
+
+The Board is a Cloudflare Worker of its own, in `board/`, deliberately separate
+from the relay Send uses: they share an account and therefore a daily
+allowance, but nothing about a link board should ever be a reason to redeploy
+the thing Send runs on. Every decision it makes — what a link is, who may post,
+what is hidden — is made there rather than in the app, because this app is open
+source and anybody can patch a check made on their own machine. `src/board.py`
+holds the client and the socket, and there is deliberately no second copy of
+the link parser in it: one parser, in one place, asked over `/check`.
 
 ## Notes
 

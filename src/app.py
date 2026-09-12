@@ -36,7 +36,7 @@ import watch
 import board
 
 APP_TITLE = "Riplox"
-VERSION = "1.6.1"
+VERSION = "1.7.0"
 
 
 def resource_dir() -> Path:
