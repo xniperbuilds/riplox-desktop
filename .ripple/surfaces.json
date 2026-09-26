@@ -114,7 +114,8 @@
       "kind": "version",
       "where": "browser-extension-store/manifest.json",
       "asserts": "the current version",
-      "note": "SEPARATE product, versions on its own - different name and description, published under its own Web Store id. Does NOT track the app."
+      "note": "SEPARATE product, versions on its own - different name and description, published under its own Web Store id. Does NOT track the app.",
+      "independent": true
     },
     {
       "kind": "version",
@@ -144,7 +145,8 @@
       "kind": "version",
       "where": "send-windows/src/app.py",
       "asserts": "the current version",
-      "note": "Riplox Send, a separate app with its own version. Does NOT track Riplox Desktop."
+      "note": "Riplox Send, a separate app with its own version. Does NOT track Riplox Desktop.",
+      "independent": true
     },
     {
       "kind": "version",
