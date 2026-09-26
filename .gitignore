@@ -54,6 +54,10 @@ LAUNCH_PLAN.md
 CHAT_PLAN.md
 ANNOUNCE_PLAN.md
 
+# Launch material - promo clips and store copy. It belongs to the launch, not
+# to the source, and it is kept beside the repository rather than in it.
+launch-pack/
+
 # Working scripts: one-off probes, diagnostics, and the tests that still carry
 # this machine's own paths or real links out of somebody's history. Those need
 # a pass for personal data before they could be published, and until then this
