@@ -12,7 +12,7 @@
       "kind": "doc",
       "where": "README.md",
       "asserts": "what this project is and how to install it",
-      "note": ""
+      "note": "The Install section names the winget, Chocolatey and Scoop commands. If a listing is ever withdrawn, its line becomes a false instruction."
     },
     {
       "kind": "doc",
@@ -48,7 +48,7 @@
       "kind": "packaging",
       "where": "Chocolatey listing (chocolatey.com)",
       "asserts": "the version Chocolatey serves",
-      "note": "Console, not a file. The 1.4.1 submission was awaiting moderation."
+      "note": "Console, not a file. Every push waits in moderation (1-3 days) before Chocolatey serves it."
     },
     {
       "kind": "packaging",
@@ -60,7 +60,7 @@
       "kind": "packaging",
       "where": "packaging/winget/XniperBuilds.Riplox.yaml (+ installer.yaml)",
       "asserts": "the version, installer URL and SHA-256 winget serves",
-      "note": "Written by packaging/bump.py after the release; then a PR to microsoft/winget-pkgs. The 1.4.1 PR is STILL OPEN - check it first."
+      "note": "Written by packaging/bump.py after the release. The package is in microsoft/winget-pkgs since 25-Sep-2026 (PR #425117, 1.7.0), so every new version is a NEW pull request there - see packaging/README.md."
     },
     {
       "kind": "people",
@@ -82,7 +82,7 @@
     },
     {
       "kind": "release",
-      "where": "GitHub release v1.6.1 assets",
+      "where": "GitHub release assets (every release)",
       "asserts": "what the download buttons and the checksums point at",
       "note": "STABLE-NAMED copies (Riplox_Setup.exe, Riplox_Portable.zip) must be uploaded alongside the versioned ones, and SHA256SUMS.txt with them. build/release_check.py verifies this AFTER publishing."
     },
@@ -95,7 +95,7 @@
     {
       "kind": "site",
       "where": "XniperBuildsSite (xniperbuilds.com) /riplox-desktop/ page",
-      "asserts": "the version, the download button, the feature list and the FAQ",
+      "asserts": "the version, the download button, the package-manager line, the feature list and the FAQ",
       "note": "ANOTHER REPO: ..\\XniperBuildsSite -> xniperbuilds-site.git. Download buttons use releases/latest/download/<stable name>, so the STABLE-NAMED assets must be on the release or the button 404s."
     },
     {

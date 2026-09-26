@@ -289,6 +289,23 @@ want to confirm the file is untouched.
 Requires Windows 10 or 11 with the Microsoft Edge WebView2 Runtime, which is
 already present on Windows 11 and on any Windows 10 with a current Edge.
 
+### From a package manager
+
+Windows Package Manager and Chocolatey run the same setup file as the releases
+page — use whichever you have:
+
+```
+winget install XniperBuilds.Riplox
+choco install riplox
+```
+
+Scoop installs the portable build instead, from its own bucket:
+
+```
+scoop bucket add xniperbuilds https://github.com/xniperbuilds/scoop-bucket
+scoop install xniperbuilds/riplox
+```
+
 ### Portable
 
 There is a portable build as well — a ZIP on the same releases page. Unzip it
